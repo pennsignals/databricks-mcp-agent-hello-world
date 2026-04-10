@@ -1,0 +1,40 @@
+# Declarative Automation Bundle for a reusable Python-wheel Databricks agent project.
+# See the official Databricks bundle + Python wheel docs for the patterns this starter follows.
+
+bundle:
+  name: databricks-mcp-agent-hello-world
+
+include:
+  - resources/*.yml
+
+artifacts:
+  python_artifact:
+    type: whl
+    build: uv build --wheel
+
+variables:
+  llm_endpoint_name:
+    description: Databricks-hosted LLM serving endpoint used for tool filtering and agent execution.
+  profile_name:
+    description: Name of the active tool profile.
+    default: default
+  tool_profile_table:
+    description: Delta table used to persist compiled tool profiles.
+  agent_runs_table:
+    description: Delta table used to persist agent run metadata.
+  agent_output_table:
+    description: Delta table used to persist final agent outputs.
+  task_input_json:
+    description: JSON string containing task-specific input.
+    default: '{"task_name":"demo","instructions":"Summarize the mock customer and incident context."}'
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://your-workspace.cloud.databricks.com
+  prod:
+    mode: production
+    workspace:
+      host: https://your-workspace.cloud.databricks.com

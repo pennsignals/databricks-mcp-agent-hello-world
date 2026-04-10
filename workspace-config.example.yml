@@ -1,0 +1,19 @@
+# Copy this file to workspace-config.yml for local use, and optionally deploy a version of it
+# into the workspace for Databricks Jobs. Environment variables always override these values.
+
+tool_provider_type: local_python
+llm_endpoint_name: your-llm-endpoint-name
+active_profile_name: default
+auth_mode: local-dev
+log_level: INFO
+max_allowed_tools: 4
+max_agent_steps: 8
+tool_filter_prompt_path: ./src/databricks_mcp_agent_hello_world/prompts/tool_filter_prompt.txt
+tool_audit_prompt_path: ./src/databricks_mcp_agent_hello_world/prompts/tool_audit_prompt.txt
+agent_system_prompt_path: ./src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt
+
+storage:
+  tool_profiles_table: main.agent_demo.tool_profiles
+  agent_runs_table: main.agent_demo.agent_runs
+  agent_outputs_table: main.agent_demo.agent_outputs
+  local_data_dir: ./.local_state
