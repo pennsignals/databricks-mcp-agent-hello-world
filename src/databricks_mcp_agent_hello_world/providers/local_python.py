@@ -1,0 +1,69 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+
+from ..models import ToolCall, ToolResult, ToolSpec
+from ..tools.registry import get_tool_function, list_tool_specs
+from .base import ToolExecutor, ToolProvider
+
+logger = logging.getLogger(__name__)
+
+
+class LocalPythonToolProvider(ToolProvider):
+    provider_type = "local_python"
+    provider_id = "builtin_tools"
+
+    def list_tools(self) -> list[ToolSpec]:
+        return list_tool_specs()
+
+    def inventory_hash(self) -> str:
+        payload = json.dumps(
+            [
+                {
+                    "tool_name": tool.tool_name,
+                    "description": tool.description,
+                    "input_schema": tool.input_schema,
+                    "version": tool.version,
+                    "provider_type": tool.provider_type,
+                    "provider_id": tool.provider_id,
+                }
+                for tool in sorted(self.list_tools(), key=lambda item: item.tool_name)
+            ],
+            sort_keys=True,
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+class LocalPythonToolExecutor(ToolExecutor):
+    def call_tool(self, tool_call: ToolCall) -> ToolResult:
+        try:
+            fn = get_tool_function(tool_call.tool_name)
+            content = fn(**tool_call.arguments)
+            logger.info("Executed local tool %s", tool_call.tool_name)
+            return ToolResult(
+                tool_name=tool_call.tool_name,
+                status="ok",
+                content=content,
+                metadata={
+                    "provider_type": "local_python",
+                    "request_id": tool_call.request_id,
+                    "profile_version": tool_call.profile_version,
+                    "run_id": tool_call.run_id,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Local tool execution failed for %s", tool_call.tool_name)
+            return ToolResult(
+                tool_name=tool_call.tool_name,
+                status="error",
+                content={},
+                metadata={
+                    "provider_type": "local_python",
+                    "request_id": tool_call.request_id,
+                    "profile_version": tool_call.profile_version,
+                    "run_id": tool_call.run_id,
+                },
+                error=str(exc),
+            )
