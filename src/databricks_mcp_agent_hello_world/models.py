@@ -140,3 +140,53 @@ class ManagedMCPToolBinding(BaseModel):
     remote_tool_name: str
     server_name: str
     namespace: str | None = None
+
+
+class DiscoveryReport(BaseModel):
+    provider_type: str
+    provider_id: str
+    inventory_hash: str
+    tools: list[ToolSpec]
+    active_profile: ToolProfile | None = None
+
+
+class PreflightCheck(BaseModel):
+    name: str
+    status: Literal["pass", "fail", "warn"]
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class PreflightReport(BaseModel):
+    overall_status: Literal["pass", "fail"]
+    checks: list[PreflightCheck]
+    settings_summary: dict[str, Any] = Field(default_factory=dict)
+
+
+class EvalScenario(BaseModel):
+    scenario_id: str
+    task_name: str
+    instructions: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    expected_allowed_tools: list[str] | None = None
+    expected_selected_tools: list[str] | None = None
+    expected_output_contains: list[str] | None = None
+    expected_failure_mode: str | None = None
+
+
+class EvalScenarioResult(BaseModel):
+    scenario_id: str
+    status: Literal["pass", "fail", "error"]
+    run_id: str | None = None
+    tools_called: list[str] = Field(default_factory=list)
+    blocked_tools: list[str] = Field(default_factory=list)
+    output_excerpt: str | None = None
+    failure_reason: str | None = None
+
+
+class EvalSummary(BaseModel):
+    total_scenarios: int
+    passed: int
+    failed: int
+    errored: int
+    results: list[EvalScenarioResult]

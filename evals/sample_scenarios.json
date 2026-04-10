@@ -1,0 +1,11 @@
+[
+  {
+    "scenario_id": "customer_incident_summary",
+    "task_name": "customer-incident-summary",
+    "instructions": "Use the available tools to summarize customer and incident context for CUST-12345 and billing-api.",
+    "payload": {
+      "customer_id": "CUST-12345",
+      "service_name": "billing-api"
+    }
+  }
+]
