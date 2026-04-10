@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+from ..clients.databricks import DatabricksSqlGateway
+from ..tooling.runtime import get_runtime_settings
+
+logger = logging.getLogger(__name__)
 
 MOCK_INCIDENT_DOCS = [
     {
@@ -68,6 +74,20 @@ MOCK_SERVICES = {
 
 
 def search_incident_kb(query: str, max_results: int = 3) -> dict[str, Any]:
+    settings = get_runtime_settings()
+    if settings and _should_use_databricks_backend(settings) and settings.sql.incident_kb_table:
+        gateway = DatabricksSqlGateway(settings)
+        rows = gateway.execute_query(
+            statement=(
+                f"SELECT id, title, text, tags FROM {settings.sql.incident_kb_table} "
+                "WHERE lower(title) LIKE lower(concat('%', :query, '%')) "
+                "OR lower(text) LIKE lower(concat('%', :query, '%')) "
+                "LIMIT :max_results"
+            ),
+            parameters={"query": query, "max_results": max_results},
+            row_limit=max_results,
+        )
+        return {"query": query, "results": rows, "backend_mode": settings.sql.backend_mode}
     q = query.lower().strip()
     scored = []
     for row in MOCK_INCIDENT_DOCS:
@@ -80,6 +100,24 @@ def search_incident_kb(query: str, max_results: int = 3) -> dict[str, Any]:
 
 
 def search_runbook_sections(service_name: str, symptom: str | None = None) -> dict[str, Any]:
+    settings = get_runtime_settings()
+    if settings and _should_use_databricks_backend(settings) and settings.sql.runbook_table:
+        gateway = DatabricksSqlGateway(settings)
+        statement = (
+            f"SELECT section_id, service_name, title, content FROM {settings.sql.runbook_table} "
+            "WHERE service_name = :service_name"
+        )
+        parameters: dict[str, Any] = {"service_name": service_name}
+        if symptom:
+            statement += " AND lower(content) LIKE lower(concat('%', :symptom, '%'))"
+            parameters["symptom"] = symptom
+        rows = gateway.execute_query(statement=statement, parameters=parameters, row_limit=10)
+        return {
+            "service_name": service_name,
+            "symptom": symptom,
+            "sections": rows,
+            "backend_mode": settings.sql.backend_mode,
+        }
     sections = [
         {
             "section_id": "rb-001",
@@ -108,6 +146,29 @@ def search_runbook_sections(service_name: str, symptom: str | None = None) -> di
 
 
 def lookup_customer_summary(customer_id: str) -> dict[str, Any]:
+    settings = get_runtime_settings()
+    if (
+        settings
+        and _should_use_databricks_backend(settings)
+        and settings.sql.customer_summary_table
+    ):
+        gateway = DatabricksSqlGateway(settings)
+        rows = gateway.execute_query(
+            statement=(
+                f"SELECT * FROM {settings.sql.customer_summary_table} "
+                "WHERE customer_id = :customer_id LIMIT 1"
+            ),
+            parameters={"customer_id": customer_id},
+            row_limit=1,
+        )
+        if not rows:
+            return {"customer_id": customer_id, "found": False}
+        return {
+            "customer_id": customer_id,
+            "found": True,
+            "summary": rows[0],
+            "backend_mode": settings.sql.backend_mode,
+        }
     summary = MOCK_CUSTOMERS.get(customer_id)
     if not summary:
         return {"customer_id": customer_id, "found": False}
@@ -115,11 +176,55 @@ def lookup_customer_summary(customer_id: str) -> dict[str, Any]:
 
 
 def get_open_incidents_for_service(service_name: str) -> dict[str, Any]:
+    settings = get_runtime_settings()
+    if (
+        settings
+        and _should_use_databricks_backend(settings)
+        and settings.sql.service_incidents_table
+    ):
+        gateway = DatabricksSqlGateway(settings)
+        rows = gateway.execute_query(
+            statement=(
+                f"SELECT incident_id, status, severity, summary "
+                f"FROM {settings.sql.service_incidents_table} "
+                "WHERE service_name = :service_name"
+            ),
+            parameters={"service_name": service_name},
+            row_limit=25,
+        )
+        return {
+            "service_name": service_name,
+            "incidents": rows,
+            "count": len(rows),
+            "backend_mode": settings.sql.backend_mode,
+        }
     incidents = MOCK_SERVICES.get(service_name, [])
     return {"service_name": service_name, "incidents": incidents, "count": len(incidents)}
 
 
 def lookup_service_dependencies(service_name: str) -> dict[str, Any]:
+    settings = get_runtime_settings()
+    if (
+        settings
+        and _should_use_databricks_backend(settings)
+        and settings.sql.service_dependencies_table
+    ):
+        gateway = DatabricksSqlGateway(settings)
+        rows = gateway.execute_query(
+            statement=(
+                f"SELECT dependency_name FROM {settings.sql.service_dependencies_table} "
+                "WHERE service_name = :service_name"
+            ),
+            parameters={"service_name": service_name},
+            row_limit=50,
+        )
+        dependencies = [row.get("dependency_name") for row in rows if row.get("dependency_name")]
+        return {
+            "service_name": service_name,
+            "dependencies": dependencies,
+            "count": len(dependencies),
+            "backend_mode": settings.sql.backend_mode,
+        }
     dependencies = {
         "billing-api": ["postgres-primary", "pricing-service", "redis-cache"],
         "auth-service": ["identity-provider", "session-store", "rate-limiter"],
@@ -129,3 +234,12 @@ def lookup_service_dependencies(service_name: str) -> dict[str, Any]:
         "dependencies": dependencies.get(service_name, []),
         "count": len(dependencies.get(service_name, [])),
     }
+
+
+def _should_use_databricks_backend(settings) -> bool:
+    mode = settings.sql.backend_mode.lower()
+    if mode == "mock":
+        return False
+    if mode == "databricks":
+        return True
+    return bool(settings.sql.warehouse_id)

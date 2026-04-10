@@ -4,7 +4,9 @@ import hashlib
 import json
 import logging
 
+from ..config import Settings
 from ..models import ToolCall, ToolResult, ToolSpec
+from ..tooling.runtime import set_runtime_settings
 from ..tools.registry import get_tool_function, list_tool_specs
 from .base import ToolExecutor, ToolProvider
 
@@ -37,6 +39,11 @@ class LocalPythonToolProvider(ToolProvider):
 
 
 class LocalPythonToolExecutor(ToolExecutor):
+    def __init__(self, settings: Settings | None = None):
+        self.settings = settings
+        if settings:
+            set_runtime_settings(settings)
+
     def call_tool(self, tool_call: ToolCall) -> ToolResult:
         try:
             fn = get_tool_function(tool_call.tool_name)
@@ -48,6 +55,7 @@ class LocalPythonToolExecutor(ToolExecutor):
                 content=content,
                 metadata={
                     "provider_type": "local_python",
+                    "backend_mode": self.settings.sql.backend_mode if self.settings else "unknown",
                     "request_id": tool_call.request_id,
                     "profile_version": tool_call.profile_version,
                     "run_id": tool_call.run_id,
@@ -61,6 +69,7 @@ class LocalPythonToolExecutor(ToolExecutor):
                 content={},
                 metadata={
                     "provider_type": "local_python",
+                    "backend_mode": self.settings.sql.backend_mode if self.settings else "unknown",
                     "request_id": tool_call.request_id,
                     "profile_version": tool_call.profile_version,
                     "run_id": tool_call.run_id,

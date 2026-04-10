@@ -17,6 +17,7 @@ from ..models import (
 from ..profiles.repository import ToolProfileRepository
 from ..providers.local_python import LocalPythonToolExecutor
 from ..storage.result_writer import ResultWriter
+from ..tooling.runtime import set_runtime_settings
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +25,10 @@ logger = logging.getLogger(__name__)
 class AgentRunner:
     def __init__(self, settings: Settings):
         self.settings = settings
+        set_runtime_settings(settings)
         self.llm = DatabricksLLM(settings)
         self.profile_repo = ToolProfileRepository(settings)
-        self.executor = LocalPythonToolExecutor()
+        self.executor = LocalPythonToolExecutor(settings)
         self.result_writer = ResultWriter(settings)
 
     def run(self, task: AgentTaskRequest) -> AgentRunRecord:
