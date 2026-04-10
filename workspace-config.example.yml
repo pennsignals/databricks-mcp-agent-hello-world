@@ -17,3 +17,13 @@ storage:
   agent_runs_table: main.agent_demo.agent_runs
   agent_outputs_table: main.agent_demo.agent_outputs
   local_data_dir: ./.local_state
+
+sql:
+  warehouse_id: your-sql-warehouse-id
+  catalog: main
+  schema: agent_demo
+  incident_kb_table: main.agent_demo.incident_kb
+  runbook_table: main.agent_demo.runbook_sections
+  customer_summary_table: main.agent_demo.customer_summaries
+  service_incidents_table: main.agent_demo.service_incidents
+  service_dependencies_table: main.agent_demo.service_dependencies
