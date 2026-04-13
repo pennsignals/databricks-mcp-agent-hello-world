@@ -15,7 +15,7 @@ FORBIDDEN_LOCAL_DOTENV_KEYS = {
     "DATABRICKS_CLIENT_ID",
     "DATABRICKS_CLIENT_SECRET",
 }
-SUPPORTED_TOOL_PROVIDER_TYPES = {"local_python"}
+SUPPORTED_TOOL_PROVIDER_TYPES = {"local_python", "managed_mcp"}
 
 
 @dataclass(slots=True)

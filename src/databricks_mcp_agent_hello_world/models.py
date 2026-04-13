@@ -14,8 +14,6 @@ class ToolSpec(BaseModel):
     provider_type: str
     provider_id: str
     version: str = "1"
-    tags: list[str] = Field(default_factory=list)
-    execution_mode: Literal["local_python", "managed_mcp"] = "local_python"
 
     @field_validator("tool_name")
     @classmethod
@@ -46,15 +44,15 @@ class ToolSpec(BaseModel):
 class ToolCall(BaseModel):
     tool_name: str
     arguments: dict[str, Any] = Field(default_factory=dict)
-    request_id: str = Field(default_factory=lambda: str(uuid4()))
+    profile_name: str
     profile_version: str
-    run_id: str | None = None
+    request_id: str = Field(default_factory=lambda: str(uuid4()))
 
 
 class ToolResult(BaseModel):
     tool_name: str
     status: Literal["ok", "error", "blocked"]
-    content: Any
+    content: dict[str, Any] | list[Any] | str
     metadata: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None
 
@@ -84,7 +82,6 @@ class ToolProfile(BaseModel):
     profile_version: str
     inventory_hash: str
     provider_type: str
-    provider_id: str
     llm_endpoint_name: str
     prompt_version: str
     discovered_tools: list[ToolSpec]
@@ -102,7 +99,6 @@ class AgentTaskRequest(BaseModel):
     instructions: str
     payload: dict[str, Any] = Field(default_factory=dict)
     run_id: str = Field(default_factory=lambda: str(uuid4()))
-    idempotency_key: str | None = None
 
 
 class AgentRunRecord(BaseModel):
@@ -133,7 +129,6 @@ class ToolProfileRecord(BaseModel):
     profile_version: str
     inventory_hash: str
     provider_type: str
-    provider_id: str
     allowed_tools: list[str]
     disallowed_tools: list[str]
     llm_endpoint_name: str
@@ -155,13 +150,6 @@ class AgentOutputRecord(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
-class ManagedMCPToolBinding(BaseModel):
-    canonical_tool_name: str
-    remote_tool_name: str
-    server_name: str
-    namespace: str | None = None
-
-
 class DiscoveryReport(BaseModel):
     provider_type: str
     tool_count: int
@@ -181,7 +169,14 @@ class PreflightCheck(BaseModel):
 class PreflightReport(BaseModel):
     overall_status: Literal["pass", "fail"]
     checks: list[PreflightCheck]
+    has_active_profile: bool = False
+    can_compile_profile: bool = False
     settings_summary: dict[str, Any] = Field(default_factory=dict)
+
+
+class CompileToolProfileResult(BaseModel):
+    profile: ToolProfile
+    reused_existing: bool
 
 
 class EvalScenario(BaseModel):

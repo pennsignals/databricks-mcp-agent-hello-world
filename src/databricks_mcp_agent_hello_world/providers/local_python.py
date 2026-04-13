@@ -57,8 +57,8 @@ class LocalPythonToolExecutor(ToolExecutor):
                     "provider_type": "local_python",
                     "backend_mode": self.settings.sql.backend_mode if self.settings else "unknown",
                     "request_id": tool_call.request_id,
+                    "profile_name": tool_call.profile_name,
                     "profile_version": tool_call.profile_version,
-                    "run_id": tool_call.run_id,
                 },
             )
         except Exception as exc:  # noqa: BLE001
@@ -71,8 +71,8 @@ class LocalPythonToolExecutor(ToolExecutor):
                     "provider_type": "local_python",
                     "backend_mode": self.settings.sql.backend_mode if self.settings else "unknown",
                     "request_id": tool_call.request_id,
+                    "profile_name": tool_call.profile_name,
                     "profile_version": tool_call.profile_version,
-                    "run_id": tool_call.run_id,
                 },
                 error=str(exc),
             )
