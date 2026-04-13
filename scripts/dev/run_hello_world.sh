@@ -2,6 +2,11 @@
 set -euo pipefail
 
 CONFIG_PATH="${1:-workspace-config.yml}"
+
+uv run preflight --config-path "$CONFIG_PATH"
+uv run discover-tools --config-path "$CONFIG_PATH"
+uv run compile-tool-profile --config-path "$CONFIG_PATH"
 uv run run-agent-task \
   --config-path "$CONFIG_PATH" \
-  --task-input-file examples/hello_world_task.json
+  --task-input-file examples/hello_world_task.json \
+  --output json

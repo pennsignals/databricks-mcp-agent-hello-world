@@ -1,6 +1,6 @@
 # databricks-mcp-agent-hello-world
 
-`databricks-mcp-agent-hello-world` is a bundle-based, Python-wheel Databricks Job template for a non-interactive, tool-using agent workflow. It is designed for local development first, scheduled execution in Databricks Jobs, and a future migration path to Managed MCP without making Managed MCP a runtime dependency today.
+`databricks-mcp-agent-hello-world` is a bundle-based, Python-wheel Databricks Job template for a non-interactive, tool-using agent workflow. PRD 2 ships one guided example path: `hello_world_demo`.
 
 This project is not a Databricks App and does not use `app.yaml`.
 
@@ -18,32 +18,63 @@ uv sync
 databricks auth login --host https://<your-workspace-url>
 ```
 
-This stores attended local auth in your Databricks CLI profile. The supported local quickstart path uses that profile instead of putting Databricks credentials in `.env`.
+The supported local quickstart uses Databricks CLI profile auth. Keep direct Databricks secrets out of `.env`.
 
 ### 3. Copy config files
 
 ```bash
-cp .env.example .env
 cp workspace-config.example.yml workspace-config.yml
 ```
 
-### 4. Edit the local config
+If you use a local `.env`, keep it limited to non-secret defaults such as `DATABRICKS_CONFIG_PROFILE`.
 
-Update:
+### 4. Edit `workspace-config.yml`
 
-- `.env`
-- `workspace-config.yml`
+Set `llm_endpoint_name` and make sure the persistence table names match your workspace. `workspace-config.yml` is the primary runtime config file.
 
-Set `llm_endpoint_name` in `workspace-config.yml`, and make sure the persistence table names match your workspace. Keep `.env` limited to non-secret local defaults such as `DATABRICKS_CONFIG_PROFILE` and `LOG_LEVEL`.
+## Hello-world walkthrough
 
-### 5. Run the local commands
+The frozen demo task is `hello_world_demo`. The checked-in task input lives at [examples/hello_world_task.json](/Users/mbecker/git/databricks-mcp-agent-hello-world/examples/hello_world_task.json) and asks the agent to write a short report for Ada using only relevant tools.
+
+The default tool registry contains exactly four local Python tools, in this order:
+
+- `greet_user`
+- `search_demo_handbook`
+- `get_demo_setting`
+- `tell_demo_joke`
+
+For `hello_world_demo`, the expected useful subset is:
+
+- Allowed: `greet_user`, `search_demo_handbook`, `get_demo_setting`
+- Filtered out: `tell_demo_joke`
+
+The joke tool is intentionally irrelevant so the demo clearly shows both discovery and restriction.
+
+### Run the documented local flow
 
 ```bash
 uv run preflight --config-path workspace-config.yml
 uv run discover-tools --config-path workspace-config.yml
 uv run compile-tool-profile --config-path workspace-config.yml
-uv run run-agent-task --config-path workspace-config.yml --task-input-file examples/hello_world_task.json
+uv run run-agent-task --config-path workspace-config.yml --task-input-file examples/hello_world_task.json --output json
 ```
+
+You can also run the same flow with the thin wrapper:
+
+```bash
+./scripts/dev/run_hello_world.sh workspace-config.yml
+```
+
+The hello-world JSON result should visibly include these top-level fields:
+
+- `task_name`
+- `available_tools`
+- `allowed_tools`
+- `disallowed_tools`
+- `tool_calls`
+- `final_answer`
+
+`available_tools` shows the full discovered registry in order. `allowed_tools` and `disallowed_tools` show the compiled filtered profile in order. `tool_calls` shows the actual execution order. `final_answer` is plain English, not JSON.
 
 ## Commands
 
@@ -59,27 +90,27 @@ Every command accepts `--config-path`, which defaults to `workspace-config.yml`.
 
 ### `preflight`
 
-`preflight` is a lightweight validation command. It checks:
+`preflight` checks:
 
-- config file exists and parses
-- `.env` parsing succeeds when `.env` is present
-- `DATABRICKS_CONFIG_PROFILE` resolves
-- Databricks client initialization succeeds
-- `llm_endpoint_name` is present
-- local tool registry imports successfully
-- at least one tool is registered
-- `tool_provider_type` is recognized
-- persistence target names are present
+- config file parse
+- `.env` parse when present
+- `DATABRICKS_CONFIG_PROFILE` resolution
+- Databricks client initialization
+- `llm_endpoint_name`
+- local tool registry import
+- at least one registered tool
+- recognized `tool_provider_type`
+- persistence target names
 
-It does not call the LLM, compile a profile, run the agent, or write to Delta.
+It does not call the LLM, compile profiles, run the agent, or write to Delta.
 
 ### `discover-tools`
 
-`discover-tools` loads the configured tool provider and prints the normalized tool inventory without calling the LLM, compiling profiles, or executing tools.
+`discover-tools` prints the provider type, total tool count, normalized tool names, tool descriptions, and input schema summaries.
 
 ### `compile-tool-profile`
 
-`compile-tool-profile` discovers tools, asks the configured Databricks-hosted LLM endpoint to build an allowlist, validates the result, and saves the active profile locally.
+`compile-tool-profile` compiles the frozen hello-world allowlist so the local demo is deterministic and inspectable.
 
 ### `run-agent-task`
 
@@ -88,24 +119,18 @@ It does not call the LLM, compile a profile, run the agent, or write to Delta.
 - `--task-input-json <json>`
 - `--task-input-file <path>`
 
-The sample quickstart uses [`examples/hello_world_task.json`](/Users/mbecker/git/databricks-mcp-agent-hello-world/examples/hello_world_task.json).
-
 ### `run-evals`
 
-`run-evals` executes the sample eval scenarios and optionally filters to one scenario with `--scenario <id>`.
+`run-evals` executes exactly two hello-world eval scenarios:
 
-## Dev scripts
+- `hello_world_happy_path`
+- `allowlist_enforced`
 
-The supported thin wrappers are:
+You can run all scenarios or select one with `--scenario <id>`.
 
-- [`scripts/dev/preflight.sh`](/Users/mbecker/git/databricks-mcp-agent-hello-world/scripts/dev/preflight.sh)
-- [`scripts/dev/discover_tools.sh`](/Users/mbecker/git/databricks-mcp-agent-hello-world/scripts/dev/discover_tools.sh)
-- [`scripts/dev/compile_profile.sh`](/Users/mbecker/git/databricks-mcp-agent-hello-world/scripts/dev/compile_profile.sh)
-- [`scripts/dev/run_hello_world.sh`](/Users/mbecker/git/databricks-mcp-agent-hello-world/scripts/dev/run_hello_world.sh)
+## Databricks Job path
 
-Each script defaults to `workspace-config.yml` and only calls the documented console commands.
-
-## Bundle workflow
+The bundled Databricks Job runs the same hello-world workflow with a Python wheel task. The hello-world payload is passed through the wheel task named parameter `task_input_json`, not through a workspace file path.
 
 Validate the bundle:
 
@@ -119,10 +144,10 @@ Deploy the bundle:
 databricks bundle deploy
 ```
 
-Run the sample job:
+Run the demo job:
 
 ```bash
 databricks bundle run databricks_mcp_agent_hello_world_job
 ```
 
-The local path uses Databricks CLI profile auth for attended development. Future scheduled-job auth should use unattended credentials such as service principal OAuth.
+Local development uses attended Databricks CLI profile auth. Scheduled Jobs should use unattended auth such as service principal OAuth.
