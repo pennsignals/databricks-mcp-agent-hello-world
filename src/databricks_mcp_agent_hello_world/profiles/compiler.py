@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from ..config import Settings
 from ..llm_client import DatabricksLLM
-from ..models import FilterDecision, ToolProfile, ToolSpec
+from ..models import AgentTaskRequest, FilterDecision, ToolProfile, ToolSpec
 from ..providers.local_python import LocalPythonToolProvider
 from .repository import ToolProfileRepository
 
@@ -19,6 +19,25 @@ SELECTION_POLICY = (
     "Prefer the smallest useful allowlist for a formulaic, "
     "non-interactive Databricks batch workflow."
 )
+HELLO_WORLD_TASK_NAME = "hello_world_demo"
+HELLO_WORLD_ALLOWED_TOOLS = (
+    "greet_user",
+    "search_demo_handbook",
+    "get_demo_setting",
+)
+HELLO_WORLD_SELECTION_POLICY = (
+    "temperature=0, strict JSON, smallest useful subset, and no novelty/humor tools "
+    "unless explicitly requested."
+)
+HELLO_WORLD_INSTRUCTIONS = (
+    "Write a short hello-world report for Ada. Include a greeting, one local setup tip, "
+    "and the template runtime target. Use only relevant tools."
+)
+HELLO_WORLD_PAYLOAD = {
+    "name": "Ada",
+    "handbook_query": "local setup tip",
+    "setting_key": "runtime_target",
+}
 
 
 class ToolProfileCompiler:
@@ -28,14 +47,21 @@ class ToolProfileCompiler:
         self.llm = DatabricksLLM(settings)
         self.repo = ToolProfileRepository(settings)
 
-    def compile(self) -> ToolProfile:
+    def compile(self, task: AgentTaskRequest | None = None) -> ToolProfile:
+        task = task or build_hello_world_demo_task()
         tools = self.provider.list_tools()
         inventory_hash = self.provider.inventory_hash()
         logger.info("Profile compilation starting with %s discovered tools", len(tools))
         logger.info("Discovered tool inventory hash %s", inventory_hash)
-        decision = self._filter_tools(tools)
+        if task.task_name == HELLO_WORLD_TASK_NAME:
+            decision = self._build_hello_world_decision(tools)
+            selection_policy = HELLO_WORLD_SELECTION_POLICY
+            audit_report = self._build_hello_world_audit_report(tools, decision)
+        else:
+            decision = self._filter_tools(tools)
+            selection_policy = SELECTION_POLICY
+            audit_report = self._build_audit_report(tools, decision)
         self._validate_decision(tools, decision)
-        audit_report = self._build_audit_report(tools, decision)
         profile = ToolProfile(
             profile_name=self.settings.active_profile_name,
             profile_version=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
@@ -49,7 +75,7 @@ class ToolProfileCompiler:
             disallowed_tools=decision.disallowed_tools,
             justifications=decision.tool_justifications,
             audit_report_text=audit_report,
-            selection_policy=SELECTION_POLICY,
+            selection_policy=selection_policy,
             is_active=True,
         )
         self.repo.save(profile)
@@ -77,6 +103,23 @@ class ToolProfileCompiler:
         except ValidationError as exc:
             raise ValueError(f"Invalid filter decision from model: {exc}") from exc
 
+    def _build_hello_world_decision(self, tools: list[ToolSpec]) -> FilterDecision:
+        discovered = [tool.tool_name for tool in tools]
+        allowed = [name for name in discovered if name in HELLO_WORLD_ALLOWED_TOOLS]
+        disallowed = [name for name in discovered if name not in HELLO_WORLD_ALLOWED_TOOLS]
+        justifications = {
+            tool_name: self._hello_world_justification(tool_name) for tool_name in discovered
+        }
+        return FilterDecision(
+            allowed_tools=allowed,
+            disallowed_tools=disallowed,
+            tool_justifications=justifications,
+            summary_reasoning=(
+                "Use the smallest useful subset: greeting, handbook lookup, and setting lookup. "
+                "Leave novelty and humor tools out unless the task explicitly asks for them."
+            ),
+        )
+
     def _validate_decision(self, tools: list[ToolSpec], decision: FilterDecision) -> None:
         discovered_list = [tool.tool_name for tool in tools]
         discovered = set(discovered_list)
@@ -101,6 +144,25 @@ class ToolProfileCompiler:
         for tool_name, reason in decision.tool_justifications.items():
             if not reason.strip():
                 raise ValueError(f"Tool {tool_name} is missing a non-empty justification.")
+
+    def _build_hello_world_audit_report(self, tools: list[ToolSpec], decision: FilterDecision) -> str:
+        payload = {
+            "task_name": HELLO_WORLD_TASK_NAME,
+            "temperature": 0,
+            "output_format": "json",
+            "selection_policy": HELLO_WORLD_SELECTION_POLICY,
+            "available_tools": [tool.tool_name for tool in tools],
+            "allowed_tools": decision.allowed_tools,
+            "disallowed_tools": [
+                {
+                    "tool_name": tool_name,
+                    "reason": decision.tool_justifications[tool_name],
+                }
+                for tool_name in decision.disallowed_tools
+            ],
+            "summary_reasoning": decision.summary_reasoning,
+        }
+        return json.dumps(payload, indent=2, sort_keys=True)
 
     def _build_audit_report(self, tools: list[ToolSpec], decision: FilterDecision) -> str:
         payload = {
@@ -133,3 +195,23 @@ class ToolProfileCompiler:
             for tool_name in decision.disallowed_tools:
                 lines.append(f"- {tool_name}: {decision.tool_justifications[tool_name]}")
             return "\n".join(lines)
+
+    @staticmethod
+    def _hello_world_justification(tool_name: str) -> str:
+        if tool_name == "greet_user":
+            return "Needed to greet Ada directly."
+        if tool_name == "search_demo_handbook":
+            return "Needed to retrieve the local setup tip from the handbook."
+        if tool_name == "get_demo_setting":
+            return "Needed to look up the template runtime target."
+        if tool_name == "tell_demo_joke":
+            return "Intentional novelty tool that should stay out of the hello-world flow unless explicitly requested."
+        return "Not part of the frozen hello-world demo tool set."
+
+
+def build_hello_world_demo_task() -> AgentTaskRequest:
+    return AgentTaskRequest(
+        task_name=HELLO_WORLD_TASK_NAME,
+        instructions=HELLO_WORLD_INSTRUCTIONS,
+        payload=dict(HELLO_WORLD_PAYLOAD),
+    )

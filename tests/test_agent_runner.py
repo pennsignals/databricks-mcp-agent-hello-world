@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from databricks_mcp_agent_hello_world.models import (
     AgentTaskRequest,
+    HelloWorldDemoResult,
     ToolProfile,
     ToolResult,
     ToolSpec,
@@ -78,10 +79,20 @@ def _profile() -> ToolProfile:
         provider_id="builtin_tools",
         llm_endpoint_name="endpoint-a",
         prompt_version="v1",
-        discovered_tools=[_tool("allowed_tool"), _tool("blocked_tool")],
-        allowed_tools=["allowed_tool"],
-        disallowed_tools=["blocked_tool"],
-        justifications={"allowed_tool": "needed", "blocked_tool": "not needed"},
+        discovered_tools=[
+            _tool("greet_user"),
+            _tool("search_demo_handbook"),
+            _tool("get_demo_setting"),
+            _tool("tell_demo_joke"),
+        ],
+        allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
+        disallowed_tools=["tell_demo_joke"],
+        justifications={
+            "greet_user": "needed",
+            "search_demo_handbook": "needed",
+            "get_demo_setting": "needed",
+            "tell_demo_joke": "not needed",
+        },
         audit_report_text="audit",
         selection_policy="small allowlist",
     )
@@ -97,7 +108,7 @@ def _tool_call(name: str, arguments: str, call_id: str = "call-1"):
     return SimpleNamespace(id=call_id, function=function)
 
 
-def test_agent_runner_blocks_disallowed_tool(tmp_path: Path) -> None:
+def _runner(tmp_path: Path, llm) -> AgentRunner:
     runner = AgentRunner.__new__(AgentRunner)
     runner.settings = SimpleNamespace(
         prompts=SimpleNamespace(agent_system_prompt="system"),
@@ -107,40 +118,94 @@ def test_agent_runner_blocks_disallowed_tool(tmp_path: Path) -> None:
     runner.profile_repo = StubProfileRepo(_profile())
     runner.executor = StubExecutor()
     runner.result_writer = StubWriter()
-    runner.llm = StubLLM(
-        [
-            _response(tool_calls=[_tool_call("blocked_tool", '{"value":"x"}')]),
-            _response(content="done"),
-        ]
+    runner.llm = llm
+    return runner
+
+
+def test_agent_runner_returns_hello_world_contract(tmp_path: Path) -> None:
+    runner = _runner(
+        tmp_path,
+        StubLLM(
+            [
+                _response(
+                    tool_calls=[
+                        _tool_call("greet_user", '{"value":"Ada"}', call_id="call-1"),
+                        _tool_call(
+                            "search_demo_handbook",
+                            '{"value":"local setup tip"}',
+                            call_id="call-2",
+                        ),
+                        _tool_call(
+                            "get_demo_setting",
+                            '{"value":"runtime_target"}',
+                            call_id="call-3",
+                        ),
+                    ]
+                ),
+                _response(content="Hello Ada, this report is ready."),
+            ]
+        ),
     )
 
-    record = runner.run(AgentTaskRequest(task_name="demo", instructions="run"))
+    record = runner.run(
+        AgentTaskRequest(
+            task_name="hello_world_demo",
+            instructions="Write the hello-world report.",
+            payload={
+                "name": "Ada",
+                "handbook_query": "local setup tip",
+                "setting_key": "runtime_target",
+            },
+        )
+    )
 
-    assert record.status == "success"
-    assert record.blocked_calls
-    assert record.tools_called[0]["status"] == "blocked"
+    assert isinstance(record, HelloWorldDemoResult)
+    assert record.task_name == "hello_world_demo"
+    assert record.available_tools == [
+        "greet_user",
+        "search_demo_handbook",
+        "get_demo_setting",
+        "tell_demo_joke",
+    ]
+    assert record.allowed_tools == [
+        "greet_user",
+        "search_demo_handbook",
+        "get_demo_setting",
+    ]
+    assert [item.tool_name for item in record.disallowed_tools] == ["tell_demo_joke"]
+    assert [item.status for item in record.tool_calls] == ["ok", "ok", "ok"]
+    assert [item.tool_name for item in record.tool_calls] == [
+        "greet_user",
+        "search_demo_handbook",
+        "get_demo_setting",
+    ]
+    assert record.final_answer == "Hello Ada, this report is ready."
+
+
+def test_agent_runner_records_blocked_hello_world_tool_attempt(tmp_path: Path) -> None:
+    runner = _runner(
+        tmp_path,
+        StubLLM(
+            [
+                _response(tool_calls=[_tool_call("tell_demo_joke", '{"value":"Ada"}')]),
+                _response(content="Hello Ada, I stayed within the allowlist."),
+            ]
+        ),
+    )
+
+    record = runner.run(
+        AgentTaskRequest(
+            task_name="hello_world_demo",
+            instructions="Write the hello-world report.",
+            payload={
+                "name": "Ada",
+                "handbook_query": "local setup tip",
+                "setting_key": "runtime_target",
+            },
+        )
+    )
+
+    assert record.tool_calls[0].status == "blocked"
+    assert [item.tool_name for item in record.disallowed_tools] == ["tell_demo_joke"]
     assert runner.executor.calls == []
-
-
-def test_agent_runner_executes_allowlisted_tool(tmp_path: Path) -> None:
-    runner = AgentRunner.__new__(AgentRunner)
-    runner.settings = SimpleNamespace(
-        prompts=SimpleNamespace(agent_system_prompt="system"),
-        max_agent_steps=2,
-        storage=SimpleNamespace(local_data_dir=str(tmp_path)),
-    )
-    runner.profile_repo = StubProfileRepo(_profile())
-    runner.executor = StubExecutor()
-    runner.result_writer = StubWriter()
-    runner.llm = StubLLM(
-        [
-            _response(tool_calls=[_tool_call("allowed_tool", '{"value":"ok"}')]),
-            _response(content="final"),
-        ]
-    )
-
-    record = runner.run(AgentTaskRequest(task_name="demo", instructions="run"))
-
-    assert record.status == "success"
-    assert runner.executor.calls
-    assert record.tools_called[0]["tool_name"] == "allowed_tool"
+    assert runner.result_writer.run_records[0].blocked_calls[0]["tool_name"] == "tell_demo_joke"

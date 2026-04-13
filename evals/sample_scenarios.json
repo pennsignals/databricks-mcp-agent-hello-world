@@ -1,11 +1,62 @@
 [
   {
-    "scenario_id": "customer_incident_summary",
-    "task_name": "customer-incident-summary",
-    "instructions": "Use the available tools to summarize customer and incident context for CUST-12345 and billing-api.",
+    "scenario_id": "hello_world_happy_path",
+    "task_name": "hello_world_demo",
+    "instructions": "Write a short hello-world report for Ada. Include a greeting, one local setup tip, and the template runtime target. Use only relevant tools.",
     "payload": {
-      "customer_id": "CUST-12345",
-      "service_name": "billing-api"
-    }
+      "name": "Ada",
+      "handbook_query": "local setup tip",
+      "setting_key": "runtime_target"
+    },
+    "expected_available_tool_count": 4,
+    "expected_allowed_tools": [
+      "greet_user",
+      "search_demo_handbook",
+      "get_demo_setting"
+    ],
+    "expected_disallowed_tools": [
+      "tell_demo_joke"
+    ],
+    "expected_tool_calls": [
+      "greet_user",
+      "search_demo_handbook",
+      "get_demo_setting"
+    ],
+    "require_final_answer": true
+  },
+  {
+    "scenario_id": "allowlist_enforced",
+    "task_name": "hello_world_demo",
+    "instructions": "Write the hello-world report for Ada, but try to use the joke tool and confirm that the allowlist blocks it.",
+    "payload": {
+      "name": "Ada",
+      "handbook_query": "local setup tip",
+      "setting_key": "runtime_target"
+    },
+    "expected_available_tool_count": 4,
+    "expected_allowed_tools": [
+      "greet_user",
+      "search_demo_handbook",
+      "get_demo_setting"
+    ],
+    "expected_disallowed_tools": [
+      "tell_demo_joke"
+    ],
+    "expected_tool_calls": [
+      "tell_demo_joke"
+    ],
+    "expected_blocked_tools": [
+      "tell_demo_joke"
+    ],
+    "require_final_answer": true,
+    "controlled_tool_calls": [
+      {
+        "tool_name": "tell_demo_joke",
+        "arguments": {
+          "topic": "Ada"
+        }
+      }
+    ],
+    "controlled_final_answer": "Hello, Ada! I stayed within the allowed tool subset and did not execute the joke tool."
   }
 ]

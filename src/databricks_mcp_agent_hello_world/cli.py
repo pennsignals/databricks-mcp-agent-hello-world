@@ -22,6 +22,7 @@ from .ops import (
     run_preflight,
 )
 from .profiles.compiler import ToolProfileCompiler
+from .profiles.compiler import build_hello_world_demo_task
 from .runner.agent_runner import AgentRunner
 from .tooling.runtime import set_runtime_settings
 
@@ -132,7 +133,7 @@ def _run_compile_tool_profile(args: argparse.Namespace) -> int:
     settings = load_settings(args.config_path)
     set_runtime_settings(settings)
     compiler = ToolProfileCompiler(settings)
-    profile = compiler.compile()
+    profile = compiler.compile(build_hello_world_demo_task())
     _render_output(profile, output_format=args.output, text_renderer=_print_compilation_summary)
     return 0
 
@@ -161,13 +162,15 @@ def _run_agent_task(args: argparse.Namespace) -> int:
 def _run_evals(args: argparse.Namespace) -> int:
     settings = load_settings(args.config_path)
     set_runtime_settings(settings)
+    ToolProfileCompiler(settings).compile(build_hello_world_demo_task())
     runner = AgentRunner(settings)
     scenarios = load_eval_scenarios(str(Path("evals") / "sample_scenarios.json"))
     if args.scenario:
-        scenarios = [scenario for scenario in scenarios if scenario.scenario_id == args.scenario]
-        if not scenarios:
+        summary = run_eval_scenarios(scenarios, runner, scenario_id=args.scenario)
+        if summary.total_scenarios == 0:
             raise ValueError(f"Scenario not found: {args.scenario}")
-    summary = run_eval_scenarios(scenarios, runner)
+    else:
+        summary = run_eval_scenarios(scenarios, runner)
     _render_output(summary, output_format=args.output, text_renderer=_print_eval_summary)
     return 0
 
@@ -198,14 +201,24 @@ def _print_compilation_summary(profile) -> None:
 
 
 def _print_run_summary(record) -> None:
-    print(f"Run status: {record.status}")
-    print(f"Run id: {record.run_id}")
+    if hasattr(record, "status"):
+        print(f"Run status: {record.status}")
+        print(f"Run id: {record.run_id}")
+        print(f"Task name: {record.task_name}")
+        print(f"Tools called: {len(record.tools_called)}")
+        final_response = record.result.get("final_response")
+        if final_response:
+            print("Final response:")
+            print(final_response)
+        return
+
     print(f"Task name: {record.task_name}")
-    print(f"Tools called: {len(record.tools_called)}")
-    final_response = record.result.get("final_response")
-    if final_response:
-        print("Final response:")
-        print(final_response)
+    print(f"Available tools: {len(record.available_tools)}")
+    print(f"Allowed tools: {', '.join(record.allowed_tools)}")
+    print(f"Tool calls: {len(record.tool_calls)}")
+    if record.final_answer:
+        print("Final answer:")
+        print(record.final_answer)
 
 
 def _print_eval_summary(summary) -> None:

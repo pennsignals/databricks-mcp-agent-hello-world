@@ -66,3 +66,30 @@ def test_preflight_json_output_returns_expected_shape(
     assert '"overall_status": "pass"' in output
     assert '"checks"' in output
     assert '"settings_summary"' in output
+
+
+def test_run_evals_rejects_unknown_scenario(tmp_path: Path, monkeypatch) -> None:
+    config_path = _write_config(tmp_path)
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.ToolProfileCompiler",
+        lambda settings: type(
+            "Compiler",
+            (),
+            {"compile": lambda self, task=None: None},
+        )(),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.AgentRunner",
+        lambda settings: object(),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.load_eval_scenarios",
+        lambda path: [],
+    )
+
+    exit_code = run_named_command(
+        "run-evals",
+        ["--config-path", str(config_path), "--scenario", "missing"],
+    )
+
+    assert exit_code == 1

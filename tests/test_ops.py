@@ -2,7 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from databricks_mcp_agent_hello_world.config import load_settings
-from databricks_mcp_agent_hello_world.ops import discover_tools, run_preflight
+from databricks_mcp_agent_hello_world.ops import discover_tools, run_hello_world_demo, run_preflight
 
 
 def _write_config(tmp_path: Path, *, include_profile: bool = True) -> Path:
@@ -84,5 +84,39 @@ def test_discover_tools_returns_demo_registry_tools(tmp_path: Path) -> None:
 
     report = discover_tools(settings)
 
-    assert report.tool_count >= 1
-    assert any(tool.tool_name == "search_incident_kb" for tool in report.tools)
+    assert report.tool_count == 4
+    assert [tool.tool_name for tool in report.tools] == [
+        "greet_user",
+        "search_demo_handbook",
+        "get_demo_setting",
+        "tell_demo_joke",
+    ]
+
+
+def test_run_hello_world_demo_orchestrates_compile_and_run(tmp_path: Path, monkeypatch) -> None:
+    settings = load_settings(str(_write_config(tmp_path)))
+    calls = []
+
+    class StubCompiler:
+        def __init__(self, passed_settings):
+            assert passed_settings == settings
+
+        def compile(self, task):
+            calls.append(("compile", task.task_name))
+            return SimpleNamespace()
+
+    class StubRunner:
+        def __init__(self, passed_settings):
+            assert passed_settings == settings
+
+        def run(self, task):
+            calls.append(("run", task.task_name))
+            return {"task_name": task.task_name}
+
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.ToolProfileCompiler", StubCompiler)
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.AgentRunner", StubRunner)
+
+    result = run_hello_world_demo(settings)
+
+    assert result == {"task_name": "hello_world_demo"}
+    assert calls == [("compile", "hello_world_demo"), ("run", "hello_world_demo")]

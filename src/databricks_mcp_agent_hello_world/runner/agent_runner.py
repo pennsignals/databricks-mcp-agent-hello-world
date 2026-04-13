@@ -10,6 +10,9 @@ from ..models import (
     AgentOutputRecord,
     AgentRunRecord,
     AgentTaskRequest,
+    HelloWorldDemoResult,
+    HelloWorldDisallowedTool,
+    HelloWorldToolCall,
     ToolCall,
     ToolProfile,
     ToolResult,
@@ -31,11 +34,15 @@ class AgentRunner:
         self.executor = LocalPythonToolExecutor(settings)
         self.result_writer = ResultWriter(settings)
 
-    def run(self, task: AgentTaskRequest) -> AgentRunRecord:
+    def run(self, task: AgentTaskRequest) -> AgentRunRecord | HelloWorldDemoResult:
         profile = self.profile_repo.load_active()
         if not profile:
             raise ValueError("No active tool profile found. Run compile_tool_profile first.")
+        if task.task_name == "hello_world_demo":
+            return self._run_hello_world(task, profile)
+        return self._run_generic(task, profile)
 
+    def _run_generic(self, task: AgentTaskRequest, profile: ToolProfile) -> AgentRunRecord:
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.settings.prompts.agent_system_prompt},
             {
@@ -136,6 +143,127 @@ class AgentRunner:
         self._persist(record)
         return record
 
+    def _run_hello_world(self, task: AgentTaskRequest, profile: ToolProfile) -> HelloWorldDemoResult:
+        messages: list[dict[str, Any]] = [
+            {
+                "role": "system",
+                "content": self.settings.prompts.agent_system_prompt,
+            },
+            {
+                "role": "system",
+                "content": (
+                    "For hello_world_demo, answer in plain English, not JSON. "
+                    "Use only the smallest useful subset of tools and avoid novelty "
+                    "or humor tools unless the task explicitly requests them."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "task_name": task.task_name,
+                        "instructions": task.instructions,
+                        "payload": task.payload,
+                    },
+                    indent=2,
+                ),
+            },
+        ]
+        tools = self._build_allowed_openai_tools(profile)
+        trace: list[dict[str, Any]] = []
+        blocked_calls: list[dict[str, Any]] = []
+        llm_turn_count = 0
+        final_answer = ""
+
+        for _ in range(self.settings.max_agent_steps):
+            llm_turn_count += 1
+            response = self.llm.tool_step(messages, tools)
+            message = response.choices[0].message
+
+            assistant_message: dict[str, Any] = {
+                "role": "assistant",
+                "content": message.content or "",
+            }
+            if getattr(message, "tool_calls", None):
+                assistant_message["tool_calls"] = [
+                    {
+                        "id": call.id,
+                        "type": "function",
+                        "function": {
+                            "name": call.function.name,
+                            "arguments": call.function.arguments,
+                        },
+                    }
+                    for call in message.tool_calls
+                ]
+            messages.append(assistant_message)
+
+            if not getattr(message, "tool_calls", None):
+                final_answer = message.content or self._synthesize_hello_world_answer(task, trace)
+                break
+
+            for call in message.tool_calls:
+                tool_name = call.function.name
+                tool_args = json.loads(call.function.arguments or "{}")
+                tool_result = self._execute_with_allowlist(
+                    profile, task.run_id, tool_name, tool_args
+                )
+                trace_entry = {
+                    "tool_name": tool_name,
+                    "arguments": tool_args,
+                    "status": tool_result.status,
+                }
+                trace.append(trace_entry)
+                if tool_result.status == "blocked":
+                    blocked_calls.append(trace_entry)
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": json.dumps(tool_result.model_dump(), ensure_ascii=False),
+                    }
+                )
+
+        if not final_answer:
+            final_answer = self._synthesize_hello_world_answer(task, trace)
+
+        result = HelloWorldDemoResult(
+            task_name=task.task_name,  # type: ignore[arg-type]
+            available_tools=[tool.tool_name for tool in profile.discovered_tools],
+            allowed_tools=list(profile.allowed_tools),
+            disallowed_tools=[
+                HelloWorldDisallowedTool(
+                    tool_name=tool_name,
+                    reason=profile.justifications.get(tool_name, "Not part of the hello-world demo."),
+                )
+                for tool_name in profile.disallowed_tools
+            ],
+            tool_calls=[
+                HelloWorldToolCall(
+                    tool_name=entry["tool_name"],
+                    arguments=entry["arguments"],
+                    status=entry["status"],
+                )
+                for entry in trace
+            ],
+            final_answer=final_answer,
+        )
+
+        record = AgentRunRecord(
+            run_id=task.run_id,
+            profile_name=profile.profile_name,
+            profile_version=profile.profile_version,
+            task_name=task.task_name,
+            status="success",
+            tools_called=trace,
+            blocked_calls=blocked_calls,
+            llm_turn_count=llm_turn_count,
+            result=result.model_dump(),
+            inventory_hash=profile.inventory_hash,
+        )
+        self._persist(record)
+        return result
+
     def _build_allowed_openai_tools(self, profile: ToolProfile) -> list[dict[str, Any]]:
         allowed = set(profile.allowed_tools)
         return [
@@ -168,6 +296,20 @@ class AgentRunner:
             run_id=run_id,
         )
         return self.executor.call_tool(tool_call)
+
+    @staticmethod
+    def _synthesize_hello_world_answer(task: AgentTaskRequest, trace: list[dict[str, Any]]) -> str:
+        tool_names = [entry["tool_name"] for entry in trace if entry.get("status") == "ok"]
+        requested_name = task.payload.get("name", "there")
+        if tool_names:
+            return (
+                f"Hello, {requested_name}. I used {', '.join(tool_names)} to draft the report, "
+                "including the local setup tip and runtime target."
+            )
+        return (
+            f"Hello, {requested_name}. I prepared the hello-world report and kept the flow "
+            "within the allowed tool subset."
+        )
 
     def _persist(self, record: AgentRunRecord) -> None:
         self.result_writer.write_run_record(record)

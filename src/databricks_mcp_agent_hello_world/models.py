@@ -59,6 +59,26 @@ class ToolResult(BaseModel):
     error: str | None = None
 
 
+class HelloWorldDisallowedTool(BaseModel):
+    tool_name: str
+    reason: str
+
+
+class HelloWorldToolCall(BaseModel):
+    tool_name: str
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    status: Literal["ok", "blocked", "error"]
+
+
+class HelloWorldDemoResult(BaseModel):
+    task_name: Literal["hello_world_demo"]
+    available_tools: list[str]
+    allowed_tools: list[str]
+    disallowed_tools: list[HelloWorldDisallowedTool]
+    tool_calls: list[HelloWorldToolCall]
+    final_answer: str
+
+
 class ToolProfile(BaseModel):
     profile_name: str
     profile_version: str
@@ -169,10 +189,17 @@ class EvalScenario(BaseModel):
     task_name: str
     instructions: str
     payload: dict[str, Any] = Field(default_factory=dict)
+    expected_available_tool_count: int | None = None
     expected_allowed_tools: list[str] | None = None
+    expected_disallowed_tools: list[str] | None = None
     expected_selected_tools: list[str] | None = None
+    expected_tool_calls: list[str] | None = None
+    expected_blocked_tools: list[str] | None = None
     expected_output_contains: list[str] | None = None
     expected_failure_mode: str | None = None
+    require_final_answer: bool = False
+    controlled_tool_calls: list[dict[str, Any]] | None = None
+    controlled_final_answer: str | None = None
 
 
 class EvalScenarioResult(BaseModel):

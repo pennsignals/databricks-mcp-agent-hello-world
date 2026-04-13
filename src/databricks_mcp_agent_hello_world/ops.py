@@ -11,6 +11,8 @@ from .config import (
     load_yaml_config,
 )
 from .models import DiscoveryReport, PreflightCheck, PreflightReport
+from .profiles.compiler import ToolProfileCompiler, build_hello_world_demo_task
+from .runner.agent_runner import AgentRunner
 from .providers.local_python import LocalPythonToolProvider
 from .tooling.runtime import set_runtime_settings
 
@@ -98,6 +100,15 @@ def discover_tools(settings: Settings) -> DiscoveryReport:
         tools=tools,
         active_profile=None,
     )
+
+
+def run_hello_world_demo(settings: Settings):
+    set_runtime_settings(settings)
+    discover_tools(settings)
+    compiler = ToolProfileCompiler(settings)
+    compiler.compile(build_hello_world_demo_task())
+    runner = AgentRunner(settings)
+    return runner.run(build_hello_world_demo_task())
 
 
 def print_json_report(payload: Any) -> None:
