@@ -13,17 +13,6 @@ artifacts:
     build: uv build --wheel
 
 variables:
-  llm_endpoint_name:
-    description: Databricks-hosted LLM serving endpoint used for tool filtering and agent execution.
-  profile_name:
-    description: Name of the active tool profile.
-    default: default
-  tool_profile_table:
-    description: Delta table used to persist compiled tool profiles.
-  agent_runs_table:
-    description: Delta table used to persist agent run metadata.
-  agent_output_table:
-    description: Delta table used to persist final agent outputs.
   task_input_json:
     description: JSON string containing task-specific input.
     default: '{"task_name":"hello_world_demo","instructions":"Write a short hello-world report for Ada. Include a greeting, one local setup tip, and the template runtime target. Use only relevant tools.","payload":{"name":"Ada","handbook_query":"local setup tip","setting_key":"runtime_target"}}'

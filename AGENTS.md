@@ -37,8 +37,11 @@ All commands accept `--config-path`, which defaults to `workspace-config.yml`.
 - `llm_endpoint_name`
 - local tool registry import
 - at least one registered tool
-- recognized `tool_provider_type`
+- provider factory resolution
 - persistence target names
+- read-only Delta target reachability when Spark is available
+- `has_active_profile`
+- `can_compile_profile`
 
 `preflight` does not call the LLM, compile profiles, run the agent, or write to Delta.
 
@@ -55,3 +58,4 @@ All commands accept `--config-path`, which defaults to `workspace-config.yml`.
 - Local development uses attended CLI profile auth.
 - Databricks Jobs should use unattended auth such as service principal OAuth.
 - Keep the local quickstart simple now, while preserving the future path for scheduled-job auth and Managed MCP adapters later.
+- For MVP, `local_python` is the only working runtime backend. `managed_mcp` is a reserved future provider value and should fail fast if selected.

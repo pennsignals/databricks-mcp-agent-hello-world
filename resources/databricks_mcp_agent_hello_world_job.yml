@@ -1,7 +1,7 @@
 resources:
   jobs:
-    databricks_mcp_agent_hello_world_job:
-      name: databricks_mcp_agent_hello_world_job
+    compile_tool_profile_job:
+      name: compile_tool_profile_job
       tasks:
         - task_key: compile_tool_profile
           job_cluster_key: main_cluster
@@ -13,9 +13,19 @@ resources:
           libraries:
             - whl: ../dist/*.whl
 
+      job_clusters:
+        - job_cluster_key: main_cluster
+          new_cluster:
+            spark_version: 15.4.x-scala2.12
+            node_type_id: Standard_DS3_v2
+            autoscale:
+              min_workers: 1
+              max_workers: 2
+
+    run_agent_task_job:
+      name: run_agent_task_job
+      tasks:
         - task_key: run_agent_task
-          depends_on:
-            - task_key: compile_tool_profile
           job_cluster_key: main_cluster
           python_wheel_task:
             package_name: databricks_mcp_agent_hello_world

@@ -1,8 +1,10 @@
 # databricks-mcp-agent-hello-world
 
-`databricks-mcp-agent-hello-world` is a bundle-based, Python-wheel Databricks Job template for a non-interactive, tool-using agent workflow. PRD 2 ships one guided example path: `hello_world_demo`.
+`databricks-mcp-agent-hello-world` is a bundle-based, Python-wheel Databricks Job template for a non-interactive, tool-using agent workflow. PRD 3 keeps one guided example path, `hello_world_demo`, while making the runtime durable enough for scheduled jobs.
 
 This project is not a Databricks App and does not use `app.yaml`.
+
+For MVP, `local_python` is the only working runtime backend. The provider/executor abstraction is intentionally future-ready, and `managed_mcp` is a reserved future value, but it is not implemented in this template.
 
 ## Local quickstart
 
@@ -99,8 +101,11 @@ Every command accepts `--config-path`, which defaults to `workspace-config.yml`.
 - `llm_endpoint_name`
 - local tool registry import
 - at least one registered tool
-- recognized `tool_provider_type`
+- provider factory resolution
 - persistence target names
+- read-only reachability of configured Delta targets when Spark is available
+- whether an active profile currently exists
+- whether profile compilation is available in the current environment
 
 It does not call the LLM, compile profiles, run the agent, or write to Delta.
 
@@ -110,7 +115,7 @@ It does not call the LLM, compile profiles, run the agent, or write to Delta.
 
 ### `compile-tool-profile`
 
-`compile-tool-profile` compiles the frozen hello-world allowlist so the local demo is deterministic and inspectable.
+`compile-tool-profile` compiles the frozen hello-world allowlist so the local demo is deterministic and inspectable. Scheduled runs load the active profile from the configured Delta table and reuse it when the discovered inventory hash has not changed, unless `--force-refresh` is set.
 
 ### `run-agent-task`
 
@@ -118,6 +123,8 @@ It does not call the LLM, compile profiles, run the agent, or write to Delta.
 
 - `--task-input-json <json>`
 - `--task-input-file <path>`
+
+It never compiles implicitly. If no active profile exists for the configured `active_profile_name`, the command exits with a clear error and you should run `compile-tool-profile` first.
 
 ### `run-evals`
 
@@ -130,7 +137,12 @@ You can run all scenarios or select one with `--scenario <id>`.
 
 ## Databricks Job path
 
-The bundled Databricks Job runs the same hello-world workflow with a Python wheel task. The hello-world payload is passed through the wheel task named parameter `task_input_json`, not through a workspace file path.
+The default bundle deploys two separate Python wheel jobs:
+
+- `compile_tool_profile_job`
+- `run_agent_task_job`
+
+The hello-world payload is passed to `run_agent_task_job` through the wheel task named parameter `task_input_json`, not through a workspace file path.
 
 Validate the bundle:
 
@@ -147,7 +159,8 @@ databricks bundle deploy
 Run the demo job:
 
 ```bash
-databricks bundle run databricks_mcp_agent_hello_world_job
+databricks bundle run compile_tool_profile_job
+databricks bundle run run_agent_task_job
 ```
 
 Local development uses attended Databricks CLI profile auth. Scheduled Jobs should use unattended auth such as service principal OAuth.
