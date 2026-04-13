@@ -2,36 +2,9 @@
 
 `databricks-mcp-agent-hello-world` is a bundle-based, Python-wheel Databricks Job template for a non-interactive, tool-using agent workflow. It is designed for local development first, scheduled execution in Databricks Jobs, and a future migration path to Managed MCP without making Managed MCP a runtime dependency today.
 
-This project is intentionally **not** a Databricks App. It does not use `app.yaml`, does not start a local web server, and keeps the runtime model aligned to Bundles plus Python wheel tasks.
+This project is not a Databricks App and does not use `app.yaml`.
 
-## What the template includes
-
-- provider-agnostic tool contracts: `ToolSpec`, `ToolCall`, `ToolResult`, `ToolProfile`
-- a `local_python` provider and executor
-- a tool-profile compiler that filters tools through a Databricks-hosted LLM endpoint
-- an `AgentRunner` that enforces the allowlist in application code
-- local development support with `.env` plus Databricks CLI profile auth
-- real Databricks-backed local tool execution through Databricks SQL when configured
-- preflight, discover-tools, compile, run, and eval entrypoints
-- local JSON/JSONL persistence plus Delta append support when Spark/table config is available
-
-## Project layout
-
-```text
-.
-├── .env.example
-├── AGENTS.md
-├── databricks.yml
-├── evals/
-├── resources/
-├── scripts/
-├── src/
-├── tests/
-├── pyproject.toml
-└── workspace-config.example.yml
-```
-
-## Local setup
+## Local quickstart
 
 ### 1. Install dependencies
 
@@ -39,189 +12,108 @@ This project is intentionally **not** a Databricks App. It does not use `app.yam
 uv sync
 ```
 
-### 2. Authenticate to Databricks
-
-The recommended attended local-development path is Databricks CLI profile auth:
+### 2. Authenticate locally
 
 ```bash
-databricks auth login --profile DEFAULT
+databricks auth login --host https://<your-workspace-url>
 ```
 
-### 3. Create local config
+This stores attended local auth in your Databricks CLI profile. The supported local quickstart path uses that profile instead of putting Databricks credentials in `.env`.
 
-Copy the sample environment file:
+### 3. Copy config files
 
 ```bash
 cp .env.example .env
-```
-
-Optional: also copy the YAML config if you want a checked-in local config file:
-
-```bash
 cp workspace-config.example.yml workspace-config.yml
 ```
 
-Environment variables take precedence over `.env`, `.env` takes precedence over YAML, and YAML takes precedence over code defaults.
+### 4. Edit the local config
 
-### 4. Fill in the important values
+Update:
 
-At minimum, set:
+- `.env`
+- `workspace-config.yml`
 
-- `DATABRICKS_CONFIG_PROFILE`
-- `LLM_ENDPOINT_NAME`
-- `TOOL_PROFILE_TABLE`
-- `AGENT_RUNS_TABLE`
-- `AGENT_OUTPUT_TABLE`
+Set `llm_endpoint_name` in `workspace-config.yml`, and make sure the persistence table names match your workspace. Keep `.env` limited to non-secret local defaults such as `DATABRICKS_CONFIG_PROFILE` and `LOG_LEVEL`.
 
-For real local Databricks-backed tools, also set:
-
-- `DATABRICKS_SQL_WAREHOUSE_ID`
-- the relevant table names such as `INCIDENT_KB_TABLE`, `CUSTOMER_SUMMARY_TABLE`, and `SERVICE_INCIDENTS_TABLE`
-
-If SQL settings are not configured and `LOCAL_TOOL_BACKEND_MODE=auto`, the local tools fall back to mock data.
-
-## Local workflows
-
-### Preflight
-
-Run preflight before compiling or running the agent:
-
-```bash
-./scripts/dev/preflight.sh workspace-config.yml
-```
-
-Or:
+### 5. Run the local commands
 
 ```bash
 uv run preflight --config-path workspace-config.yml
-```
-
-Preflight checks:
-
-- config loading
-- auth coherence
-- prompt files
-- tool registry loading
-- persistence target configuration
-- active profile availability
-- LLM endpoint reachability
-
-### Discover tools
-
-Inspect the current normalized tool surface without running the agent:
-
-```bash
-./scripts/dev/discover_tools.sh workspace-config.yml
-```
-
-Or:
-
-```bash
 uv run discover-tools --config-path workspace-config.yml
-```
-
-This prints:
-
-- tool names
-- descriptions
-- tags
-- provider metadata
-- inventory hash
-- active profile information when available
-
-### Compile a tool profile
-
-```bash
-./scripts/dev/compile_local.sh workspace-config.yml
-```
-
-Or:
-
-```bash
 uv run compile-tool-profile --config-path workspace-config.yml
+uv run run-agent-task --config-path workspace-config.yml --task-input-file examples/hello_world_task.json
 ```
 
-This discovers tools, asks the configured Databricks-hosted LLM endpoint to allow or disallow them, validates the result, saves a versioned profile, and writes the active profile snapshot locally.
+## Commands
 
-### Run one agent task
+The supported top-level console commands are:
 
-```bash
-./scripts/dev/run_local_task.sh workspace-config.yml '{"task_name":"demo","instructions":"Find relevant incident context and summarize customer CUST-12345.","payload":{"customer_id":"CUST-12345","service_name":"billing-api"}}'
-```
+- `preflight`
+- `discover-tools`
+- `compile-tool-profile`
+- `run-agent-task`
+- `run-evals`
 
-Or:
+Every command accepts `--config-path`, which defaults to `workspace-config.yml`.
 
-```bash
-uv run run-agent-task --config-path workspace-config.yml --task-input-json '{"task_name":"demo","instructions":"...","payload":{}}'
-```
+### `preflight`
 
-`run-agent-task` accepts:
+`preflight` is a lightweight validation command. It checks:
 
-- `task_name`
-- `instructions`
-- `payload`
-- optional `run_id`
-- optional `idempotency_key`
+- config file exists and parses
+- `.env` parsing succeeds when `.env` is present
+- `DATABRICKS_CONFIG_PROFILE` resolves
+- Databricks client initialization succeeds
+- `llm_endpoint_name` is present
+- local tool registry imports successfully
+- at least one tool is registered
+- `tool_provider_type` is recognized
+- persistence target names are present
 
-### Run evals
+It does not call the LLM, compile a profile, run the agent, or write to Delta.
 
-```bash
-./scripts/dev/run_evals.sh workspace-config.yml evals/sample_scenarios.json
-```
+### `discover-tools`
 
-Or:
+`discover-tools` loads the configured tool provider and prints the normalized tool inventory without calling the LLM, compiling profiles, or executing tools.
 
-```bash
-uv run run-evals --config-path workspace-config.yml --scenarios-path evals/sample_scenarios.json
-```
+### `compile-tool-profile`
 
-The eval harness runs canned scenarios through `AgentRunner` and records tool usage, blocked calls, outputs, and pass/fail summaries.
+`compile-tool-profile` discovers tools, asks the configured Databricks-hosted LLM endpoint to build an allowlist, validates the result, and saves the active profile locally.
 
-## Real local Databricks execution
+### `run-agent-task`
 
-This project supports running **locally against real Databricks services**.
+`run-agent-task` accepts exactly one of:
 
-That means:
+- `--task-input-json <json>`
+- `--task-input-file <path>`
 
-- the Python process runs on your machine
-- Databricks auth comes from CLI profile or compatible env vars
-- the LLM calls hit your real Databricks-hosted serving endpoint
-- tool functions can hit a real Databricks SQL warehouse when configured
+The sample quickstart uses [`examples/hello_world_task.json`](/Users/mbecker/git/databricks-mcp-agent-hello-world/examples/hello_world_task.json).
 
-It does **not** mean the code is executing on a Databricks cluster during local development.
+### `run-evals`
 
-## Runtime behavior
+`run-evals` executes the sample eval scenarios and optionally filters to one scenario with `--scenario <id>`.
 
-### Local persistence
+## Dev scripts
 
-Without a Databricks-backed persistence implementation, local runs write to `.local_state/`:
+The supported thin wrappers are:
 
-- `active_tool_profile.json`
-- `profiles/<profile_name>_<profile_version>.json`
-- `tool_profiles.jsonl`
-- `agent_runs.jsonl`
-- `agent_outputs.jsonl`
+- [`scripts/dev/preflight.sh`](/Users/mbecker/git/databricks-mcp-agent-hello-world/scripts/dev/preflight.sh)
+- [`scripts/dev/discover_tools.sh`](/Users/mbecker/git/databricks-mcp-agent-hello-world/scripts/dev/discover_tools.sh)
+- [`scripts/dev/compile_profile.sh`](/Users/mbecker/git/databricks-mcp-agent-hello-world/scripts/dev/compile_profile.sh)
+- [`scripts/dev/run_hello_world.sh`](/Users/mbecker/git/databricks-mcp-agent-hello-world/scripts/dev/run_hello_world.sh)
 
-### Databricks Jobs
-
-When deployed through the bundle, the package runs as Python wheel tasks in a Databricks Job.
-
-The example bundled job currently:
-
-1. compiles a tool profile
-2. runs one agent task
-
-That means the sample job recompiles the tool profile before each run. Hash-based compile skipping is not implemented yet.
+Each script defaults to `workspace-config.yml` and only calls the documented console commands.
 
 ## Bundle workflow
 
-Validate:
+Validate the bundle:
 
 ```bash
 databricks bundle validate
 ```
 
-Deploy:
+Deploy the bundle:
 
 ```bash
 databricks bundle deploy
@@ -233,42 +125,4 @@ Run the sample job:
 databricks bundle run databricks_mcp_agent_hello_world_job
 ```
 
-## Package entrypoints
-
-The wheel exposes:
-
-- `preflight`
-- `discover-tools`
-- `compile-tool-profile`
-- `run-agent-task`
-- `run-evals`
-
-Compatibility aliases also exist for the original underscore-style compile/run entrypoints.
-
-## Adding tools
-
-To add a new local Python tool:
-
-1. add the function in [`builtin.py`](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/tools/builtin.py)
-2. register it in [`registry.py`](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/tools/registry.py)
-3. define a stable tool name, description, and JSON-schema input contract
-
-If the tool should call real Databricks resources locally, use the Databricks client helpers under [`clients/`](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/clients).
-
-## Managed MCP future path
-
-The current runtime supports `local_python` only. [`managed_mcp.py`](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/providers/managed_mcp.py) is a placeholder for a future adapter. The intended migration path is to preserve:
-
-- tool names
-- tool descriptions
-- argument schemas
-- result envelopes
-- provider/executor interfaces
-
-## Production auth guidance
-
-For local attended development, prefer Databricks CLI profile auth. For scheduled production jobs, use service-principal-based auth such as OAuth M2M through Databricks-supported mechanisms rather than interactive local credentials.
-
-## Operator guide
-
-See [`AGENTS.md`](/Users/mbecker/git/databricks-mcp-agent-hello-world/AGENTS.md) for the operator and extension guide.
+The local path uses Databricks CLI profile auth for attended development. Future scheduled-job auth should use unattended credentials such as service principal OAuth.

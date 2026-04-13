@@ -1,0 +1,8 @@
+{
+  "task_name": "hello-world",
+  "instructions": "Use the available tools to gather relevant incident and customer context, then produce a short hello-world summary for the operator.",
+  "payload": {
+    "customer_id": "CUST-12345",
+    "service_name": "billing-api"
+  }
+}
