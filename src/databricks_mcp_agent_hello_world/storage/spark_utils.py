@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -19,3 +20,7 @@ def get_spark_session():
         pass
     logger.info("Spark session unavailable; falling back to local persistence.")
     return None
+
+
+def is_spark_available(spark: Any | None = None) -> bool:
+    return (spark or get_spark_session()) is not None

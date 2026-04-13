@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from databricks_mcp_agent_hello_world.cli import build_parser, run_named_command
 
@@ -47,6 +48,34 @@ def test_run_agent_task_requires_exactly_one_input_flag() -> None:
     assert exit_code == 2
 
 
+def test_run_agent_task_surfaces_missing_active_profile_error(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.load_settings",
+        lambda config_path: SimpleNamespace(),
+    )
+
+    class StubRunner:
+        def __init__(self, settings):
+            self.settings = settings
+
+        def run(self, task):
+            raise RuntimeError(
+                "No active tool profile exists for profile 'default'. "
+                "Run compile-tool-profile first."
+            )
+
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.cli.AgentRunner", StubRunner)
+
+    exit_code = run_named_command("run-agent-task", ["--task-input-json", "{}"])
+    output = capsys.readouterr().err
+
+    assert exit_code == 1
+    assert "No active tool profile exists" in output
+    assert "compile-tool-profile" in output
+
+
 def test_preflight_json_output_returns_expected_shape(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
@@ -54,6 +83,14 @@ def test_preflight_json_output_returns_expected_shape(
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.ops.get_workspace_client",
         lambda settings: type("Client", (), {"config": type("Cfg", (), {"host": "x"})()})(),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.get_spark_session",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.ToolProfileRepository",
+        lambda settings: type("Repo", (), {"load_active": lambda self, profile_name: None})(),
     )
 
     exit_code = run_named_command(
@@ -66,6 +103,8 @@ def test_preflight_json_output_returns_expected_shape(
     assert '"overall_status": "pass"' in output
     assert '"checks"' in output
     assert '"settings_summary"' in output
+    assert '"has_active_profile": false' in output
+    assert '"can_compile_profile": true' in output
 
 
 def test_run_evals_rejects_unknown_scenario(tmp_path: Path, monkeypatch) -> None:
@@ -75,7 +114,7 @@ def test_run_evals_rejects_unknown_scenario(tmp_path: Path, monkeypatch) -> None
         lambda settings: type(
             "Compiler",
             (),
-            {"compile": lambda self, task=None: None},
+            {"compile": lambda self, task=None, force_refresh=False: None},
         )(),
     )
     monkeypatch.setattr(

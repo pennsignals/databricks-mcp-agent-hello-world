@@ -8,8 +8,14 @@ from pydantic import ValidationError
 
 from ..config import Settings
 from ..llm_client import DatabricksLLM
-from ..models import AgentTaskRequest, FilterDecision, ToolProfile, ToolSpec
-from ..providers.local_python import LocalPythonToolProvider
+from ..models import (
+    AgentTaskRequest,
+    CompileToolProfileResult,
+    FilterDecision,
+    ToolProfile,
+    ToolSpec,
+)
+from ..providers.factory import get_tool_provider
 from .repository import ToolProfileRepository
 
 logger = logging.getLogger(__name__)
@@ -43,16 +49,33 @@ HELLO_WORLD_PAYLOAD = {
 class ToolProfileCompiler:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.provider = LocalPythonToolProvider()
+        self.provider = get_tool_provider(settings)
         self.llm = DatabricksLLM(settings)
         self.repo = ToolProfileRepository(settings)
 
-    def compile(self, task: AgentTaskRequest | None = None) -> ToolProfile:
+    def compile(
+        self,
+        task: AgentTaskRequest | None = None,
+        *,
+        force_refresh: bool = False,
+    ) -> CompileToolProfileResult:
         task = task or build_hello_world_demo_task()
         tools = self.provider.list_tools()
         inventory_hash = self.provider.inventory_hash()
+        active_profile = self.repo.load_active(self.settings.active_profile_name)
         logger.info("Profile compilation starting with %s discovered tools", len(tools))
         logger.info("Discovered tool inventory hash %s", inventory_hash)
+        if (
+            active_profile
+            and active_profile.inventory_hash == inventory_hash
+            and not force_refresh
+        ):
+            logger.info(
+                "Reusing active tool profile %s version %s",
+                active_profile.profile_name,
+                active_profile.profile_version,
+            )
+            return CompileToolProfileResult(profile=active_profile, reused_existing=True)
         if task.task_name == HELLO_WORLD_TASK_NAME:
             decision = self._build_hello_world_decision(tools)
             selection_policy = HELLO_WORLD_SELECTION_POLICY
@@ -64,10 +87,9 @@ class ToolProfileCompiler:
         self._validate_decision(tools, decision)
         profile = ToolProfile(
             profile_name=self.settings.active_profile_name,
-            profile_version=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
+            profile_version=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ"),
             inventory_hash=inventory_hash,
             provider_type=self.settings.provider_type,
-            provider_id=self.provider.provider_id,
             llm_endpoint_name=self.settings.llm_endpoint_name,
             prompt_version=PROMPT_VERSION,
             discovered_tools=tools,
@@ -84,7 +106,7 @@ class ToolProfileCompiler:
             profile.profile_version,
             len(profile.allowed_tools),
         )
-        return profile
+        return CompileToolProfileResult(profile=profile, reused_existing=False)
 
     def _filter_tools(self, tools: list[ToolSpec]) -> FilterDecision:
         tool_payload = [tool.model_dump() for tool in tools]

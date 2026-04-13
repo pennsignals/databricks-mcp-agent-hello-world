@@ -4,16 +4,13 @@ from pathlib import Path
 from typing import Any
 
 from .clients.databricks import get_workspace_client
-from .config import (
-    Settings,
-    build_settings,
-    load_dotenv_values,
-    load_yaml_config,
-)
+from .config import Settings, build_settings, load_dotenv_values, load_yaml_config
 from .models import DiscoveryReport, PreflightCheck, PreflightReport
 from .profiles.compiler import ToolProfileCompiler, build_hello_world_demo_task
+from .profiles.repository import ToolProfileRepository
+from .providers.factory import get_tool_provider
 from .runner.agent_runner import AgentRunner
-from .providers.local_python import LocalPythonToolProvider
+from .storage.spark_utils import get_spark_session
 from .tooling.runtime import set_runtime_settings
 
 
@@ -23,6 +20,8 @@ def run_preflight(config_path: str) -> PreflightReport:
     dotenv_values: dict[str, str] = {}
     dotenv_path: str | None = None
     settings: Settings | None = None
+    has_active_profile = False
+    can_compile_profile = False
 
     try:
         raw_config = load_yaml_config(config_path)
@@ -81,16 +80,49 @@ def run_preflight(config_path: str) -> PreflightReport:
     checks.append(_check_databricks_profile(settings))
     checks.append(_check_databricks_client(settings))
     checks.append(_check_llm_endpoint_name(settings))
-    checks.append(_check_tool_registry_import())
-    checks.append(_check_tool_registry_nonempty())
-    checks.append(_check_tool_provider_type(settings))
-    checks.append(_check_persistence_targets(settings))
+    provider_check, provider = _check_provider_factory(settings)
+    checks.append(provider_check)
+    tool_check, tool_count = _check_tool_registry_nonempty(provider)
+    checks.append(tool_check)
+    checks.append(_check_persistence_target_names(settings))
+    checks.append(_check_persistence_reachability(settings))
 
-    return _finalize_preflight_report(checks, settings)
+    repo = ToolProfileRepository(settings)
+    active_profile_check, has_active_profile = _check_active_profile(repo, settings)
+    checks.append(active_profile_check)
+
+    can_compile_profile = (
+        provider is not None
+        and tool_count > 0
+        and not any(
+            check.name in {"llm_endpoint_name", "provider_factory", "persistence_targets", "persistence_reachability"}
+            and check.status == "fail"
+            for check in checks
+        )
+    )
+    checks.append(
+        PreflightCheck(
+            name="compile_capability",
+            status="pass" if can_compile_profile else "warn",
+            message=(
+                "Profile compilation is available."
+                if can_compile_profile
+                else "Profile compilation is not currently available."
+            ),
+            details={"can_compile_profile": can_compile_profile},
+        )
+    )
+
+    return _finalize_preflight_report(
+        checks,
+        settings,
+        has_active_profile=has_active_profile,
+        can_compile_profile=can_compile_profile,
+    )
 
 
 def discover_tools(settings: Settings) -> DiscoveryReport:
-    provider = LocalPythonToolProvider()
+    provider = get_tool_provider(settings)
     tools = provider.list_tools()
     return DiscoveryReport(
         provider_type=provider.provider_type,
@@ -105,8 +137,6 @@ def discover_tools(settings: Settings) -> DiscoveryReport:
 def run_hello_world_demo(settings: Settings):
     set_runtime_settings(settings)
     discover_tools(settings)
-    compiler = ToolProfileCompiler(settings)
-    compiler.compile(build_hello_world_demo_task())
     runner = AgentRunner(settings)
     return runner.run(build_hello_world_demo_task())
 
@@ -117,6 +147,8 @@ def print_json_report(payload: Any) -> None:
 
 def print_preflight_summary(report: PreflightReport) -> None:
     print(f"Preflight: {report.overall_status}")
+    print(f"has_active_profile: {report.has_active_profile}")
+    print(f"can_compile_profile: {report.can_compile_profile}")
     for check in report.checks:
         print(f"- {check.name}: {check.status} - {check.message}")
 
@@ -181,59 +213,69 @@ def _check_llm_endpoint_name(settings: Settings) -> PreflightCheck:
     )
 
 
-def _check_tool_registry_import() -> PreflightCheck:
+def _check_provider_factory(settings: Settings):
     try:
-        provider = LocalPythonToolProvider()
-        return PreflightCheck(
-            name="tool_registry_import",
-            status="pass",
-            message="Local tool registry imported successfully.",
-            details={"provider_type": provider.provider_type},
+        provider = get_tool_provider(settings)
+        return (
+            PreflightCheck(
+                name="provider_factory",
+                status="pass",
+                message="Provider factory resolved successfully.",
+                details={"tool_provider_type": settings.tool_provider_type},
+            ),
+            provider,
         )
     except Exception as exc:  # noqa: BLE001
-        return PreflightCheck(
-            name="tool_registry_import",
-            status="fail",
-            message=str(exc),
+        return (
+            PreflightCheck(
+                name="provider_factory",
+                status="fail",
+                message=str(exc),
+                details={"tool_provider_type": settings.tool_provider_type},
+            ),
+            None,
         )
 
 
-def _check_tool_registry_nonempty() -> PreflightCheck:
+def _resolve_tool_provider(settings: Settings):
+    return get_tool_provider(settings)
+
+
+def _check_tool_registry_nonempty(provider) -> tuple[PreflightCheck, int]:
+    if provider is None:
+        return (
+            PreflightCheck(
+                name="tool_registry_nonempty",
+                status="fail",
+                message="Tool discovery cannot run because the provider factory failed.",
+            ),
+            0,
+        )
     try:
-        tools = LocalPythonToolProvider().list_tools()
+        tools = provider.list_tools()
         if not tools:
             raise ValueError("No tools are registered.")
-        return PreflightCheck(
-            name="tool_registry_nonempty",
-            status="pass",
-            message="At least one tool is registered.",
-            details={"tool_count": len(tools)},
+        return (
+            PreflightCheck(
+                name="tool_registry_nonempty",
+                status="pass",
+                message="At least one tool is registered.",
+                details={"tool_count": len(tools)},
+            ),
+            len(tools),
         )
     except Exception as exc:  # noqa: BLE001
-        return PreflightCheck(
-            name="tool_registry_nonempty",
-            status="fail",
-            message=str(exc),
+        return (
+            PreflightCheck(
+                name="tool_registry_nonempty",
+                status="fail",
+                message=str(exc),
+            ),
+            0,
         )
 
 
-def _check_tool_provider_type(settings: Settings) -> PreflightCheck:
-    if settings.tool_provider_type == "local_python":
-        return PreflightCheck(
-            name="tool_provider_type",
-            status="pass",
-            message="tool_provider_type is recognized.",
-            details={"tool_provider_type": settings.tool_provider_type},
-        )
-    return PreflightCheck(
-        name="tool_provider_type",
-        status="fail",
-        message=f"Unsupported tool_provider_type: {settings.tool_provider_type}",
-        details={"tool_provider_type": settings.tool_provider_type},
-    )
-
-
-def _check_persistence_targets(settings: Settings) -> PreflightCheck:
+def _check_persistence_target_names(settings: Settings) -> PreflightCheck:
     missing = []
     if not (settings.storage.tool_profile_table or "").strip():
         missing.append("tool_profile_table")
@@ -241,7 +283,6 @@ def _check_persistence_targets(settings: Settings) -> PreflightCheck:
         missing.append("agent_runs_table")
     if not (settings.storage.agent_output_table or "").strip():
         missing.append("agent_output_table")
-
     if missing:
         return PreflightCheck(
             name="persistence_targets",
@@ -261,9 +302,73 @@ def _check_persistence_targets(settings: Settings) -> PreflightCheck:
     )
 
 
+def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
+    spark = get_spark_session()
+    if spark is None:
+        return PreflightCheck(
+            name="persistence_reachability",
+            status="pass",
+            message="Spark is unavailable, so local fallback storage would be used.",
+        )
+    try:
+        for table_name in (
+            settings.storage.tool_profile_table,
+            settings.storage.agent_runs_table,
+            settings.storage.agent_output_table,
+        ):
+            if not table_name:
+                continue
+            spark.table(table_name).limit(0).collect()
+        return PreflightCheck(
+            name="persistence_reachability",
+            status="pass",
+            message="Configured Delta persistence targets are reachable in read-only mode.",
+        )
+    except Exception as exc:  # noqa: BLE001
+        return PreflightCheck(
+            name="persistence_reachability",
+            status="fail",
+            message=str(exc),
+        )
+
+
+def _check_active_profile(
+    repo: ToolProfileRepository,
+    settings: Settings,
+) -> tuple[PreflightCheck, bool]:
+    try:
+        active_profile = repo.load_active(settings.active_profile_name)
+        has_active_profile = active_profile is not None
+        return (
+            PreflightCheck(
+                name="active_profile",
+                status="pass",
+                message=(
+                    "An active profile is available."
+                    if has_active_profile
+                    else "No active profile exists yet."
+                ),
+                details={"has_active_profile": has_active_profile},
+            ),
+            has_active_profile,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return (
+            PreflightCheck(
+                name="active_profile",
+                status="fail",
+                message=str(exc),
+            ),
+            False,
+        )
+
+
 def _finalize_preflight_report(
     checks: list[PreflightCheck],
     settings: Settings | None = None,
+    *,
+    has_active_profile: bool = False,
+    can_compile_profile: bool = False,
 ) -> PreflightReport:
     overall = "fail" if any(check.status == "fail" for check in checks) else "pass"
     settings_summary = {}
@@ -278,6 +383,8 @@ def _finalize_preflight_report(
     return PreflightReport(
         overall_status=overall,
         checks=checks,
+        has_active_profile=has_active_profile,
+        can_compile_profile=can_compile_profile,
         settings_summary=settings_summary,
     )
 

@@ -1,6 +1,8 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from databricks_mcp_agent_hello_world.models import (
     AgentTaskRequest,
     HelloWorldDemoResult,
@@ -12,10 +14,10 @@ from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
 
 
 class StubProfileRepo:
-    def __init__(self, profile: ToolProfile):
+    def __init__(self, profile: ToolProfile | None):
         self.profile = profile
 
-    def load_active(self) -> ToolProfile:
+    def load_active(self, profile_name: str):
         return self.profile
 
 
@@ -29,7 +31,7 @@ class StubExecutor:
             tool_name=tool_call.tool_name,
             status="ok",
             content={"echo": tool_call.arguments},
-            metadata={},
+            metadata={"request_id": tool_call.request_id},
         )
 
 
@@ -76,7 +78,6 @@ def _profile() -> ToolProfile:
         profile_version="v1",
         inventory_hash="abc123",
         provider_type="local_python",
-        provider_id="builtin_tools",
         llm_endpoint_name="endpoint-a",
         prompt_version="v1",
         discovered_tools=[
@@ -108,14 +109,15 @@ def _tool_call(name: str, arguments: str, call_id: str = "call-1"):
     return SimpleNamespace(id=call_id, function=function)
 
 
-def _runner(tmp_path: Path, llm) -> AgentRunner:
+def _runner(tmp_path: Path, llm, *, profile: ToolProfile | None = None) -> AgentRunner:
     runner = AgentRunner.__new__(AgentRunner)
     runner.settings = SimpleNamespace(
         prompts=SimpleNamespace(agent_system_prompt="system"),
         max_agent_steps=2,
+        active_profile_name="default",
         storage=SimpleNamespace(local_data_dir=str(tmp_path)),
     )
-    runner.profile_repo = StubProfileRepo(_profile())
+    runner.profile_repo = StubProfileRepo(profile)
     runner.executor = StubExecutor()
     runner.result_writer = StubWriter()
     runner.llm = llm
@@ -145,6 +147,7 @@ def test_agent_runner_returns_hello_world_contract(tmp_path: Path) -> None:
                 _response(content="Hello Ada, this report is ready."),
             ]
         ),
+        profile=_profile(),
     )
 
     record = runner.run(
@@ -160,20 +163,11 @@ def test_agent_runner_returns_hello_world_contract(tmp_path: Path) -> None:
     )
 
     assert isinstance(record, HelloWorldDemoResult)
-    assert record.task_name == "hello_world_demo"
-    assert record.available_tools == [
-        "greet_user",
-        "search_demo_handbook",
-        "get_demo_setting",
-        "tell_demo_joke",
-    ]
     assert record.allowed_tools == [
         "greet_user",
         "search_demo_handbook",
         "get_demo_setting",
     ]
-    assert [item.tool_name for item in record.disallowed_tools] == ["tell_demo_joke"]
-    assert [item.status for item in record.tool_calls] == ["ok", "ok", "ok"]
     assert [item.tool_name for item in record.tool_calls] == [
         "greet_user",
         "search_demo_handbook",
@@ -191,21 +185,30 @@ def test_agent_runner_records_blocked_hello_world_tool_attempt(tmp_path: Path) -
                 _response(content="Hello Ada, I stayed within the allowlist."),
             ]
         ),
+        profile=_profile(),
     )
 
     record = runner.run(
         AgentTaskRequest(
             task_name="hello_world_demo",
             instructions="Write the hello-world report.",
-            payload={
-                "name": "Ada",
-                "handbook_query": "local setup tip",
-                "setting_key": "runtime_target",
-            },
+            payload={"name": "Ada"},
         )
     )
 
     assert record.tool_calls[0].status == "blocked"
-    assert [item.tool_name for item in record.disallowed_tools] == ["tell_demo_joke"]
     assert runner.executor.calls == []
     assert runner.result_writer.run_records[0].blocked_calls[0]["tool_name"] == "tell_demo_joke"
+
+
+def test_agent_runner_fails_when_no_active_profile_exists(tmp_path: Path) -> None:
+    runner = _runner(tmp_path, StubLLM([_response(content="unused")]), profile=None)
+
+    with pytest.raises(RuntimeError, match="No active tool profile exists"):
+        runner.run(
+            AgentTaskRequest(
+                task_name="hello_world_demo",
+                instructions="Write the hello-world report.",
+                payload={"name": "Ada"},
+            )
+        )

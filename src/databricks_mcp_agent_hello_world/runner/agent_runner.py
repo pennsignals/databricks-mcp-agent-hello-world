@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 from ..config import Settings
+from ..executors import get_tool_executor
 from ..llm_client import DatabricksLLM
 from ..models import (
     AgentOutputRecord,
@@ -18,7 +19,6 @@ from ..models import (
     ToolResult,
 )
 from ..profiles.repository import ToolProfileRepository
-from ..providers.local_python import LocalPythonToolExecutor
 from ..storage.result_writer import ResultWriter
 from ..tooling.runtime import set_runtime_settings
 
@@ -31,13 +31,16 @@ class AgentRunner:
         set_runtime_settings(settings)
         self.llm = DatabricksLLM(settings)
         self.profile_repo = ToolProfileRepository(settings)
-        self.executor = LocalPythonToolExecutor(settings)
+        self.executor = get_tool_executor(settings)
         self.result_writer = ResultWriter(settings)
 
     def run(self, task: AgentTaskRequest) -> AgentRunRecord | HelloWorldDemoResult:
-        profile = self.profile_repo.load_active()
+        profile = self.profile_repo.load_active(self.settings.active_profile_name)
         if not profile:
-            raise ValueError("No active tool profile found. Run compile_tool_profile first.")
+            raise RuntimeError(
+                "No active tool profile exists for profile "
+                f"{self.settings.active_profile_name!r}. Run compile-tool-profile first."
+            )
         if task.task_name == "hello_world_demo":
             return self._run_hello_world(task, profile)
         return self._run_generic(task, profile)
@@ -104,11 +107,14 @@ class AgentRunner:
                 self._persist(record)
                 return record
 
-            for call in message.tool_calls:
+            for index, call in enumerate(message.tool_calls, start=1):
                 tool_name = call.function.name
                 tool_args = json.loads(call.function.arguments or "{}")
                 tool_result = self._execute_with_allowlist(
-                    profile, task.run_id, tool_name, tool_args
+                    profile,
+                    request_id=f"{task.run_id}:{index}",
+                    tool_name=tool_name,
+                    arguments=tool_args,
                 )
                 trace_entry = {
                     "tool_name": tool_name,
@@ -202,11 +208,14 @@ class AgentRunner:
                 final_answer = message.content or self._synthesize_hello_world_answer(task, trace)
                 break
 
-            for call in message.tool_calls:
+            for index, call in enumerate(message.tool_calls, start=1):
                 tool_name = call.function.name
                 tool_args = json.loads(call.function.arguments or "{}")
                 tool_result = self._execute_with_allowlist(
-                    profile, task.run_id, tool_name, tool_args
+                    profile,
+                    request_id=f"{task.run_id}:{index}",
+                    tool_name=tool_name,
+                    arguments=tool_args,
                 )
                 trace_entry = {
                     "tool_name": tool_name,
@@ -273,7 +282,7 @@ class AgentRunner:
     def _execute_with_allowlist(
         self,
         profile: ToolProfile,
-        run_id: str,
+        request_id: str,
         tool_name: str,
         arguments: dict[str, Any],
     ) -> ToolResult:
@@ -283,7 +292,11 @@ class AgentRunner:
                 tool_name=tool_name,
                 status="blocked",
                 content={},
-                metadata={"profile_version": profile.profile_version, "run_id": run_id},
+                metadata={
+                    "profile_name": profile.profile_name,
+                    "profile_version": profile.profile_version,
+                    "request_id": request_id,
+                },
                 error=(
                     f"Tool '{tool_name}' is not allowlisted in profile "
                     f"{profile.profile_version}."
@@ -292,8 +305,9 @@ class AgentRunner:
         tool_call = ToolCall(
             tool_name=tool_name,
             arguments=arguments,
+            profile_name=profile.profile_name,
             profile_version=profile.profile_version,
-            run_id=run_id,
+            request_id=request_id,
         )
         return self.executor.call_tool(tool_call)
 

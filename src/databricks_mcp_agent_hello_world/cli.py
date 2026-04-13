@@ -133,8 +133,11 @@ def _run_compile_tool_profile(args: argparse.Namespace) -> int:
     settings = load_settings(args.config_path)
     set_runtime_settings(settings)
     compiler = ToolProfileCompiler(settings)
-    profile = compiler.compile(build_hello_world_demo_task())
-    _render_output(profile, output_format=args.output, text_renderer=_print_compilation_summary)
+    result = compiler.compile(
+        build_hello_world_demo_task(),
+        force_refresh=args.force_refresh,
+    )
+    _render_output(result, output_format=args.output, text_renderer=_print_compilation_summary)
     return 0
 
 
@@ -149,8 +152,6 @@ def _run_agent_task(args: argparse.Namespace) -> int:
     }
     if payload.get("run_id"):
         request_kwargs["run_id"] = payload["run_id"]
-    if payload.get("idempotency_key"):
-        request_kwargs["idempotency_key"] = payload["idempotency_key"]
 
     request = AgentTaskRequest(**request_kwargs)
     runner = AgentRunner(settings)
@@ -194,10 +195,11 @@ def _render_output(
 
 
 def _print_compilation_summary(profile) -> None:
-    print(f"Compiled tool profile: {profile.profile_name}")
-    print(f"Profile version: {profile.profile_version}")
-    print(f"Allowed tools: {len(profile.allowed_tools)}")
-    print(f"Inventory hash: {profile.inventory_hash}")
+    status = "Reused" if profile.reused_existing else "Compiled"
+    print(f"{status} tool profile: {profile.profile.profile_name}")
+    print(f"Profile version: {profile.profile.profile_version}")
+    print(f"Allowed tools: {len(profile.profile.allowed_tools)}")
+    print(f"Inventory hash: {profile.profile.inventory_hash}")
 
 
 def _print_run_summary(record) -> None:

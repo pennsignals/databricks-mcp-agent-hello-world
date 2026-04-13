@@ -24,39 +24,73 @@ def _write_config(tmp_path: Path, *, include_profile: bool = True) -> Path:
 
 def test_preflight_returns_pass_with_stubbed_client(tmp_path: Path, monkeypatch) -> None:
     config_path = _write_config(tmp_path)
+
+    class StubRepo:
+        def __init__(self, settings):
+            self.settings = settings
+
+        def load_active(self, profile_name):
+            return None
+
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.ops.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.get_spark_session",
+        lambda: None,
+    )
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.ToolProfileRepository", StubRepo)
 
     report = run_preflight(str(config_path))
 
     assert report.overall_status == "pass"
+    assert report.has_active_profile is False
+    assert report.can_compile_profile is True
     assert [check.name for check in report.checks] == [
         "config_file",
         "dotenv",
         "databricks_profile",
         "databricks_client",
         "llm_endpoint_name",
-        "tool_registry_import",
+        "provider_factory",
         "tool_registry_nonempty",
-        "tool_provider_type",
         "persistence_targets",
+        "persistence_reachability",
+        "active_profile",
+        "compile_capability",
     ]
 
 
-def test_preflight_fails_fast_when_profile_is_missing(tmp_path: Path, monkeypatch) -> None:
-    config_path = _write_config(tmp_path, include_profile=False)
+def test_preflight_does_not_fail_solely_for_missing_active_profile(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_config(tmp_path)
+
+    class StubRepo:
+        def __init__(self, settings):
+            self.settings = settings
+
+        def load_active(self, profile_name):
+            return None
+
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.ops.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.get_spark_session",
+        lambda: None,
+    )
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.ToolProfileRepository", StubRepo)
 
     report = run_preflight(str(config_path))
 
-    assert report.overall_status == "fail"
+    assert report.overall_status == "pass"
     assert any(
-        check.name == "databricks_profile" and check.status == "fail" for check in report.checks
+        check.name == "active_profile"
+        and check.details.get("has_active_profile") is False
+        for check in report.checks
     )
 
 
@@ -93,17 +127,14 @@ def test_discover_tools_returns_demo_registry_tools(tmp_path: Path) -> None:
     ]
 
 
-def test_run_hello_world_demo_orchestrates_compile_and_run(tmp_path: Path, monkeypatch) -> None:
+def test_run_hello_world_demo_orchestrates_discover_and_run(tmp_path: Path, monkeypatch) -> None:
     settings = load_settings(str(_write_config(tmp_path)))
     calls = []
 
-    class StubCompiler:
-        def __init__(self, passed_settings):
-            assert passed_settings == settings
-
-        def compile(self, task):
-            calls.append(("compile", task.task_name))
-            return SimpleNamespace()
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.discover_tools",
+        lambda passed_settings: calls.append(("discover", passed_settings)) or SimpleNamespace(),
+    )
 
     class StubRunner:
         def __init__(self, passed_settings):
@@ -113,10 +144,9 @@ def test_run_hello_world_demo_orchestrates_compile_and_run(tmp_path: Path, monke
             calls.append(("run", task.task_name))
             return {"task_name": task.task_name}
 
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.ToolProfileCompiler", StubCompiler)
     monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.AgentRunner", StubRunner)
 
     result = run_hello_world_demo(settings)
 
     assert result == {"task_name": "hello_world_demo"}
-    assert calls == [("compile", "hello_world_demo"), ("run", "hello_world_demo")]
+    assert calls == [("discover", settings), ("run", "hello_world_demo")]
