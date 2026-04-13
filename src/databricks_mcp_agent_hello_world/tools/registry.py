@@ -13,117 +13,88 @@ class LocalToolDefinition:
 
 
 TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {
-    "search_incident_kb": LocalToolDefinition(
+    "greet_user": LocalToolDefinition(
         spec=ToolSpec(
-            tool_name="search_incident_kb",
-            description=(
-                "Search the incident knowledge base for relevant prior incidents, "
-                "runbooks, and operational guidance."
-            ),
+            tool_name="greet_user",
+            description="Return a short friendly greeting for a named person.",
             input_schema={
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Natural-language retrieval query."},
+                    "name": {
+                        "type": "string",
+                        "description": "Person name to greet.",
+                    }
+                },
+                "required": ["name"],
+            },
+            provider_type="local_python",
+            provider_id="builtin_tools",
+        ),
+        fn=builtin.greet_user,
+    ),
+    "search_demo_handbook": LocalToolDefinition(
+        spec=ToolSpec(
+            tool_name="search_demo_handbook",
+            description="Search the tiny local handbook for beginner setup tips.",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search text for the local handbook.",
+                    },
                     "max_results": {
                         "type": "integer",
-                        "description": "Maximum number of results to return.",
-                        "default": 3,
+                        "description": "Maximum number of handbook entries to return.",
+                        "default": 1,
                     },
                 },
                 "required": ["query"],
             },
             provider_type="local_python",
             provider_id="builtin_tools",
-            tags=["rag", "incidents", "runbooks"],
         ),
-        fn=builtin.search_incident_kb,
+        fn=builtin.search_demo_handbook,
     ),
-    "search_runbook_sections": LocalToolDefinition(
+    "get_demo_setting": LocalToolDefinition(
         spec=ToolSpec(
-            tool_name="search_runbook_sections",
-            description="Retrieve runbook sections relevant to a service and optional symptom.",
+            tool_name="get_demo_setting",
+            description="Look up one hardcoded demo setting value.",
             input_schema={
                 "type": "object",
                 "properties": {
-                    "service_name": {
+                    "key": {
                         "type": "string",
-                        "description": "Logical service name such as billing-api.",
-                    },
-                    "symptom": {
-                        "type": "string",
-                        "description": "Optional symptom or clue to filter runbook sections.",
-                    },
+                        "description": "Setting key to look up.",
+                    }
                 },
-                "required": ["service_name"],
+                "required": ["key"],
             },
             provider_type="local_python",
             provider_id="builtin_tools",
-            tags=["rag", "runbooks", "service"],
         ),
-        fn=builtin.search_runbook_sections,
+        fn=builtin.get_demo_setting,
     ),
-    "lookup_customer_summary": LocalToolDefinition(
+    "tell_demo_joke": LocalToolDefinition(
         spec=ToolSpec(
-            tool_name="lookup_customer_summary",
-            description="Retrieve a structured customer summary for a known customer identifier.",
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "customer_id": {
-                        "type": "string",
-                        "description": "Customer identifier such as CUST-12345.",
-                    },
-                },
-                "required": ["customer_id"],
-            },
-            provider_type="local_python",
-            provider_id="builtin_tools",
-            tags=["structured_lookup", "customer"],
-        ),
-        fn=builtin.lookup_customer_summary,
-    ),
-    "lookup_service_dependencies": LocalToolDefinition(
-        spec=ToolSpec(
-            tool_name="lookup_service_dependencies",
+            tool_name="tell_demo_joke",
             description=(
-                "Return the structured downstream dependency list "
-                "for a known service name."
+                "Tell a harmless joke. This is intentionally not useful for the hello-world setup task."
             ),
             input_schema={
                 "type": "object",
                 "properties": {
-                    "service_name": {
+                    "topic": {
                         "type": "string",
-                        "description": "Logical service name, such as billing-api.",
-                    },
+                        "description": "Topic to use as joke inspiration.",
+                    }
                 },
-                "required": ["service_name"],
+                "required": ["topic"],
             },
             provider_type="local_python",
             provider_id="builtin_tools",
-            tags=["structured_lookup", "service", "dependencies"],
         ),
-        fn=builtin.lookup_service_dependencies,
-    ),
-    "get_open_incidents_for_service": LocalToolDefinition(
-        spec=ToolSpec(
-            tool_name="get_open_incidents_for_service",
-            description="Return currently open incidents for a specific service name.",
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "service_name": {
-                        "type": "string",
-                        "description": "Logical service name, such as billing-api.",
-                    },
-                },
-                "required": ["service_name"],
-            },
-            provider_type="local_python",
-            provider_id="builtin_tools",
-            tags=["structured_lookup", "incidents", "service"],
-        ),
-        fn=builtin.get_open_incidents_for_service,
+        fn=builtin.tell_demo_joke,
     ),
 }
 
