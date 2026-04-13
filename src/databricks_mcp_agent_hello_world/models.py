@@ -144,6 +144,7 @@ class ManagedMCPToolBinding(BaseModel):
 
 class DiscoveryReport(BaseModel):
     provider_type: str
+    tool_count: int
     provider_id: str
     inventory_hash: str
     tools: list[ToolSpec]

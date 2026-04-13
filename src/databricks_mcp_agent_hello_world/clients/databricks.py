@@ -1,54 +1,63 @@
 from __future__ import annotations
 
 import json
-import os
 import time
 from functools import lru_cache
 from typing import Any
 
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.config import Config
 from databricks.sdk.service.sql import StatementParameterListItem, StatementState
+from databricks_openai import DatabricksOpenAI
 
 from ..config import Settings
 
 
-def _workspace_client_kwargs(settings: Settings) -> dict[str, str]:
+def _workspace_client_config_kwargs(settings: Settings) -> dict[str, str]:
     kwargs: dict[str, str] = {}
     if settings.databricks_cli_profile:
         kwargs["profile"] = settings.databricks_cli_profile
     if settings.workspace_host:
         kwargs["host"] = settings.workspace_host
-    token = os.getenv("DATABRICKS_TOKEN")
-    if token:
-        kwargs["token"] = token
     return kwargs
 
 
-@lru_cache(maxsize=4)
-def _cached_workspace_client(
-    profile: str | None,
-    host: str | None,
-    token: str | None,
-) -> WorkspaceClient:
+@lru_cache(maxsize=8)
+def _cached_config(profile: str | None, host: str | None) -> Config:
     kwargs = {
         key: value
         for key, value in {
             "profile": profile,
             "host": host,
-            "token": token,
         }.items()
         if value
     }
-    return WorkspaceClient(**kwargs)
+    return Config(**kwargs)
+
+
+def get_databricks_config(settings: Settings) -> Config:
+    kwargs = _workspace_client_config_kwargs(settings)
+    return _cached_config(kwargs.get("profile"), kwargs.get("host"))
+
+
+@lru_cache(maxsize=8)
+def _cached_workspace_client(profile: str | None, host: str | None) -> WorkspaceClient:
+    return WorkspaceClient(config=_cached_config(profile, host))
 
 
 def get_workspace_client(settings: Settings) -> WorkspaceClient:
-    kwargs = _workspace_client_kwargs(settings)
-    return _cached_workspace_client(
-        kwargs.get("profile"),
-        kwargs.get("host"),
-        kwargs.get("token"),
-    )
+    kwargs = _workspace_client_config_kwargs(settings)
+    return _cached_workspace_client(kwargs.get("profile"), kwargs.get("host"))
+
+
+@lru_cache(maxsize=8)
+def _cached_openai_client(profile: str | None, host: str | None) -> DatabricksOpenAI:
+    return DatabricksOpenAI(workspace_client=_cached_workspace_client(profile, host))
+
+
+def get_openai_client(settings: Settings) -> DatabricksOpenAI:
+    kwargs = _workspace_client_config_kwargs(settings)
+    return _cached_openai_client(kwargs.get("profile"), kwargs.get("host"))
 
 
 class DatabricksWorkspaceGateway:

@@ -1,37 +1,146 @@
 from __future__ import annotations
 
+import argparse
+import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
-from .config import load_settings, parse_task_input
+from .config import (
+    DEFAULT_CONFIG_PATH,
+    load_settings,
+    parse_task_input,
+    parse_task_input_file,
+)
 from .evals.harness import load_eval_scenarios, run_eval_scenarios
 from .logging_utils import configure_logging
 from .models import AgentTaskRequest
-from .ops import discover_tools, print_discovery_report, print_preflight_summary, run_preflight
+from .ops import (
+    discover_tools,
+    print_discovery_report,
+    print_json_report,
+    print_preflight_summary,
+    run_preflight,
+)
 from .profiles.compiler import ToolProfileCompiler
 from .runner.agent_runner import AgentRunner
 from .tooling.runtime import set_runtime_settings
 
+OUTPUT_CHOICES = ("text", "json")
+COMMAND_NAMES = (
+    "preflight",
+    "discover-tools",
+    "compile-tool-profile",
+    "run-agent-task",
+    "run-evals",
+)
 
-def compile_tool_profile_entrypoint(config_path: str | None = None, **_: Any) -> None:
+
+def preflight_entrypoint() -> None:
+    raise SystemExit(run_named_command("preflight"))
+
+
+def discover_tools_entrypoint() -> None:
+    raise SystemExit(run_named_command("discover-tools"))
+
+
+def compile_tool_profile_entrypoint() -> None:
+    raise SystemExit(run_named_command("compile-tool-profile"))
+
+
+def run_agent_task_entrypoint() -> None:
+    raise SystemExit(run_named_command("run-agent-task"))
+
+
+def run_evals_entrypoint() -> None:
+    raise SystemExit(run_named_command("run-evals"))
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = list(sys.argv[1:] if argv is None else argv)
+    if not args:
+        print(
+            "Usage: python -m databricks_mcp_agent_hello_world.cli "
+            "<command> [options]",
+            file=sys.stderr,
+        )
+        return 2
+
+    command_name = args[0]
+    if command_name not in COMMAND_NAMES:
+        print(
+            f"Invalid command {command_name!r}. Expected one of: {', '.join(COMMAND_NAMES)}",
+            file=sys.stderr,
+        )
+        return 2
+    return run_named_command(
+        command_name,
+        args[1:],
+        prog=f"{Path(sys.argv[0]).name} {command_name}",
+    )
+
+
+def run_named_command(
+    command_name: str,
+    argv: list[str] | None = None,
+    *,
+    prog: str | None = None,
+) -> int:
     configure_logging()
-    settings = load_settings(config_path)
+    parser = build_parser(command_name, prog=prog or command_name)
+    try:
+        args = parser.parse_args(argv)
+        return COMMAND_HANDLERS[command_name](args)
+    except SystemExit as exc:
+        return int(exc.code) if isinstance(exc.code, int) else 2
+    except Exception as exc:  # noqa: BLE001
+        print(str(exc), file=sys.stderr)
+        return 1
+
+
+def build_parser(command_name: str, *, prog: str) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog=prog, description=f"{command_name} command")
+    parser.add_argument("--config-path", default=DEFAULT_CONFIG_PATH)
+    parser.add_argument("--output", choices=OUTPUT_CHOICES, default="text")
+
+    if command_name == "compile-tool-profile":
+        parser.add_argument("--force-refresh", action="store_true")
+    elif command_name == "run-agent-task":
+        group = parser.add_mutually_exclusive_group(required=True)
+        group.add_argument("--task-input-json")
+        group.add_argument("--task-input-file")
+    elif command_name == "run-evals":
+        parser.add_argument("--scenario")
+
+    return parser
+
+
+def _run_preflight(args: argparse.Namespace) -> int:
+    report = run_preflight(args.config_path)
+    _render_output(report, output_format=args.output, text_renderer=print_preflight_summary)
+    return 0 if report.overall_status == "pass" else 1
+
+
+def _run_discover_tools(args: argparse.Namespace) -> int:
+    settings = load_settings(args.config_path)
+    set_runtime_settings(settings)
+    report = discover_tools(settings)
+    _render_output(report, output_format=args.output, text_renderer=print_discovery_report)
+    return 0
+
+
+def _run_compile_tool_profile(args: argparse.Namespace) -> int:
+    settings = load_settings(args.config_path)
     set_runtime_settings(settings)
     compiler = ToolProfileCompiler(settings)
     profile = compiler.compile()
-    print(profile.model_dump_json(indent=2))
+    _render_output(profile, output_format=args.output, text_renderer=_print_compilation_summary)
+    return 0
 
 
-def run_agent_task_entrypoint(
-    config_path: str | None = None,
-    task_input_json: str | None = None,
-    **_: Any,
-) -> None:
-    configure_logging()
-    settings = load_settings(config_path)
+def _run_agent_task(args: argparse.Namespace) -> int:
+    settings = load_settings(args.config_path)
     set_runtime_settings(settings)
-    payload = parse_task_input(task_input_json)
-
+    payload = _load_task_payload(args)
     request_kwargs = {
         "task_name": payload.get("task_name", "demo-task"),
         "instructions": payload.get("instructions", "Complete the requested task."),
@@ -45,65 +154,80 @@ def run_agent_task_entrypoint(
     request = AgentTaskRequest(**request_kwargs)
     runner = AgentRunner(settings)
     record = runner.run(request)
-    print(record.model_dump_json(indent=2))
+    _render_output(record, output_format=args.output, text_renderer=_print_run_summary)
+    return 0
 
 
-def preflight_entrypoint(config_path: str | None = None, **_: Any) -> None:
-    configure_logging()
-    settings = load_settings(config_path)
-    set_runtime_settings(settings)
-    report = run_preflight(settings)
-    print_preflight_summary(report)
-
-
-def discover_tools_entrypoint(config_path: str | None = None, **_: Any) -> None:
-    configure_logging()
-    settings = load_settings(config_path)
-    set_runtime_settings(settings)
-    report = discover_tools(settings)
-    print_discovery_report(report)
-
-
-def run_evals_entrypoint(
-    config_path: str | None = None,
-    scenarios_path: str | None = None,
-    **_: Any,
-) -> None:
-    configure_logging()
-    settings = load_settings(config_path)
+def _run_evals(args: argparse.Namespace) -> int:
+    settings = load_settings(args.config_path)
     set_runtime_settings(settings)
     runner = AgentRunner(settings)
-    scenario_file = scenarios_path or str(Path("evals") / "sample_scenarios.json")
-    scenarios = load_eval_scenarios(scenario_file)
+    scenarios = load_eval_scenarios(str(Path("evals") / "sample_scenarios.json"))
+    if args.scenario:
+        scenarios = [scenario for scenario in scenarios if scenario.scenario_id == args.scenario]
+        if not scenarios:
+            raise ValueError(f"Scenario not found: {args.scenario}")
     summary = run_eval_scenarios(scenarios, runner)
-    print(summary.model_dump_json(indent=2))
+    _render_output(summary, output_format=args.output, text_renderer=_print_eval_summary)
+    return 0
+
+
+def _load_task_payload(args: argparse.Namespace) -> dict[str, Any]:
+    if args.task_input_json:
+        return parse_task_input(args.task_input_json)
+    return parse_task_input_file(args.task_input_file)
+
+
+def _render_output(
+    payload: Any,
+    *,
+    output_format: str,
+    text_renderer: Callable[[Any], None],
+) -> None:
+    if output_format == "json":
+        print_json_report(payload)
+        return
+    text_renderer(payload)
+
+
+def _print_compilation_summary(profile) -> None:
+    print(f"Compiled tool profile: {profile.profile_name}")
+    print(f"Profile version: {profile.profile_version}")
+    print(f"Allowed tools: {len(profile.allowed_tools)}")
+    print(f"Inventory hash: {profile.inventory_hash}")
+
+
+def _print_run_summary(record) -> None:
+    print(f"Run status: {record.status}")
+    print(f"Run id: {record.run_id}")
+    print(f"Task name: {record.task_name}")
+    print(f"Tools called: {len(record.tools_called)}")
+    final_response = record.result.get("final_response")
+    if final_response:
+        print("Final response:")
+        print(final_response)
+
+
+def _print_eval_summary(summary) -> None:
+    print(
+        "Eval summary: "
+        f"{summary.passed} passed, {summary.failed} failed, {summary.errored} errored"
+    )
+    for result in summary.results:
+        line = f"- {result.scenario_id}: {result.status}"
+        if result.failure_reason:
+            line += f" - {result.failure_reason}"
+        print(line)
+
+
+COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], int]] = {
+    "preflight": _run_preflight,
+    "discover-tools": _run_discover_tools,
+    "compile-tool-profile": _run_compile_tool_profile,
+    "run-agent-task": _run_agent_task,
+    "run-evals": _run_evals,
+}
 
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="databricks-mcp-agent-hello-world")
-    parser.add_argument(
-        "command",
-        choices=["compile", "run", "preflight", "discover-tools", "evals"],
-    )
-    parser.add_argument("--config-path", default=str(Path("workspace-config.yml")))
-    parser.add_argument("--task-input-json", default=None)
-    parser.add_argument("--scenarios-path", default=None)
-    args = parser.parse_args()
-
-    if args.command == "compile":
-        compile_tool_profile_entrypoint(config_path=args.config_path)
-    elif args.command == "run":
-        run_agent_task_entrypoint(
-            config_path=args.config_path, task_input_json=args.task_input_json
-        )
-    elif args.command == "preflight":
-        preflight_entrypoint(config_path=args.config_path)
-    elif args.command == "discover-tools":
-        discover_tools_entrypoint(config_path=args.config_path)
-    else:
-        run_evals_entrypoint(
-            config_path=args.config_path,
-            scenarios_path=args.scenarios_path,
-        )
+    raise SystemExit(main())

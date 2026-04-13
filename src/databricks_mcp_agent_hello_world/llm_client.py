@@ -5,8 +5,7 @@ import logging
 import re
 from typing import Any
 
-from databricks_openai import DatabricksOpenAI
-
+from .clients.databricks import get_openai_client
 from .config import Settings
 
 logger = logging.getLogger(__name__)
@@ -14,8 +13,10 @@ logger = logging.getLogger(__name__)
 
 class DatabricksLLM:
     def __init__(self, settings: Settings):
+        if not settings.llm_endpoint_name.strip():
+            raise ValueError("llm_endpoint_name must be configured before initializing the LLM.")
         self.settings = settings
-        self.client = DatabricksOpenAI()
+        self.client = get_openai_client(settings)
 
     def complete_json(self, system_prompt: str, user_prompt: str) -> dict[str, Any]:
         response = self.client.chat.completions.create(
