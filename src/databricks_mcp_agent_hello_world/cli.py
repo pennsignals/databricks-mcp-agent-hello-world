@@ -122,7 +122,7 @@ def _run_preflight(args: argparse.Namespace) -> int:
 
 
 def _run_discover_tools(args: argparse.Namespace) -> int:
-    settings = load_settings(args.config_path)
+    settings = _load_settings_for_command(args.config_path, "discover-tools")
     set_runtime_settings(settings)
     report = discover_tools(settings)
     _render_output(report, output_format=args.output, text_renderer=print_discovery_report)
@@ -130,7 +130,11 @@ def _run_discover_tools(args: argparse.Namespace) -> int:
 
 
 def _run_compile_tool_profile(args: argparse.Namespace) -> int:
-    settings = load_settings(args.config_path)
+    settings = _load_settings_for_command(
+        args.config_path,
+        "compile-tool-profile",
+        next_step="compile_tool_profile_job",
+    )
     set_runtime_settings(settings)
     compiler = ToolProfileCompiler(settings)
     result = compiler.compile(
@@ -142,7 +146,11 @@ def _run_compile_tool_profile(args: argparse.Namespace) -> int:
 
 
 def _run_agent_task(args: argparse.Namespace) -> int:
-    settings = load_settings(args.config_path)
+    settings = _load_settings_for_command(
+        args.config_path,
+        "run-agent-task",
+        next_step="run_agent_task_job",
+    )
     set_runtime_settings(settings)
     payload = _load_task_payload(args)
     request_kwargs = {
@@ -161,7 +169,7 @@ def _run_agent_task(args: argparse.Namespace) -> int:
 
 
 def _run_evals(args: argparse.Namespace) -> int:
-    settings = load_settings(args.config_path)
+    settings = _load_settings_for_command(args.config_path, "run-evals")
     set_runtime_settings(settings)
     ToolProfileCompiler(settings).compile(build_hello_world_demo_task())
     runner = AgentRunner(settings)
@@ -180,6 +188,24 @@ def _load_task_payload(args: argparse.Namespace) -> dict[str, Any]:
     if args.task_input_json:
         return parse_task_input(args.task_input_json)
     return parse_task_input_file(args.task_input_file)
+
+
+def _load_settings_for_command(
+    config_path: str,
+    command_name: str,
+    *,
+    next_step: str | None = None,
+):
+    try:
+        return load_settings(config_path)
+    except FileNotFoundError as exc:
+        location = Path(config_path)
+        if next_step:
+            raise RuntimeError(
+                f"Missing config file at {location} while running {command_name}. "
+                f"Create workspace-config.yml and rerun {next_step}."
+            ) from exc
+        raise RuntimeError(f"Missing config file at {location} while running {command_name}.") from exc
 
 
 def _render_output(

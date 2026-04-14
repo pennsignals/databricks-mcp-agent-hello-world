@@ -328,7 +328,10 @@ def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
         return PreflightCheck(
             name="persistence_reachability",
             status="fail",
-            message=str(exc),
+            message=(
+                "Unable to read one of the configured Delta persistence targets. "
+                f"Check the table names and schema: {exc}"
+            ),
         )
 
 
@@ -346,7 +349,7 @@ def _check_active_profile(
                 message=(
                     "An active profile is available."
                     if has_active_profile
-                    else "No active profile exists yet."
+                    else "No active profile exists yet. Run compile_tool_profile_job first."
                 ),
                 details={"has_active_profile": has_active_profile},
             ),

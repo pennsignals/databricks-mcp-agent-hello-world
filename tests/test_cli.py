@@ -63,7 +63,7 @@ def test_run_agent_task_surfaces_missing_active_profile_error(
         def run(self, task):
             raise RuntimeError(
                 "No active tool profile exists for profile 'default'. "
-                "Run compile-tool-profile first."
+                "Run compile_tool_profile_job first."
             )
 
     monkeypatch.setattr("databricks_mcp_agent_hello_world.cli.AgentRunner", StubRunner)
@@ -73,7 +73,7 @@ def test_run_agent_task_surfaces_missing_active_profile_error(
 
     assert exit_code == 1
     assert "No active tool profile exists" in output
-    assert "compile-tool-profile" in output
+    assert "compile_tool_profile_job" in output
 
 
 def test_preflight_json_output_returns_expected_shape(
