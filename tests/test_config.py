@@ -10,21 +10,41 @@ from databricks_mcp_agent_hello_world.config import (
 )
 
 
-def _write_complete_config(tmp_path: Path, *, llm_endpoint_name: str = "endpoint-a") -> Path:
+def _write_complete_config(
+    tmp_path: Path,
+    *,
+    llm_endpoint_name: str = "endpoint-a",
+    include_sql: bool = False,
+    sql_values: dict[str, str] | None = None,
+) -> Path:
     config_path = tmp_path / "workspace-config.yml"
-    config_path.write_text(
-        "\n".join(
+    sql_values = sql_values or {}
+    lines = [
+        f"llm_endpoint_name: {llm_endpoint_name}",
+        "tool_provider_type: local_python",
+        "active_profile_name: prod-profile",
+        "databricks_config_profile: DEFAULT",
+        "storage:",
+        "  tool_profile_table: main.agent.tool_profiles",
+        "  agent_runs_table: main.agent.agent_runs",
+        "  agent_output_table: main.agent.agent_outputs",
+    ]
+    if include_sql:
+        lines.extend(
             [
-                f"llm_endpoint_name: {llm_endpoint_name}",
-                "tool_provider_type: local_python",
-                "active_profile_name: prod-profile",
-                "databricks_config_profile: DEFAULT",
-                "storage:",
-                "  tool_profile_table: main.agent.tool_profiles",
-                "  agent_runs_table: main.agent.agent_runs",
-                "  agent_output_table: main.agent.agent_outputs",
+                "sql:",
+                f"  warehouse_id: {sql_values.get('warehouse_id', 'warehouse-placeholder')}",
+                f"  catalog: {sql_values.get('catalog', 'catalog-placeholder')}",
+                f"  schema: {sql_values.get('schema', 'schema-placeholder')}",
+                f"  incident_kb_table: {sql_values.get('incident_kb_table', 'incident_kb_placeholder')}",
+                f"  runbook_table: {sql_values.get('runbook_table', 'runbook_placeholder')}",
+                f"  customer_summary_table: {sql_values.get('customer_summary_table', 'customer_summary_placeholder')}",
+                f"  service_incidents_table: {sql_values.get('service_incidents_table', 'service_incidents_placeholder')}",
+                f"  service_dependencies_table: {sql_values.get('service_dependencies_table', 'service_dependencies_placeholder')}",
             ]
-        ),
+        )
+    config_path.write_text(
+        "\n".join(lines),
         encoding="utf-8",
     )
     return config_path
@@ -132,3 +152,36 @@ def test_build_settings_uses_dotenv_when_yaml_omits_optional_values(tmp_path: Pa
 
     assert settings.databricks_cli_profile == "FROM_DOTENV"
     assert settings.log_level == "DEBUG"
+
+
+def test_load_settings_accepts_missing_sql_section_for_local_python(tmp_path: Path) -> None:
+    config_path = _write_complete_config(tmp_path)
+
+    settings = load_settings(str(config_path))
+
+    assert settings.tool_provider_type == "local_python"
+    assert settings.sql_config_required is False
+    assert settings.sql.warehouse_id is None
+    assert settings.sql.catalog is None
+    assert settings.sql.schema is None
+    assert settings.local_tool_backend_mode == "auto"
+
+
+def test_load_settings_accepts_placeholder_sql_section_for_local_python(tmp_path: Path) -> None:
+    config_path = _write_complete_config(
+        tmp_path,
+        include_sql=True,
+        sql_values={
+            "warehouse_id": "warehouse-placeholder",
+            "catalog": "catalog-placeholder",
+            "schema": "schema-placeholder",
+        },
+    )
+
+    settings = load_settings(str(config_path))
+
+    assert settings.tool_provider_type == "local_python"
+    assert settings.sql_config_required is False
+    assert settings.sql.warehouse_id == "warehouse-placeholder"
+    assert settings.sql.catalog == "catalog-placeholder"
+    assert settings.sql.schema == "schema-placeholder"

@@ -55,6 +55,7 @@ def test_preflight_returns_pass_with_stubbed_client(tmp_path: Path, monkeypatch)
         "llm_endpoint_name",
         "provider_factory",
         "tool_registry_nonempty",
+        "sql_config",
         "persistence_targets",
         "persistence_reachability",
         "active_profile",
@@ -92,6 +93,35 @@ def test_preflight_does_not_fail_solely_for_missing_active_profile(
         and check.details.get("has_active_profile") is False
         for check in report.checks
     )
+
+
+def test_preflight_skips_sql_config_validation_for_local_python(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_config(tmp_path)
+
+    class StubRepo:
+        def __init__(self, settings):
+            self.settings = settings
+
+        def load_active(self, profile_name):
+            return None
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.get_spark_session",
+        lambda: None,
+    )
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.ToolProfileRepository", StubRepo)
+
+    report = run_preflight(str(config_path))
+
+    sql_check = next(check for check in report.checks if check.name == "sql_config")
+    assert sql_check.status == "pass"
+    assert "Skipped" in sql_check.message
 
 
 def test_preflight_fails_when_profile_is_invalid(tmp_path: Path, monkeypatch) -> None:
@@ -150,3 +180,40 @@ def test_run_hello_world_demo_orchestrates_discover_and_run(tmp_path: Path, monk
 
     assert result == {"task_name": "hello_world_demo"}
     assert calls == [("discover", settings), ("run", "hello_world_demo")]
+
+
+def test_run_hello_world_demo_keeps_sql_fields_optional(tmp_path: Path, monkeypatch) -> None:
+    settings = load_settings(str(_write_config(tmp_path)))
+    observed_sql_fields = {}
+
+    def _discover(passed_settings):
+        observed_sql_fields.update(
+            {
+                "warehouse_id": passed_settings.sql.warehouse_id,
+                "catalog": passed_settings.sql.catalog,
+                "schema": passed_settings.sql.schema,
+            }
+        )
+        return SimpleNamespace()
+
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.discover_tools", _discover)
+
+    class StubRunner:
+        def __init__(self, passed_settings):
+            assert passed_settings.sql.warehouse_id is None
+            assert passed_settings.sql.catalog is None
+            assert passed_settings.sql.schema is None
+
+        def run(self, task):
+            return {"task_name": task.task_name}
+
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.AgentRunner", StubRunner)
+
+    result = run_hello_world_demo(settings)
+
+    assert result == {"task_name": "hello_world_demo"}
+    assert observed_sql_fields == {
+        "warehouse_id": None,
+        "catalog": None,
+        "schema": None,
+    }

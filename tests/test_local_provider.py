@@ -33,9 +33,41 @@ def test_provider_factory_returns_local_python_provider() -> None:
 
 def test_executor_factory_returns_local_python_executor() -> None:
     executor = get_tool_executor(
-        SimpleNamespace(tool_provider_type="local_python", sql=SimpleNamespace(backend_mode="auto"))
+        SimpleNamespace(tool_provider_type="local_python", local_tool_backend_mode="auto")
     )
     assert isinstance(executor, LocalPythonToolExecutor)
+
+
+def test_local_python_executor_does_not_touch_sql_config(monkeypatch) -> None:
+    class ExplodingSqlConfig:
+        def __getattr__(self, name):
+            raise AssertionError("sql config should not be accessed in local_python mode")
+
+    executor = LocalPythonToolExecutor(
+        SimpleNamespace(
+            tool_provider_type="local_python",
+            local_tool_backend_mode="auto",
+            sql=ExplodingSqlConfig(),
+        )
+    )
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.providers.local_python.get_tool_function",
+        lambda tool_name: lambda **kwargs: {"tool_name": tool_name, "arguments": kwargs},
+    )
+
+    result = executor.call_tool(
+        SimpleNamespace(
+            tool_name="greet_user",
+            arguments={"value": "Ada"},
+            profile_name="default",
+            profile_version="v1",
+            request_id="req-1",
+        )
+    )
+
+    assert result.status == "ok"
+    assert result.metadata["backend_mode"] == "auto"
 
 
 def test_factories_reject_managed_mcp() -> None:
