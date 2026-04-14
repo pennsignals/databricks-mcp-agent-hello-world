@@ -22,17 +22,23 @@ databricks auth login --host https://<your-workspace-url>
 
 The supported local quickstart uses Databricks CLI profile auth. Keep direct Databricks secrets out of `.env`.
 
-### 3. Copy config files
+### 3. Set the Databricks host in `databricks.yml`
+
+Before running `databricks bundle validate`, update the workspace host for the target environment in `databricks.yml`. At minimum, set `targets.dev.workspace.host`, and set `targets.prod.workspace.host` if you will deploy there too.
+
+### 4. Copy config files
 
 ```bash
 cp workspace-config.example.yml workspace-config.yml
 ```
 
-If you use a local `.env`, keep it limited to non-secret defaults such as `DATABRICKS_CONFIG_PROFILE`.
+If you use a local `.env`, keep it limited to non-secret defaults such as `DATABRICKS_CONFIG_PROFILE`. Keep `workspace-config.yml` in the repo root before you validate or deploy the bundle.
 
-### 4. Edit `workspace-config.yml`
+### 5. Edit `workspace-config.yml`
 
-Set `llm_endpoint_name` and make sure the persistence table names match your workspace. `workspace-config.yml` is the primary runtime config file.
+Set `llm_endpoint_name` and make sure the persistence table names match your workspace. Local CLI commands read the repo-root `workspace-config.yml`, while Databricks Jobs read the deployed copy at `${workspace.file_path}/workspace-config.yml`.
+
+The `sql:` section in `workspace-config.example.yml` is optional and is only a placeholder for future SQL-backed tools. You do not need it for the current hello-world flow.
 
 ## Hello-world walkthrough
 
@@ -166,7 +172,14 @@ The default bundle deploys two separate Python wheel jobs:
 - `compile_tool_profile_job`
 - `run_agent_task_job`
 
-The hello-world payload is passed to `run_agent_task_job` through the wheel task named parameter `task_input_json`, not through a workspace file path.
+The Databricks flow is:
+
+1. `databricks bundle validate`
+2. `databricks bundle deploy`
+3. run `compile_tool_profile_job`
+4. run `run_agent_task_job`
+
+The hello-world payload is passed to `run_agent_task_job` through the wheel task named parameter `task_input_json`, not through a workspace file path. Deployed Jobs read `workspace-config.yml` from `${workspace.file_path}/workspace-config.yml`.
 
 Validate the bundle:
 

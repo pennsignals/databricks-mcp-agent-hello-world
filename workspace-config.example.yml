@@ -1,5 +1,6 @@
-# Copy this file to workspace-config.yml for local development.
-# This is the primary runtime config file for the local quickstart path.
+# Copy this file to workspace-config.yml at the repo root before validating or deploying.
+# Local CLI commands read workspace-config.yml from the repo root.
+# Databricks Jobs read the deployed copy at ${workspace.file_path}/workspace-config.yml.
 
 tool_provider_type: local_python
 llm_endpoint_name: your-llm-endpoint-name
@@ -14,6 +15,7 @@ storage:
   agent_output_table: main.agent_demo.agent_outputs
   local_data_dir: ./.local_state
 
+# Optional and future-facing: keep this section only if you plan to add SQL-backed tools later.
 sql:
   warehouse_id: your-sql-warehouse-id
   catalog: main

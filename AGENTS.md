@@ -5,7 +5,8 @@ Review `REQUIREMENTS.md` before starting work, and re-read it before finishing t
 ## Local development model
 
 - Local auth uses Databricks CLI profile auth via `databricks auth login`.
-- `workspace-config.yml` is the primary runtime config file.
+- `workspace-config.yml` is the primary runtime config file for local commands, and deployed Jobs read the workspace copy at `${workspace.file_path}/workspace-config.yml`.
+- Create `workspace-config.yml` from `workspace-config.example.yml` before validating or deploying the bundle.
 - `.env` is optional and only for non-secret local defaults plus `DATABRICKS_CONFIG_PROFILE`.
 - Do not put `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_CLIENT_ID`, or `DATABRICKS_CLIENT_SECRET` in `.env` for the supported local quickstart path.
 
@@ -64,3 +65,4 @@ All commands accept `--config-path`, which defaults to `workspace-config.yml`.
 - Databricks Jobs should use unattended auth such as service principal OAuth.
 - Keep the local quickstart simple now, while preserving the future path for scheduled-job auth and Managed MCP adapters later.
 - For MVP, `local_python` is the only working runtime backend. `managed_mcp` is a reserved future provider value and should fail fast if selected.
+- The `sql:` section in `workspace-config.example.yml` is optional and only intended as a placeholder for future SQL-backed tools.
