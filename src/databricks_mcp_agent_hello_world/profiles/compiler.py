@@ -62,7 +62,12 @@ class ToolProfileCompiler:
         task = task or build_hello_world_demo_task()
         tools = self.provider.list_tools()
         inventory_hash = self.provider.inventory_hash()
-        active_profile = self.repo.load_active(self.settings.active_profile_name)
+        try:
+            active_profile = self.repo.load_active(self.settings.active_profile_name)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(
+                f"Unable to load active tool profile for profile {self.settings.active_profile_name!r}: {exc}"
+            ) from exc
         logger.info("Profile compilation starting with %s discovered tools", len(tools))
         logger.info("Discovered tool inventory hash %s", inventory_hash)
         if (

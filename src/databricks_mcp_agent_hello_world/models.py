@@ -159,14 +159,16 @@ class ToolProfileRecord(BaseModel):
     profile_version: str
     inventory_hash: str
     provider_type: str
-    allowed_tools: list[str]
-    disallowed_tools: list[str]
     llm_endpoint_name: str
     prompt_version: str
-    selection_policy: str
-    audit_report_text: str
     is_active: bool
     created_at: str
+    selection_policy: str
+    audit_report_text: str
+    discovered_tools_json: str
+    allowed_tools_json: str
+    disallowed_tools_json: str
+    justifications_json: str
 
 
 class AgentOutputRecord(BaseModel):

@@ -38,11 +38,30 @@ class AgentRunner:
         self.result_writer = ResultWriter(settings)
 
     def run(self, task: AgentTaskRequest) -> AgentRunRecord | HelloWorldDemoResult:
-        profile = self.profile_repo.load_active(self.settings.active_profile_name)
+        reachability_check = getattr(self.profile_repo, "is_table_reachable", None)
+        if getattr(self.profile_repo, "spark", None) is not None and callable(reachability_check):
+            try:
+                reachability_check()
+            except Exception as exc:  # noqa: BLE001
+                storage = getattr(self.settings, "storage", None)
+                table_name = (
+                    getattr(storage, "tool_profile_table", "") if storage is not None else ""
+                ).strip() or "<unset>"
+                raise RuntimeError(
+                    "Unable to read the Delta-backed tool profile table "
+                    f"{table_name!r}. Run compile_tool_profile_job first, "
+                    "or verify that the table exists and matches the expected schema."
+                ) from exc
+        try:
+            profile = self.profile_repo.load_active(self.settings.active_profile_name)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(
+                f"Unable to load active tool profile for profile {self.settings.active_profile_name!r}: {exc}"
+            ) from exc
         if not profile:
             raise RuntimeError(
-                "No active tool profile exists for profile "
-                f"{self.settings.active_profile_name!r}. Run compile-tool-profile first."
+                "No active tool profile found for profile "
+                f"{self.settings.active_profile_name!r}. Run compile_tool_profile_job first."
             )
         if task.task_name == "hello_world_demo":
             return self._run_hello_world(task, profile)

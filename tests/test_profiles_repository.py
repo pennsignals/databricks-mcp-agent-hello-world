@@ -1,6 +1,8 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from databricks_mcp_agent_hello_world.models import ToolProfile, ToolSpec
 from databricks_mcp_agent_hello_world.profiles.repository import ToolProfileRepository
 
@@ -43,6 +45,63 @@ def _profile(version: str, created_at: str) -> ToolProfile:
     )
 
 
+class FakeRow:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def asDict(self, recursive=True):  # noqa: ARG002
+        return self.payload
+
+
+class FakeFrame:
+    def __init__(self, rows):
+        self.rows = list(rows)
+        self.filters: list[str] = []
+        self.orderings: list[tuple[tuple[str, ...], object]] = []
+
+    def where(self, expression):
+        self.filters.append(expression)
+        if expression == "is_active = true":
+            self.rows = [row for row in self.rows if row["is_active"]]
+        elif expression.startswith("profile_name = '") and expression.endswith("'"):
+            profile_name = expression[len("profile_name = '") : -1].replace("''", "'")
+            self.rows = [row for row in self.rows if row["profile_name"] == profile_name]
+        return self
+
+    def orderBy(self, *columns, **kwargs):
+        ascending = kwargs.get("ascending", True)
+        if isinstance(ascending, (list, tuple)):
+            flags = list(ascending)
+        else:
+            flags = [ascending] * len(columns)
+        self.orderings.append((columns, ascending))
+        for column, is_ascending in reversed(list(zip(columns, flags))):
+            self.rows.sort(key=lambda row, col=column: row[col], reverse=not is_ascending)
+        return self
+
+    def limit(self, n):
+        self.rows = self.rows[:n]
+        return self
+
+    def collect(self):
+        return [FakeRow(row) for row in self.rows]
+
+
+class FakeSpark:
+    def __init__(self, rows=None, table_error=None):
+        self.rows = list(rows or [])
+        self.table_error = table_error
+        self.table_names: list[str] = []
+        self.last_frame: FakeFrame | None = None
+
+    def table(self, table_name):
+        self.table_names.append(table_name)
+        if self.table_error is not None:
+            raise self.table_error
+        self.last_frame = FakeFrame(self.rows)
+        return self.last_frame
+
+
 def test_profile_repository_uses_local_fallback_when_spark_is_unavailable(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -62,86 +121,106 @@ def test_profile_repository_uses_local_fallback_when_spark_is_unavailable(
 def test_profile_repository_loads_latest_active_profile_from_delta(
     tmp_path: Path, monkeypatch
 ) -> None:
-    newer = _profile("v2", "2026-04-13T11:00:00+00:00")
-    older = _profile("v1", "2026-04-13T10:00:00+00:00")
+    older = ToolProfileRepository._to_persisted_row(
+        _profile("v1", "2026-04-13T10:00:00+00:00")
+    )
+    newer_same_created_at = ToolProfileRepository._to_persisted_row(
+        _profile("v2", "2026-04-13T10:00:00+00:00")
+    )
+    inactive_latest = ToolProfileRepository._to_persisted_row(
+        _profile("v3", "2026-04-13T12:00:00+00:00")
+    )
+    inactive_latest["is_active"] = False
+    other_profile = ToolProfileRepository._to_persisted_row(
+        ToolProfile(
+            profile_name="other",
+            profile_version="v9",
+            created_at="2026-04-13T13:00:00+00:00",
+            inventory_hash="hash-1",
+            provider_type="local_python",
+            llm_endpoint_name="endpoint-a",
+            prompt_version="v1",
+            discovered_tools=[_tool("greet_user")],
+            allowed_tools=["greet_user"],
+            disallowed_tools=[],
+            justifications={"greet_user": "needed"},
+            audit_report_text="audit",
+            selection_policy="small allowlist",
+        )
+    )
 
-    class FakeRow:
-        def __init__(self, payload):
-            self.payload = payload
-
-        def asDict(self, recursive=True):
-            return self.payload
-
-    class FakeFrame:
-        def __init__(self, rows):
-            self.rows = rows
-
-        def where(self, *args, **kwargs):
-            return self
-
-        def orderBy(self, *args, **kwargs):
-            self.rows = sorted(self.rows, key=lambda row: row["created_at"], reverse=True)
-            return self
-
-        def limit(self, n):
-            self.rows = self.rows[:n]
-            return self
-
-        def collect(self):
-            return [FakeRow(row) for row in self.rows]
-
-    class FakeSpark:
-        def __init__(self, rows):
-            self.rows = rows
-
-        def table(self, table_name):
-            return FakeFrame(self.rows)
-
+    spark = FakeSpark(
+        [
+            older,
+            newer_same_created_at,
+            inactive_latest,
+            other_profile,
+        ]
+    )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.profiles.repository.get_spark_session",
-        lambda: FakeSpark(
-            [
-                ToolProfileRepository._to_persisted_row(older),
-                ToolProfileRepository._to_persisted_row(newer),
-            ]
-        ),
+        lambda: spark,
     )
     repo = ToolProfileRepository(_settings(tmp_path))
 
     loaded = repo.load_active("default")
 
     assert loaded.profile_version == "v2"
-    assert loaded.created_at == newer.created_at
+    assert loaded.created_at == "2026-04-13T10:00:00+00:00"
+    assert loaded.profile_name == "default"
+    assert spark.table_names == ["main.agent.tool_profiles"]
+    assert spark.last_frame is not None
+    assert spark.last_frame.filters == [
+        "profile_name = 'default'",
+        "is_active = true",
+    ]
 
 
-def test_profile_repository_does_not_silently_fall_back_to_local_when_spark_exists(
+def test_profile_repository_returns_none_when_delta_table_is_missing(
     tmp_path: Path, monkeypatch
 ) -> None:
-    local_profile = _profile("local-v1", "2026-04-13T10:00:00+00:00")
-    local_path = tmp_path / "active_tool_profile.json"
-    local_path.write_text(local_profile.model_dump_json(), encoding="utf-8")
-
-    class FakeFrame:
-        def where(self, *args, **kwargs):
-            return self
-
-        def orderBy(self, *args, **kwargs):
-            return self
-
-        def limit(self, n):
-            return self
-
-        def collect(self):
-            return []
-
-    class FakeSpark:
-        def table(self, table_name):
-            return FakeFrame()
-
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.profiles.repository.get_spark_session",
-        lambda: FakeSpark(),
+        lambda: FakeSpark(table_error=RuntimeError("Table or view not found: main.agent.tool_profiles")),
     )
     repo = ToolProfileRepository(_settings(tmp_path))
 
     assert repo.load_active("default") is None
+
+
+def test_profile_repository_raises_clear_error_for_invalid_delta_schema(
+    tmp_path: Path, monkeypatch
+) -> None:
+    broken_row = ToolProfileRepository._to_persisted_row(
+        _profile("v1", "2026-04-13T10:00:00+00:00")
+    )
+    broken_row.pop("allowed_tools_json")
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.profiles.repository.get_spark_session",
+        lambda: FakeSpark([broken_row]),
+    )
+    repo = ToolProfileRepository(_settings(tmp_path))
+
+    with pytest.raises(ValueError, match="expected schema"):
+        repo.load_active("default")
+
+
+def test_profile_repository_wraps_delta_write_failures(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.profiles.repository.get_spark_session",
+        lambda: FakeSpark(),
+    )
+
+    def _fail(*args, **kwargs):  # noqa: ANN001, ARG001
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.profiles.repository.append_delta_table_record",
+        _fail,
+    )
+    repo = ToolProfileRepository(_settings(tmp_path))
+
+    with pytest.raises(RuntimeError, match="Failed to write tool profile"):
+        repo.save(_profile("v1", "2026-04-13T10:00:00+00:00"))

@@ -5,8 +5,10 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
 from ..config import Settings
-from ..models import ToolProfile, ToolSpec
+from ..models import ToolProfile, ToolProfileRecord, ToolSpec
 from ..storage.result_repository import append_delta_table_record
 from ..storage.spark_utils import get_spark_session
 
@@ -27,7 +29,14 @@ class ToolProfileRepository:
             table_name = (self.settings.storage.tool_profile_table or "").strip()
             if not table_name:
                 raise ValueError("storage.tool_profile_table must be configured when Spark is available.")
-            append_delta_table_record(self.spark, table_name, row)
+            try:
+                append_delta_table_record(self.spark, table_name, row)
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(
+                    "Failed to write tool profile "
+                    f"{profile.profile_name!r} version {profile.profile_version!r} "
+                    f"to Delta table {table_name!r}: {exc}"
+                ) from exc
             logger.info(
                 "Saved tool profile %s version %s to Delta table %s",
                 profile.profile_name,
@@ -55,22 +64,47 @@ class ToolProfileRepository:
             table_name = (self.settings.storage.tool_profile_table or "").strip()
             if not table_name:
                 raise ValueError("storage.tool_profile_table must be configured when Spark is available.")
-            rows = (
-                self.spark.table(table_name)
-                .where(f"profile_name = '{requested_profile}'")
-                .where("is_active = true")
-                .orderBy("created_at", ascending=False)
-                .limit(1)
-                .collect()
-            )
+            try:
+                frame = self.spark.table(table_name)
+            except Exception as exc:  # noqa: BLE001
+                if self._is_missing_table_error(exc):
+                    return None
+                raise RuntimeError(
+                    f"Unable to read active tool profile from Delta table {table_name!r}: {exc}"
+                ) from exc
+            try:
+                rows = (
+                    frame.where(f"profile_name = '{self._escape_sql_literal(requested_profile)}'")
+                    .where("is_active = true")
+                    .orderBy("created_at", "profile_version", ascending=False)
+                    .limit(1)
+                    .collect()
+                )
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(
+                    "Delta tool profile table "
+                    f"{table_name!r} has an invalid schema or cannot be queried: {exc}"
+                ) from exc
             if not rows:
                 return None
-            return self._from_persisted_row(rows[0].asDict(recursive=True))
+            try:
+                return self._from_persisted_row(rows[0].asDict(recursive=True))
+            except ValueError:
+                raise
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(
+                    f"Delta table {table_name!r} does not match the expected tool profile schema: {exc}"
+                ) from exc
 
         if self.active_profile_path.exists():
-            profile = ToolProfile.model_validate_json(
-                self.active_profile_path.read_text(encoding="utf-8")
-            )
+            try:
+                profile = ToolProfile.model_validate_json(
+                    self.active_profile_path.read_text(encoding="utf-8")
+                )
+            except ValidationError as exc:
+                raise ValueError(
+                    f"Invalid local tool profile cache at {self.active_profile_path}: {exc}"
+                ) from exc
             if profile.profile_name == requested_profile and profile.is_active:
                 return profile
         return None
@@ -81,7 +115,10 @@ class ToolProfileRepository:
         table_name = (self.settings.storage.tool_profile_table or "").strip()
         if not table_name:
             raise ValueError("storage.tool_profile_table must be configured when Spark is available.")
-        self.spark.table(table_name).limit(0).collect()
+        try:
+            self.spark.table(table_name).limit(0).collect()
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"Unable to read Delta table {table_name!r}: {exc}") from exc
         return True
 
     @staticmethod
@@ -108,21 +145,53 @@ class ToolProfileRepository:
 
     @staticmethod
     def _from_persisted_row(row: dict[str, Any]) -> ToolProfile:
+        try:
+            persisted = ToolProfileRecord.model_validate(row)
+        except ValidationError as exc:
+            raise ValueError(
+                "Delta tool profile table does not match the expected schema. "
+                "Required columns include profile_name, profile_version, inventory_hash, "
+                "provider_type, llm_endpoint_name, prompt_version, is_active, created_at, "
+                "selection_policy, audit_report_text, discovered_tools_json, "
+                "allowed_tools_json, disallowed_tools_json, and justifications_json."
+            ) from exc
+
+        try:
+            discovered_tools = [
+                ToolSpec.model_validate(tool)
+                for tool in json.loads(persisted.discovered_tools_json)
+            ]
+            allowed_tools = list(json.loads(persisted.allowed_tools_json))
+            disallowed_tools = list(json.loads(persisted.disallowed_tools_json))
+            justifications = dict(json.loads(persisted.justifications_json))
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise ValueError(
+                "Delta tool profile row contains invalid serialized tool metadata "
+                f"for profile {persisted.profile_name!r} version {persisted.profile_version!r}."
+            ) from exc
+
         return ToolProfile(
-            profile_name=row["profile_name"],
-            profile_version=row["profile_version"],
-            created_at=row["created_at"],
-            inventory_hash=row["inventory_hash"],
-            provider_type=row["provider_type"],
-            llm_endpoint_name=row["llm_endpoint_name"],
-            prompt_version=row["prompt_version"],
-            is_active=bool(row["is_active"]),
-            discovered_tools=[
-                ToolSpec.model_validate(tool) for tool in json.loads(row["discovered_tools_json"])
-            ],
-            allowed_tools=list(json.loads(row["allowed_tools_json"])),
-            disallowed_tools=list(json.loads(row["disallowed_tools_json"])),
-            justifications=dict(json.loads(row["justifications_json"])),
-            audit_report_text=row["audit_report_text"],
-            selection_policy=row.get("selection_policy", ""),
+            profile_name=persisted.profile_name,
+            profile_version=persisted.profile_version,
+            created_at=persisted.created_at,
+            inventory_hash=persisted.inventory_hash,
+            provider_type=persisted.provider_type,
+            llm_endpoint_name=persisted.llm_endpoint_name,
+            prompt_version=persisted.prompt_version,
+            is_active=bool(persisted.is_active),
+            discovered_tools=discovered_tools,
+            allowed_tools=allowed_tools,
+            disallowed_tools=disallowed_tools,
+            justifications=justifications,
+            audit_report_text=persisted.audit_report_text,
+            selection_policy=persisted.selection_policy,
         )
+
+    @staticmethod
+    def _escape_sql_literal(value: str) -> str:
+        return value.replace("'", "''")
+
+    @staticmethod
+    def _is_missing_table_error(exc: Exception) -> bool:
+        message = str(exc).lower()
+        return "table or view not found" in message or "not found" in message

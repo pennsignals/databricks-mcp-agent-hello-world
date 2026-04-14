@@ -225,7 +225,30 @@ def test_agent_runner_records_blocked_hello_world_tool_attempt(tmp_path: Path) -
 def test_agent_runner_fails_when_no_active_profile_exists(tmp_path: Path) -> None:
     runner = _runner(tmp_path, StubLLM([_response(content="unused")]), profile=None)
 
-    with pytest.raises(RuntimeError, match="No active tool profile exists"):
+    with pytest.raises(RuntimeError, match="No active tool profile found"):
+        runner.run(
+            AgentTaskRequest(
+                task_name="hello_world_demo",
+                instructions="Write the hello-world report.",
+                payload={"name": "Ada"},
+            )
+        )
+
+
+def test_agent_runner_fails_clearly_when_delta_profile_table_is_unreadable(
+    tmp_path: Path,
+) -> None:
+    runner = _runner(tmp_path, StubLLM([_response(content="unused")]), profile=None)
+
+    class SparkBackedProfileRepo(StubProfileRepo):
+        spark = object()
+
+        def is_table_reachable(self):
+            raise RuntimeError("Table or view not found: main.agent.tool_profiles")
+
+    runner.profile_repo = SparkBackedProfileRepo(None)
+
+    with pytest.raises(RuntimeError, match="compile_tool_profile_job first"):
         runner.run(
             AgentTaskRequest(
                 task_name="hello_world_demo",
