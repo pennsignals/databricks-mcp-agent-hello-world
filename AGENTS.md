@@ -10,6 +10,12 @@ Review `REQUIREMENTS.md` before starting work, and re-read it before finishing t
 - `.env` is optional and only for non-secret local defaults plus `DATABRICKS_CONFIG_PROFILE`.
 - Do not put `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_CLIENT_ID`, or `DATABRICKS_CLIENT_SECRET` in `.env` for the supported local quickstart path.
 
+## Config philosophy
+
+- The hello-world MVP path is intentionally minimal and defaults to `local_python`.
+- The `sql:` section is kept as a future-facing placeholder for advanced SQL-backed tools, not as required setup for the starter demo.
+- New contributors should treat the starter as a local Python-first template and only add config requirements when a provider actually needs them.
+
 ## Config precedence
 
 1. CLI flags
@@ -66,3 +72,9 @@ All commands accept `--config-path`, which defaults to `workspace-config.yml`.
 - Keep the local quickstart simple now, while preserving the future path for scheduled-job auth and Managed MCP adapters later.
 - For MVP, `local_python` is the only working runtime backend. `managed_mcp` is a reserved future provider value and should fail fast if selected.
 - The `sql:` section in `workspace-config.example.yml` is optional and only intended as a placeholder for future SQL-backed tools.
+
+## Provider expectations
+
+- `local_python` should work without SQL config and should remain the default starter path.
+- A future SQL-backed provider can make SQL config relevant, but only behind that provider boundary.
+- A future Managed MCP provider may have different auth and config needs, so do not bake those assumptions into the MVP flow.

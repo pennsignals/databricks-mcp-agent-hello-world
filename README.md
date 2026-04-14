@@ -39,8 +39,11 @@ If you use a local `.env`, keep it limited to non-secret defaults such as `DATAB
 Set `llm_endpoint_name` and make sure the persistence table names match your workspace. Local CLI commands read the repo-root `workspace-config.yml`, while Databricks Jobs read the deployed copy at `${workspace.file_path}/workspace-config.yml`.
 
 The `sql:` section in `workspace-config.example.yml` is optional and is only a placeholder for future SQL-backed tools. You do not need it for the current hello-world flow.
+You can leave the `sql:` values as-is for the hello-world MVP path.
 
 ## Hello-world walkthrough
+
+The default demo uses local Python tools only. SQL-backed tools are not required, and Managed MCP is not required for the MVP demo.
 
 The frozen demo task is `hello_world_demo`. The checked-in task input lives at [examples/hello_world_task.json](/Users/mbecker/git/databricks-mcp-agent-hello-world/examples/hello_world_task.json) and asks the agent to write a short report for Ada using only relevant tools.
 

@@ -15,7 +15,10 @@ storage:
   agent_output_table: main.agent_demo.agent_outputs
   local_data_dir: ./.local_state
 
-# Optional and future-facing: keep this section only if you plan to add SQL-backed tools later.
+# Optional SQL-backed tool configuration.
+# Not required for the current hello-world demo.
+# The hello-world demo uses local Python tools only.
+# These values are placeholders for future or advanced SQL-backed tools.
 sql:
   warehouse_id: your-sql-warehouse-id
   catalog: main
