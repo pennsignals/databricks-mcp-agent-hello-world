@@ -2,6 +2,8 @@
 
 `databricks-mcp-agent-hello-world` is a bundle-based, Python-wheel Databricks Job template for a non-interactive, tool-using agent workflow. It is a Databricks Job template, not a Databricks App, and it is meant to be run locally first and then deployed as a bundle.
 
+The starter uses a local-first development flow, deploys as Python wheel Jobs on Databricks, and uses serverless compute as the default deployed compute path for MVP.
+
 For MVP, `local_python` is the only working runtime backend. `managed_mcp` is reserved for a future extension path.
 
 ## Required edits before your first run
@@ -37,6 +39,8 @@ For MVP, `local_python` is the only working runtime backend. `managed_mcp` is re
 ## Quickstart
 
 Use one path only: CLI profile auth, repo-root `workspace-config.yml`, then local checks in the order below.
+
+The quickstart assumes the default deployed compute path: serverless Databricks Jobs. There is no alternate compute branch in the first-run setup.
 
 1. `uv sync`
 2. `databricks auth login`
@@ -104,6 +108,8 @@ Definition:
 
 Deploy to Databricks after the local flow is green.
 
+The bundled Jobs use serverless compute by default. That is the recommended MVP path because it removes the most common first-run blocker: permission to create a classic jobs cluster. Local commands still run entirely from your machine and do not require Databricks compute.
+
 ```bash
 databricks bundle validate --target dev
 databricks bundle deploy --target dev
@@ -117,7 +123,34 @@ Success:
 - `compile_tool_profile_job` runs successfully and compiles the active profile in the workspace.
 - `run_agent_task_job` runs successfully and returns the hello-world result on Databricks.
 
-## Common setup issues
+If a downstream project needs a different compute model, edit [resources/databricks_mcp_agent_hello_world_job.yml](/Users/mbecker/git/databricks-mcp-agent-hello-world/resources/databricks_mcp_agent_hello_world_job.yml) and replace the serverless task environment configuration with the compute configuration your workspace requires. That is a downstream customization and does not change the local CLI workflow or the Job-first architecture of this starter.
+
+## Compute defaults
+
+This starter defaults bundled Databricks Jobs to serverless compute.
+
+Why this is the MVP default:
+
+- it avoids the common first-run failure where a user can deploy the bundle but cannot create a classic jobs cluster
+- it reduces manual compute setup for new users
+- it keeps the template focused on the agent workflow instead of cluster provisioning
+- it preserves one obvious path: configure locally, verify locally, deploy, then run the Job
+
+What this means in practice:
+
+- local development does not depend on Databricks compute
+- deployed `compile_tool_profile_job` and `run_agent_task_job` use serverless by default
+- if your workspace does not support serverless for this pattern, you can intentionally change the job resource later
+
+To change compute mode later in a downstream project:
+
+1. Edit [resources/databricks_mcp_agent_hello_world_job.yml](/Users/mbecker/git/databricks-mcp-agent-hello-world/resources/databricks_mcp_agent_hello_world_job.yml).
+2. Replace each task's `environment_key` plus job-level `environments` block with the compute configuration your workspace requires, such as a classic `new_cluster`, a shared existing cluster, or another approved job compute pattern.
+3. Keep the Python wheel task shape and keep `config_path: ${workspace.file_path}/workspace-config.yml` unchanged so the local and deployed flows stay aligned.
+
+This documentation is here to show where the compute decision lives. It is not a second recommended quickstart.
+
+## Troubleshooting
 
 1. `databricks bundle validate` fails with the placeholder host
 
@@ -143,7 +176,19 @@ Success:
 
    Fix: that is expected in local mode. Local fallback persistence is normal off-cluster.
 
-5. Job runtime cannot find the config path
+5. `databricks bundle deploy` fails before the Jobs are created
+
+   Symptom: deployment fails while validating or creating bundle-managed resources.
+
+   Fix: treat this as a bundle deployment problem first. Re-check `databricks.yml`, authentication, target workspace access, and any workspace-level bundle restrictions.
+
+6. `databricks bundle run` fails because serverless is unavailable or unsupported
+
+   Symptom: deployment succeeded, but a bundled Job run fails during compute provisioning before your wheel entry point starts.
+
+   Fix: this usually means the configured job compute mode is incompatible with the target workspace's capabilities, policies, or permissions. The Python wheel Job model is still correct; the compute configuration is the mismatch. If the workspace does not support the default serverless path, update [resources/databricks_mcp_agent_hello_world_job.yml](/Users/mbecker/git/databricks-mcp-agent-hello-world/resources/databricks_mcp_agent_hello_world_job.yml) to use the compute model your environment allows.
+
+7. Job runtime cannot find the config path
 
    Symptom: the Databricks job cannot load `workspace-config.yml`.
 
