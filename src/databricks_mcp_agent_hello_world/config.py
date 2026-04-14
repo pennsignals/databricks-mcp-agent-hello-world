@@ -16,6 +16,7 @@ FORBIDDEN_LOCAL_DOTENV_KEYS = {
     "DATABRICKS_CLIENT_SECRET",
 }
 SUPPORTED_TOOL_PROVIDER_TYPES = {"local_python", "managed_mcp"}
+SQL_OPTIONAL_PROVIDER_TYPES = {"local_python"}
 
 
 @dataclass(slots=True)
@@ -36,7 +37,6 @@ class StorageConfig:
 
 @dataclass(slots=True)
 class SqlToolConfig:
-    backend_mode: str = "auto"
     warehouse_id: str | None = None
     catalog: str | None = None
     schema: str | None = None
@@ -68,6 +68,7 @@ class Settings:
     prompts: PromptConfig
     databricks_cli_profile: str | None = None
     workspace_host: str | None = None
+    local_tool_backend_mode: str = "auto"
     auth_mode: str = "local-dev"
     log_level: str = "INFO"
     config_path: str | None = None
@@ -77,6 +78,14 @@ class Settings:
     @property
     def provider_type(self) -> str:
         return self.tool_provider_type
+
+    @property
+    def sql_config_is_optional(self) -> bool:
+        return self.tool_provider_type in SQL_OPTIONAL_PROVIDER_TYPES
+
+    @property
+    def sql_config_required(self) -> bool:
+        return not self.sql_config_is_optional
 
 
 def resolve_config_path(config_path: str | None = None) -> str:
@@ -242,6 +251,15 @@ def build_settings(
             dotenv_values=dotenv_values,
             dotenv_key="DATABRICKS_HOST",
         ),
+        local_tool_backend_mode=(
+            _resolve_value(
+                yaml_value=raw.get("local_tool_backend_mode"),
+                dotenv_values=dotenv_values,
+                dotenv_key="LOCAL_TOOL_BACKEND_MODE",
+                default="auto",
+            )
+            or "auto"
+        ),
         auth_mode=(
             _resolve_value(
                 yaml_value=raw.get("auth_mode"),
@@ -263,15 +281,6 @@ def build_settings(
         config_path=resolve_config_path(config_path),
         dotenv_path=dotenv_path,
         sql=SqlToolConfig(
-            backend_mode=(
-                _resolve_value(
-                    yaml_value=raw.get("local_tool_backend_mode"),
-                    dotenv_values=dotenv_values,
-                    dotenv_key="LOCAL_TOOL_BACKEND_MODE",
-                    default="auto",
-                )
-                or "auto"
-            ),
             warehouse_id=_resolve_value(
                 yaml_value=_deep_get(raw, "sql", "warehouse_id"),
                 dotenv_values=dotenv_values,

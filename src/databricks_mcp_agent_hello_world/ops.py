@@ -84,6 +84,7 @@ def run_preflight(config_path: str) -> PreflightReport:
     checks.append(provider_check)
     tool_check, tool_count = _check_tool_registry_nonempty(provider)
     checks.append(tool_check)
+    checks.append(_check_sql_config(settings))
     checks.append(_check_persistence_target_names(settings))
     checks.append(_check_persistence_reachability(settings))
 
@@ -273,6 +274,49 @@ def _check_tool_registry_nonempty(provider) -> tuple[PreflightCheck, int]:
             ),
             0,
         )
+
+
+def _check_sql_config(settings: Settings) -> PreflightCheck:
+    if not settings.sql_config_required:
+        return PreflightCheck(
+            name="sql_config",
+            status="pass",
+            message=(
+                "Skipped - SQL config is not required for local_python hello-world flow."
+            ),
+            details={
+                "sql_config_required": False,
+                "tool_provider_type": settings.tool_provider_type,
+            },
+        )
+
+    missing = []
+    if not (settings.sql.warehouse_id or "").strip():
+        missing.append("sql.warehouse_id")
+    if not (settings.sql.catalog or "").strip():
+        missing.append("sql.catalog")
+    if not (settings.sql.schema or "").strip():
+        missing.append("sql.schema")
+    if missing:
+        return PreflightCheck(
+            name="sql_config",
+            status="fail",
+            message="SQL config is required for this provider.",
+            details={"missing": missing, "tool_provider_type": settings.tool_provider_type},
+        )
+
+    return PreflightCheck(
+        name="sql_config",
+        status="pass",
+        message="SQL config is present.",
+        details={
+            "sql_config_required": True,
+            "tool_provider_type": settings.tool_provider_type,
+            "warehouse_id": settings.sql.warehouse_id,
+            "catalog": settings.sql.catalog,
+            "schema": settings.sql.schema,
+        },
+    )
 
 
 def _check_persistence_target_names(settings: Settings) -> PreflightCheck:
