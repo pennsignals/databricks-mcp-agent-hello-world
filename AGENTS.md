@@ -1,80 +1,61 @@
 # databricks-mcp-agent-hello-world Operator Guide
 
-Review `REQUIREMENTS.md` before starting work, and re-read it before finishing to confirm your changes still match the project requirements.
+This is the internal maintainer guide for the template. It should track the same canonical flow as `README.md` and stay aligned with `REQUIREMENTS.md`.
 
-## Local development model
+## What this template is
 
-- Local auth uses Databricks CLI profile auth via `databricks auth login`.
-- `workspace-config.yml` is the primary runtime config file for local commands, and deployed Jobs read the workspace copy at `${workspace.file_path}/workspace-config.yml`.
-- Create `workspace-config.yml` from `workspace-config.example.yml` before validating or deploying the bundle.
-- `.env` is optional and only for non-secret local defaults plus `DATABRICKS_CONFIG_PROFILE`.
-- Do not put `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_CLIENT_ID`, or `DATABRICKS_CLIENT_SECRET` in `.env` for the supported local quickstart path.
+- A non-interactive LLM agent template.
+- Databricks-only.
+- Local Python tools are the MVP runtime path today.
+- `managed_mcp` is a future extension point only.
+- This is a scheduled Job template, not a Databricks App.
 
-## Config philosophy
+## Local development flow
 
-- The hello-world MVP path is intentionally minimal and defaults to `local_python`.
-- The `sql:` section is kept as a future-facing placeholder for advanced SQL-backed tools, not as required setup for the starter demo.
-- New contributors should treat the starter as a local Python-first template and only add config requirements when a provider actually needs them.
+Maintain the same sequence as the README and do not introduce alternate onboarding paths:
 
-## Config precedence
+1. Authenticate locally with the Databricks CLI using `databricks auth login`.
+2. Copy the starter config files into place:
+   - `.env.example` to `.env`
+   - `workspace-config.example.yml` to `workspace-config.yml`
+3. Run `uv sync`.
+4. Run `uv run preflight --config-path workspace-config.yml`.
+5. Run `uv run discover-tools --config-path workspace-config.yml`.
+6. Run `uv run compile-tool-profile --config-path workspace-config.yml`.
+7. Run `uv run run-agent-task --config-path workspace-config.yml --task-input-json '{"task_name":"hello_world_demo"}'`.
 
-1. CLI flags
-2. `workspace-config.yml`
-3. `.env`
-4. Databricks CLI profile settings from `.databrickscfg`
+Local commands read the repo-root `workspace-config.yml`. Deployed Jobs read `${workspace.file_path}/workspace-config.yml`.
 
-`llm_endpoint_name` is configured in `workspace-config.yml`.
+## Hello-world contract
 
-## Supported commands
+The `hello_world_demo` flow is the starter contract this template must preserve.
 
-- `preflight`
-- `discover-tools`
-- `compile-tool-profile`
-- `run-agent-task`
-- `run-evals`
+- Show the full discovered tool set.
+- Show the allowed and disallowed subset.
+- Use only allowlisted tools at execution time.
+- Make at least one tool call.
+- Return a final answer built from tool output.
 
-All commands accept `--config-path`, which defaults to `workspace-config.yml`.
+The expected allowlist for the demo is the smallest useful subset of the local Python tools. `tell_demo_joke` stays out of the demo path unless the task explicitly changes.
 
-## Hello-world demo expectations
+## Adding or modifying tools
 
-- `hello_world_demo` should show the total discovered tool count, the allowed subset, the actual tool calls, and the final answer built from tool output.
-- Zero tool calls in `hello_world_demo` are a regression, not an acceptable success case.
+- Dummy demo tools live in `src/databricks_mcp_agent_hello_world/tools/builtin.py`.
+- Tool metadata and JSON schemas are registered in `src/databricks_mcp_agent_hello_world/tools/registry.py`.
+- The hello-world allowlist and compile-time demo contract live in `src/databricks_mcp_agent_hello_world/profiles/compiler.py`.
+- Runtime allowlist enforcement happens in `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`.
+- Update eval expectations in `tests/test_evals.py` and related compiler/runtime tests when tool behavior changes.
 
-## What `preflight` checks
+Keep the tool contract simple: the runner should expose only the filtered subset to the model and block any disallowed call in application code.
 
-- config file parse
-- `.env` parse when present
-- `DATABRICKS_CONFIG_PROFILE` resolution
-- Databricks client initialization
-- `llm_endpoint_name`
-- local tool registry import
-- at least one registered tool
-- provider factory resolution
-- persistence target names
-- read-only Delta target reachability when Spark is available
-- `has_active_profile`
-- `can_compile_profile`
+## Deployment model
 
-`preflight` does not call the LLM, compile profiles, run the agent, or write to Delta.
+- The project deploys as a Databricks bundle plus Python wheel job.
+- The current job split is `compile_tool_profile_job` and `run_agent_task_job`.
+- `compile_tool_profile_job` materializes the active tool profile.
+- `run_agent_task_job` loads that profile and runs the actual agent task.
+- Both jobs read `config_path: ${workspace.file_path}/workspace-config.yml` from the deployed workspace copy.
+- Local development may fall back to local persistence when Spark is unavailable.
+- On Databricks compute, Delta-backed persistence is expected and should be treated as the normal deployed path.
 
-## What `discover-tools` shows
-
-- provider type
-- total tool count
-- normalized tool names
-- tool descriptions
-- input schema summaries
-
-## Local vs. scheduled jobs
-
-- Local development uses attended CLI profile auth.
-- Databricks Jobs should use unattended auth such as service principal OAuth.
-- Keep the local quickstart simple now, while preserving the future path for scheduled-job auth and Managed MCP adapters later.
-- For MVP, `local_python` is the only working runtime backend. `managed_mcp` is a reserved future provider value and should fail fast if selected.
-- The `sql:` section in `workspace-config.example.yml` is optional and only intended as a placeholder for future SQL-backed tools.
-
-## Provider expectations
-
-- `local_python` should work without SQL config and should remain the default starter path.
-- A future SQL-backed provider can make SQL config relevant, but only behind that provider boundary.
-- A future Managed MCP provider may have different auth and config needs, so do not bake those assumptions into the MVP flow.
+For deployment changes, keep the bundle flow and job names in sync with `databricks.yml` and `resources/databricks_mcp_agent_hello_world_job.yml`.
