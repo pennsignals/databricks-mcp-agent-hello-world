@@ -130,3 +130,54 @@ def test_run_eval_scenarios_filters_by_scenario_id() -> None:
 
     assert summary.total_scenarios == 1
     assert summary.passed == 1
+
+
+def test_run_eval_scenarios_marks_blocking_eval_requests() -> None:
+    scenario = EvalScenario(
+        scenario_id="allowlist_enforced",
+        task_name="hello_world_demo",
+        instructions="Try to use the joke tool.",
+        expected_allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
+        expected_disallowed_tools=["tell_demo_joke"],
+        expected_tool_calls=["greet_user"],
+        expected_blocked_tools=["tell_demo_joke"],
+        require_final_answer=True,
+    )
+
+    runner = StubRunner(
+        {
+            **_record(
+                tool_calls=[
+                    {"tool_name": "greet_user", "arguments": {"value": "Ada"}, "status": "ok"},
+                ],
+                final_answer="Hello Ada, I stayed within the allowlist.",
+            ),
+            "blocked_calls": [
+                {"tool_name": "tell_demo_joke", "arguments": {"value": "Ada"}, "status": "blocked"}
+            ],
+        }
+    )
+
+    summary = run_eval_scenarios([scenario], runner)
+
+    assert summary.total_scenarios == 1
+    assert runner.requests[0].expected_blocked_calls is True
+
+
+def test_run_eval_scenarios_leaves_happy_path_requests_unflagged() -> None:
+    scenario = EvalScenario(
+        scenario_id="hello_world_happy_path",
+        task_name="hello_world_demo",
+        instructions="Write the hello-world report.",
+        expected_available_tool_count=4,
+        expected_allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
+        expected_tool_calls=["greet_user"],
+        require_final_answer=True,
+    )
+
+    runner = StubRunner(_record())
+
+    summary = run_eval_scenarios([scenario], runner)
+
+    assert summary.total_scenarios == 1
+    assert runner.requests[0].expected_blocked_calls is False

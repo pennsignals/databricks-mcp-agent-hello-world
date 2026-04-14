@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -220,6 +221,64 @@ def test_agent_runner_records_blocked_hello_world_tool_attempt(tmp_path: Path) -
     assert record.tool_calls == []
     assert runner.executor.calls == []
     assert runner.result_writer.run_records[0].blocked_calls[0]["tool_name"] == "tell_demo_joke"
+
+
+def test_agent_runner_logs_expected_blocked_call_at_info(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    runner = _runner(
+        tmp_path,
+        StubLLM(
+            [
+                _response(tool_calls=[_tool_call("tell_demo_joke", '{"value":"Ada"}')]),
+                _response(content="Hello Ada, I stayed within the allowlist."),
+            ]
+        ),
+        profile=_profile(),
+    )
+
+    caplog.set_level(logging.INFO, logger="databricks_mcp_agent_hello_world.runner.agent_runner")
+
+    runner.run(
+        AgentTaskRequest(
+            task_name="hello_world_demo",
+            instructions="Write the hello-world report.",
+            payload={"name": "Ada"},
+            expected_blocked_calls=True,
+        )
+    )
+
+    messages = [record.message for record in caplog.records]
+    assert "Blocked disallowed tool call (expected): tell_demo_joke" in messages
+    assert not [record for record in caplog.records if record.levelno >= logging.WARNING]
+
+
+def test_agent_runner_logs_unexpected_blocked_call_at_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    runner = _runner(
+        tmp_path,
+        StubLLM(
+            [
+                _response(tool_calls=[_tool_call("tell_demo_joke", '{"value":"Ada"}')]),
+                _response(content="Hello Ada, I stayed within the allowlist."),
+            ]
+        ),
+        profile=_profile(),
+    )
+
+    caplog.set_level(logging.INFO, logger="databricks_mcp_agent_hello_world.runner.agent_runner")
+
+    runner.run(
+        AgentTaskRequest(
+            task_name="hello_world_demo",
+            instructions="Write the hello-world report.",
+            payload={"name": "Ada"},
+        )
+    )
+
+    warning_messages = [record.message for record in caplog.records if record.levelno == logging.WARNING]
+    assert warning_messages == ["Blocked disallowed tool call: tell_demo_joke"]
 
 
 def test_agent_runner_fails_when_no_active_profile_exists(tmp_path: Path) -> None:
