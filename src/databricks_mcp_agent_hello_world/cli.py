@@ -215,9 +215,12 @@ def _print_run_summary(record) -> None:
         return
 
     print(f"Task name: {record.task_name}")
-    print(f"Available tools: {len(record.available_tools)}")
+    print(f"Available tools: {record.available_tools_count}")
+    print(", ".join(record.available_tools))
     print(f"Allowed tools: {', '.join(record.allowed_tools)}")
     print(f"Tool calls: {len(record.tool_calls)}")
+    if record.tool_calls:
+        print(", ".join(call.tool_name for call in record.tool_calls))
     if record.final_answer:
         print("Final answer:")
         print(record.final_answer)

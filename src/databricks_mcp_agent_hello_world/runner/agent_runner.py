@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from ..config import Settings
@@ -12,7 +13,6 @@ from ..models import (
     AgentRunRecord,
     AgentTaskRequest,
     HelloWorldDemoResult,
-    HelloWorldDisallowedTool,
     HelloWorldToolCall,
     ToolCall,
     ToolProfile,
@@ -23,6 +23,9 @@ from ..storage.result_writer import ResultWriter
 from ..tooling.runtime import set_runtime_settings
 
 logger = logging.getLogger(__name__)
+HELLO_WORLD_PROMPT_PATH = (
+    Path(__file__).resolve().parents[1] / "prompts" / "hello_world_demo_prompt.txt"
+)
 
 
 class AgentRunner:
@@ -150,6 +153,7 @@ class AgentRunner:
         return record
 
     def _run_hello_world(self, task: AgentTaskRequest, profile: ToolProfile) -> HelloWorldDemoResult:
+        hello_world_prompt = self._load_hello_world_prompt()
         messages: list[dict[str, Any]] = [
             {
                 "role": "system",
@@ -157,11 +161,7 @@ class AgentRunner:
             },
             {
                 "role": "system",
-                "content": (
-                    "For hello_world_demo, answer in plain English, not JSON. "
-                    "Use only the smallest useful subset of tools and avoid novelty "
-                    "or humor tools unless the task explicitly requests them."
-                ),
+                "content": hello_world_prompt,
             },
             {
                 "role": "user",
@@ -178,12 +178,17 @@ class AgentRunner:
         tools = self._build_allowed_openai_tools(profile)
         trace: list[dict[str, Any]] = []
         blocked_calls: list[dict[str, Any]] = []
+        executed_tool_calls: list[HelloWorldToolCall] = []
         llm_turn_count = 0
         final_answer = ""
 
-        for _ in range(self.settings.max_agent_steps):
+        for step in range(self.settings.max_agent_steps):
             llm_turn_count += 1
-            response = self.llm.tool_step(messages, tools)
+            response = self.llm.tool_step(
+                messages,
+                tools,
+                tool_choice="required" if step == 0 else None,
+            )
             message = response.choices[0].message
 
             assistant_message: dict[str, Any] = {
@@ -205,7 +210,7 @@ class AgentRunner:
             messages.append(assistant_message)
 
             if not getattr(message, "tool_calls", None):
-                final_answer = message.content or self._synthesize_hello_world_answer(task, trace)
+                final_answer = (message.content or "").strip()
                 break
 
             for index, call in enumerate(message.tool_calls, start=1):
@@ -225,6 +230,14 @@ class AgentRunner:
                 trace.append(trace_entry)
                 if tool_result.status == "blocked":
                     blocked_calls.append(trace_entry)
+                else:
+                    executed_tool_calls.append(
+                        HelloWorldToolCall(
+                            tool_name=tool_name,
+                            arguments=tool_args,
+                            status=tool_result.status,
+                        )
+                    )
                 messages.append(
                     {
                         "role": "tool",
@@ -234,27 +247,14 @@ class AgentRunner:
                 )
 
         if not final_answer:
-            final_answer = self._synthesize_hello_world_answer(task, trace)
+            final_answer = (message.content or "").strip() if "message" in locals() else ""
 
         result = HelloWorldDemoResult(
             task_name=task.task_name,  # type: ignore[arg-type]
+            available_tools_count=len(profile.discovered_tools),
             available_tools=[tool.tool_name for tool in profile.discovered_tools],
             allowed_tools=list(profile.allowed_tools),
-            disallowed_tools=[
-                HelloWorldDisallowedTool(
-                    tool_name=tool_name,
-                    reason=profile.justifications.get(tool_name, "Not part of the hello-world demo."),
-                )
-                for tool_name in profile.disallowed_tools
-            ],
-            tool_calls=[
-                HelloWorldToolCall(
-                    tool_name=entry["tool_name"],
-                    arguments=entry["arguments"],
-                    status=entry["status"],
-                )
-                for entry in trace
-            ],
+            tool_calls=executed_tool_calls,
             final_answer=final_answer,
         )
 
@@ -338,3 +338,7 @@ class AgentRunner:
                 error_message=record.error_message,
             )
         )
+
+    @staticmethod
+    def _load_hello_world_prompt() -> str:
+        return HELLO_WORLD_PROMPT_PATH.read_text(encoding="utf-8").strip()

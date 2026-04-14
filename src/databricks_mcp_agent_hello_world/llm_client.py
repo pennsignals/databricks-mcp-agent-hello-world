@@ -45,13 +45,17 @@ class DatabricksLLM:
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
+        tool_choice: Any | None = None,
     ):
-        return self.client.chat.completions.create(
-            model=self.settings.llm_endpoint_name,
-            messages=messages,
-            tools=tools,
-            temperature=0,
-        )
+        kwargs: dict[str, Any] = {
+            "model": self.settings.llm_endpoint_name,
+            "messages": messages,
+            "tools": tools,
+            "temperature": 0,
+        }
+        if tool_choice is not None:
+            kwargs["tool_choice"] = tool_choice
+        return self.client.chat.completions.create(**kwargs)
 
     @staticmethod
     def _extract_json(content: str) -> dict[str, Any]:
