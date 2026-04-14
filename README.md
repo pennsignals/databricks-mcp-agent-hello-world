@@ -82,7 +82,9 @@ Definition:
 - may vary slightly between runs
 
 Live integration evals call the configured Databricks-hosted LLM endpoint and may consume tokens.
-Use them after local setup and basic hello-world verification succeed.
+Use them after local setup and basic hello-world verification succeed. Normal success means the
+agent uses only allowlisted tools, explicitly excluded tools stay out of execution, and blocked
+tool attempts are not expected during normal live runs.
 
 ### Hello-world demo run
 
