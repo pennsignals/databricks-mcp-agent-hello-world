@@ -36,80 +36,84 @@ For MVP, `local_python` is the only working runtime backend. `managed_mcp` is re
 
 ## Quickstart
 
-Use one path only: CLI profile auth, repo-root `workspace-config.yml`, local checks first, then bundle deploy.
+Use one path only: CLI profile auth, repo-root `workspace-config.yml`, then local checks in the order below.
 
-1. Install prerequisites
-
-   Install the Databricks CLI, Python, and `uv`.
-
-   Success: all three are available on your machine.
-
-2. Authenticate locally
-
-   ```bash
-   databricks auth login
-   ```
-
+1. `uv sync`
+2. `databricks auth login`
    If you are not using the `DEFAULT` profile, pass `--profile <name>` and use the same profile name in `DATABRICKS_CONFIG_PROFILE`.
+3. copy `.env.example` and `workspace-config.example.yml`
+4. `uv run preflight --config-path workspace-config.yml`
+5. `uv run discover-tools --config-path workspace-config.yml`
+6. `uv run compile-tool-profile --config-path workspace-config.yml`
+7. `uv run run-agent-task --config-path workspace-config.yml --task-input-json '{"task_name":"hello_world_demo"}'`
+8. `uv run pytest`
+9. `uv run run-evals --config-path workspace-config.yml`
 
-   Success: the Databricks CLI can authenticate with your workspace profile.
+## Testing levels
 
-3. Copy starter config files
+### Unit tests
 
-   ```bash
-   cp .env.example .env
-   cp workspace-config.example.yml workspace-config.yml
-   ```
+Command:
 
-   Success: both files exist at the repo root.
+```bash
+uv run pytest
+```
 
-4. Edit required local settings
+Definition:
 
-   Set `LLM_ENDPOINT_NAME` in `.env`.
+- local
+- fast
+- no live LLM call required
+- no token usage expected
 
-   If your Databricks CLI profile is not `DEFAULT`, set `DATABRICKS_CONFIG_PROFILE` in `.env` to the same profile name.
+### Live integration evals
 
-   Success: local commands know which LLM endpoint and CLI profile to use, while `workspace-config.yml` stays the main project config file.
+Command:
 
-5. Update `databricks.yml` before bundle validation
+```bash
+uv run run-evals --config-path workspace-config.yml
+```
 
-   Replace the placeholder host shown above with your real workspace host for `targets.dev.workspace.host`, and for `targets.prod.workspace.host` if that target is present.
+Definition:
 
-   Success: bundle validation points at your actual workspace instead of the placeholder URL.
+- uses configured Databricks-hosted LLM endpoint
+- requires valid auth
+- consumes tokens
+- may vary slightly between runs
 
-6. Run local checks in this exact order
+Live integration evals call the configured Databricks-hosted LLM endpoint and may consume tokens.
+Use them after local setup and basic hello-world verification succeed.
 
-   ```bash
-   uv sync
-   uv run preflight --config-path workspace-config.yml
-   uv run discover-tools --config-path workspace-config.yml
-   uv run compile-tool-profile --config-path workspace-config.yml
-   uv run run-agent-task --config-path workspace-config.yml --task-input-json '{"task_name":"hello_world_demo"}'
-   ```
+### Hello-world demo run
 
-   Success:
-   - `uv sync` installs the project dependencies.
-   - `preflight` passes and confirms config parsing, profile resolution, and tool registration.
-   - `discover-tools` shows the full discovered tool set.
-   - `compile-tool-profile` produces the hello-world allowlist profile.
-   - `run-agent-task` shows the discovered tool count, the allowed subset, the actual tool calls, and the final answer.
+Command:
 
-   Note: if local logs say Spark is unavailable, that is expected off-cluster. Local fallback persistence is normal during local development, and Delta-backed persistence is expected only when the code runs on Databricks compute.
+```bash
+uv run run-agent-task --config-path workspace-config.yml --task-input-json '{"task_name":"hello_world_demo"}'
+```
 
-7. Deploy to Databricks
+Definition:
 
-   ```bash
-   databricks bundle validate --target dev
-   databricks bundle deploy --target dev
-   databricks bundle run --target dev compile_tool_profile_job
-   databricks bundle run --target dev run_agent_task_job
-   ```
+- demonstrates the actual end-to-end hello-world workflow
+- not a test harness
+- should be used after preflight and profile compilation
 
-   Success:
-   - `bundle validate` passes after the placeholder host has been replaced.
-   - `bundle deploy --target dev` succeeds.
-   - `compile_tool_profile_job` runs successfully and compiles the active profile in the workspace.
-   - `run_agent_task_job` runs successfully and returns the hello-world result on Databricks.
+## Deployment
+
+Deploy to Databricks after the local flow is green.
+
+```bash
+databricks bundle validate --target dev
+databricks bundle deploy --target dev
+databricks bundle run --target dev compile_tool_profile_job
+databricks bundle run --target dev run_agent_task_job
+```
+
+Success:
+- `bundle validate` passes after the placeholder host has been replaced.
+- `bundle deploy --target dev` succeeds.
+- `compile_tool_profile_job` runs successfully and compiles the active profile in the workspace.
+- `run_agent_task_job` runs successfully and returns the hello-world result on Databricks.
 
 ## Common setup issues
 

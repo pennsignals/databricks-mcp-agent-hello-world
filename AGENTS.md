@@ -14,17 +14,66 @@ This is the internal maintainer guide for the template. It should track the same
 
 Maintain the same sequence as the README and do not introduce alternate onboarding paths:
 
-1. Authenticate locally with the Databricks CLI using `databricks auth login`.
-2. Copy the starter config files into place:
-   - `.env.example` to `.env`
-   - `workspace-config.example.yml` to `workspace-config.yml`
-3. Run `uv sync`.
+1. Run `uv sync`.
+2. Authenticate locally with the Databricks CLI using `databricks auth login`.
+3. Copy `.env.example` to `.env` and `workspace-config.example.yml` to `workspace-config.yml`.
 4. Run `uv run preflight --config-path workspace-config.yml`.
 5. Run `uv run discover-tools --config-path workspace-config.yml`.
 6. Run `uv run compile-tool-profile --config-path workspace-config.yml`.
 7. Run `uv run run-agent-task --config-path workspace-config.yml --task-input-json '{"task_name":"hello_world_demo"}'`.
+8. Run `uv run pytest`.
+9. Run `uv run run-evals --config-path workspace-config.yml`.
 
 Local commands read the repo-root `workspace-config.yml`. Deployed Jobs read `${workspace.file_path}/workspace-config.yml`.
+
+## Testing levels
+
+### Unit tests
+
+Command:
+
+```bash
+uv run pytest
+```
+
+Definition:
+
+- local
+- fast
+- no live LLM call required
+- no token usage expected
+
+### Live integration evals
+
+Command:
+
+```bash
+uv run run-evals --config-path workspace-config.yml
+```
+
+Definition:
+
+- uses configured Databricks-hosted LLM endpoint
+- requires valid auth
+- consumes tokens
+- may vary slightly between runs
+
+Live integration evals call the configured Databricks-hosted LLM endpoint and may consume tokens.
+Use them after local setup and basic hello-world verification succeed.
+
+### Hello-world demo run
+
+Command:
+
+```bash
+uv run run-agent-task --config-path workspace-config.yml --task-input-json '{"task_name":"hello_world_demo"}'
+```
+
+Definition:
+
+- demonstrates the actual end-to-end hello-world workflow
+- not a test harness
+- should be used after preflight and profile compilation
 
 ## Hello-world contract
 
