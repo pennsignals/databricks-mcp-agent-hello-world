@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ToolSpec(BaseModel):
@@ -213,21 +213,15 @@ class CompileToolProfileResult(BaseModel):
 
 
 class EvalScenario(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     scenario_id: str
     task_name: str
-    instructions: str
-    payload: dict[str, Any] = Field(default_factory=dict)
-    expected_available_tool_count: int | None = None
-    expected_allowed_tools: list[str] | None = None
-    expected_disallowed_tools: list[str] | None = None
-    expected_selected_tools: list[str] | None = None
-    expected_tool_calls: list[str] | None = None
-    expected_blocked_tools: list[str] | None = None
-    expected_output_contains: list[str] | None = None
-    expected_failure_mode: str | None = None
-    require_final_answer: bool = False
-    controlled_tool_calls: list[dict[str, Any]] | None = None
-    controlled_final_answer: str | None = None
+    task_input: dict[str, Any]
+    expected_tool_calls_min: int
+    expected_allowed_tools_subset: list[str]
+    expect_blocked_tool: bool = False
+    expected_status: Literal["success", "blocked"]
 
 
 class EvalScenarioResult(BaseModel):

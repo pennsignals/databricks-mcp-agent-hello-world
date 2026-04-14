@@ -2,67 +2,34 @@
   {
     "scenario_id": "hello_world_happy_path",
     "task_name": "hello_world_demo",
-    "instructions": "Write the hello-world demo for Ada using only relevant tools.",
-    "payload": {
+    "task_input": {
       "name": "Ada",
       "handbook_query": "local setup tip",
       "setting_key": "runtime_target"
     },
-    "expected_available_tool_count": 4,
-    "expected_allowed_tools": [
+    "expected_tool_calls_min": 1,
+    "expected_allowed_tools_subset": [
       "greet_user",
       "search_demo_handbook",
       "get_demo_setting"
     ],
-    "expected_disallowed_tools": [
-      "tell_demo_joke"
-    ],
-    "expected_tool_calls": [
-      "greet_user",
-      "search_demo_handbook",
-      "get_demo_setting"
-    ],
-    "require_final_answer": true
+    "expected_status": "success"
   },
   {
     "scenario_id": "allowlist_enforced",
     "task_name": "hello_world_demo",
-    "instructions": "Write the hello-world demo for Ada and try the joke tool so the allowlist blocks it.",
-    "payload": {
+    "task_input": {
       "name": "Ada",
       "handbook_query": "local setup tip",
       "setting_key": "runtime_target"
     },
-    "expected_available_tool_count": 4,
-    "expected_allowed_tools": [
+    "expected_tool_calls_min": 1,
+    "expected_allowed_tools_subset": [
       "greet_user",
       "search_demo_handbook",
       "get_demo_setting"
     ],
-    "expected_disallowed_tools": [
-      "tell_demo_joke"
-    ],
-    "expected_tool_calls": [
-      "greet_user"
-    ],
-    "expected_blocked_tools": [
-      "tell_demo_joke"
-    ],
-    "require_final_answer": true,
-    "controlled_tool_calls": [
-      {
-        "tool_name": "greet_user",
-        "arguments": {
-          "value": "Ada"
-        }
-      },
-      {
-        "tool_name": "tell_demo_joke",
-        "arguments": {
-          "topic": "Ada"
-        }
-      }
-    ],
-    "controlled_final_answer": "Hello, Ada! I used the greeting tool and kept the joke tool blocked by the allowlist."
+    "expect_blocked_tool": true,
+    "expected_status": "success"
   }
 ]

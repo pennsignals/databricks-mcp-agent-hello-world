@@ -1,6 +1,10 @@
 from types import SimpleNamespace
 
-from databricks_mcp_agent_hello_world.evals.harness import evaluate_record, run_eval_scenarios
+from databricks_mcp_agent_hello_world.evals.harness import (
+    EvalSetupError,
+    evaluate_record,
+    run_eval_scenarios,
+)
 from databricks_mcp_agent_hello_world.models import EvalScenario
 
 
@@ -14,7 +18,20 @@ class StubRunner:
         return self.record
 
 
-def _record(tool_calls=None, final_answer: str = "Hello Ada.") -> dict:
+class SequencedRunner:
+    def __init__(self, outcomes):
+        self.outcomes = list(outcomes)
+        self.requests = []
+
+    def run(self, request):
+        self.requests.append(request)
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+def _record(tool_calls=None, blocked_calls=None, final_answer: str = "Hello Ada.") -> dict:
     tool_calls = tool_calls or [
         {"tool_name": "greet_user", "arguments": {"value": "Ada"}, "status": "ok"},
     ]
@@ -28,123 +45,48 @@ def _record(tool_calls=None, final_answer: str = "Hello Ada.") -> dict:
             "tell_demo_joke",
         ],
         "allowed_tools": ["greet_user", "search_demo_handbook", "get_demo_setting"],
-        "disallowed_tools": ["tell_demo_joke"],
         "tool_calls": tool_calls,
+        "blocked_calls": blocked_calls or [],
         "final_answer": final_answer,
     }
 
 
-def test_evaluate_record_passes_matching_expectations() -> None:
+def test_evaluate_record_passes_happy_path_expectations() -> None:
     scenario = EvalScenario(
         scenario_id="hello_world_happy_path",
         task_name="hello_world_demo",
-        instructions="Write the hello-world report.",
-        expected_available_tool_count=4,
-        expected_allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
-        expected_tool_calls=["greet_user"],
-        require_final_answer=True,
-    )
-
-    result = evaluate_record(scenario, _record(), SimpleNamespace())
-
-    assert result.status == "pass"
-
-
-def test_evaluate_record_flags_blocked_attempt() -> None:
-    scenario = EvalScenario(
-        scenario_id="allowlist_enforced",
-        task_name="hello_world_demo",
-        instructions="Try to use the joke tool.",
-        expected_allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
-        expected_disallowed_tools=["tell_demo_joke"],
-        expected_tool_calls=["greet_user"],
-        expected_blocked_tools=["tell_demo_joke"],
-        require_final_answer=True,
-    )
-
-    blocked_record = _record(
-        tool_calls=[
-            {"tool_name": "greet_user", "arguments": {"value": "Ada"}, "status": "ok"},
+        task_input={"name": "Ada"},
+        expected_tool_calls_min=1,
+        expected_allowed_tools_subset=[
+            "greet_user",
+            "search_demo_handbook",
+            "get_demo_setting",
         ],
-        final_answer="Hello Ada, I stayed within the allowlist.",
+        expected_status="success",
     )
 
-    result = evaluate_record(
-        scenario,
-        {
-            **blocked_record,
-            "blocked_calls": [
-                {"tool_name": "tell_demo_joke", "arguments": {"value": "Ada"}, "status": "blocked"}
-            ],
-        },
-        SimpleNamespace(),
-    )
+    result = evaluate_record(scenario, _record())
 
     assert result.status == "pass"
-    assert result.blocked_tools == ["tell_demo_joke"]
 
 
-def test_evaluate_record_fails_when_hello_world_has_zero_tool_calls() -> None:
-    scenario = EvalScenario(
-        scenario_id="hello_world_happy_path",
-        task_name="hello_world_demo",
-        instructions="Write the hello-world report.",
-        expected_available_tool_count=4,
-        expected_allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
-        require_final_answer=True,
-    )
-
-    result = evaluate_record(
-        scenario,
-        {
-            "task_name": "hello_world_demo",
-            "available_tools_count": 4,
-            "available_tools": [
-                "greet_user",
-                "search_demo_handbook",
-                "get_demo_setting",
-                "tell_demo_joke",
-            ],
-            "allowed_tools": ["greet_user", "search_demo_handbook", "get_demo_setting"],
-            "tool_calls": [],
-            "final_answer": "Hello Ada.",
-        },
-        SimpleNamespace(),
-    )
-
-    assert result.status == "fail"
-    assert "hello-world demo must call at least one tool" in (result.failure_reason or "")
-
-
-def test_run_eval_scenarios_filters_by_scenario_id() -> None:
-    scenario = EvalScenario(
-        scenario_id="hello_world_happy_path",
-        task_name="hello_world_demo",
-        instructions="Write the hello-world report.",
-        expected_available_tool_count=4,
-        expected_allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
-        require_final_answer=True,
-    )
-
-    summary = run_eval_scenarios([scenario], StubRunner(_record()), scenario_id="hello_world_happy_path")
-
-    assert summary.total_scenarios == 1
-    assert summary.passed == 1
-
-
-def test_run_eval_scenarios_marks_blocking_eval_requests() -> None:
+def test_evaluate_record_passes_guardrail_expectations() -> None:
     scenario = EvalScenario(
         scenario_id="allowlist_enforced",
         task_name="hello_world_demo",
-        instructions="Try to use the joke tool.",
-        expected_allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
-        expected_disallowed_tools=["tell_demo_joke"],
-        expected_tool_calls=["greet_user"],
-        expected_blocked_tools=["tell_demo_joke"],
-        require_final_answer=True,
+        task_input={"name": "Ada"},
+        expected_tool_calls_min=1,
+        expected_allowed_tools_subset=[
+            "greet_user",
+            "search_demo_handbook",
+            "get_demo_setting",
+        ],
+        expect_blocked_tool=True,
+        expected_status="success",
     )
 
-    runner = StubRunner(
+    result = evaluate_record(
+        scenario,
         {
             **_record(
                 tool_calls=[
@@ -153,31 +95,139 @@ def test_run_eval_scenarios_marks_blocking_eval_requests() -> None:
                 final_answer="Hello Ada, I stayed within the allowlist.",
             ),
             "blocked_calls": [
-                {"tool_name": "tell_demo_joke", "arguments": {"value": "Ada"}, "status": "blocked"}
+                {"tool_name": "tell_demo_joke", "arguments": {"topic": "Ada"}, "status": "blocked"}
             ],
-        }
+        },
     )
 
-    summary = run_eval_scenarios([scenario], runner)
-
-    assert summary.total_scenarios == 1
-    assert runner.requests[0].expected_blocked_calls is True
+    assert result.status == "pass"
+    assert result.blocked_tools == ["tell_demo_joke"]
 
 
-def test_run_eval_scenarios_leaves_happy_path_requests_unflagged() -> None:
+def test_evaluate_record_fails_when_tool_calls_fall_outside_allowed_subset() -> None:
     scenario = EvalScenario(
         scenario_id="hello_world_happy_path",
         task_name="hello_world_demo",
-        instructions="Write the hello-world report.",
-        expected_available_tool_count=4,
-        expected_allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
-        expected_tool_calls=["greet_user"],
-        require_final_answer=True,
+        task_input={"name": "Ada"},
+        expected_tool_calls_min=1,
+        expected_allowed_tools_subset=["greet_user"],
+        expected_status="success",
     )
 
-    runner = StubRunner(_record())
+    result = evaluate_record(
+        scenario,
+        _record(
+            tool_calls=[
+                {"tool_name": "tell_demo_joke", "arguments": {"topic": "Ada"}, "status": "ok"}
+            ]
+        ),
+    )
+
+    assert result.status == "fail"
+    assert "tool calls must stay inside the expected allowed tool subset" in (
+        result.failure_reason or ""
+    )
+
+
+def test_run_eval_scenarios_filters_by_scenario_id() -> None:
+    scenario = EvalScenario(
+        scenario_id="hello_world_happy_path",
+        task_name="hello_world_demo",
+        task_input={"name": "Ada"},
+        expected_tool_calls_min=1,
+        expected_allowed_tools_subset=["greet_user"],
+        expected_status="success",
+    )
+
+    summary = run_eval_scenarios(
+        [scenario],
+        StubRunner(_record()),
+        scenario_id="hello_world_happy_path",
+    )
+
+    assert summary.total_scenarios == 1
+    assert summary.passed == 1
+
+
+def test_run_eval_scenarios_rejects_unknown_scenario_id() -> None:
+    scenario = EvalScenario(
+        scenario_id="hello_world_happy_path",
+        task_name="hello_world_demo",
+        task_input={"name": "Ada"},
+        expected_tool_calls_min=1,
+        expected_allowed_tools_subset=["greet_user"],
+        expected_status="success",
+    )
+
+    try:
+        run_eval_scenarios([scenario], StubRunner(_record()), scenario_id="missing")
+    except EvalSetupError as exc:
+        assert "Scenario not found: missing" in str(exc)
+    else:
+        raise AssertionError("Expected EvalSetupError for an unknown scenario id")
+
+
+def test_run_eval_scenarios_tracks_pass_fail_and_error_counts() -> None:
+    pass_scenario = EvalScenario(
+        scenario_id="happy_path",
+        task_name="hello_world_demo",
+        task_input={"name": "Ada"},
+        expected_tool_calls_min=1,
+        expected_allowed_tools_subset=["greet_user", "search_demo_handbook"],
+        expected_status="success",
+    )
+    fail_scenario = EvalScenario(
+        scenario_id="tool_minimum",
+        task_name="hello_world_demo",
+        task_input={"name": "Ada"},
+        expected_tool_calls_min=2,
+        expected_allowed_tools_subset=["greet_user", "search_demo_handbook"],
+        expected_status="success",
+    )
+    error_scenario = EvalScenario(
+        scenario_id="runtime_error",
+        task_name="hello_world_demo",
+        task_input={"name": "Ada"},
+        expected_tool_calls_min=1,
+        expected_allowed_tools_subset=["greet_user", "search_demo_handbook"],
+        expected_status="success",
+    )
+
+    runner = SequencedRunner([_record(), _record(), RuntimeError("boom")])
+    summary = run_eval_scenarios([pass_scenario, fail_scenario, error_scenario], runner)
+
+    assert summary.total_scenarios == 3
+    assert summary.passed == 1
+    assert summary.failed == 1
+    assert summary.errored == 1
+
+
+def test_run_eval_scenarios_passes_task_input_through_to_runner() -> None:
+    scenario = EvalScenario(
+        scenario_id="allowlist_enforced",
+        task_name="hello_world_demo",
+        task_input={"name": "Ada", "setting_key": "runtime_target"},
+        expected_tool_calls_min=1,
+        expected_allowed_tools_subset=["greet_user", "search_demo_handbook"],
+        expect_blocked_tool=True,
+        expected_status="success",
+    )
+
+    runner = StubRunner(
+        _record(
+            tool_calls=[
+                {"tool_name": "greet_user", "arguments": {"value": "Ada"}, "status": "ok"},
+            ],
+            blocked_calls=[
+                {"tool_name": "tell_demo_joke", "arguments": {"topic": "Ada"}, "status": "blocked"}
+            ],
+            final_answer="Hello Ada, I stayed within the allowlist.",
+        )
+    )
 
     summary = run_eval_scenarios([scenario], runner)
 
     assert summary.total_scenarios == 1
-    assert runner.requests[0].expected_blocked_calls is False
+    assert runner.requests[0].payload["name"] == "Ada"
+    assert runner.requests[0].payload["setting_key"] == "runtime_target"
+    assert runner.requests[0].task_name == "hello_world_demo"

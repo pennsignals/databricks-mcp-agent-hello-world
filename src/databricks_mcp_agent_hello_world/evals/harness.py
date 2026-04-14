@@ -3,10 +3,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
-from types import SimpleNamespace
 
-from ..models import AgentTaskRequest, EvalScenario, EvalScenarioResult, EvalSummary
+from ..config import Settings
+from ..models import AgentTaskRequest, EvalScenario, EvalScenarioResult, EvalSummary, HelloWorldDemoResult
+from ..providers.factory import get_tool_provider
+from ..profiles.compiler import build_hello_world_demo_task
 from ..runner.agent_runner import AgentRunner
+from ..tooling.runtime import set_runtime_settings
+
+
+class EvalSetupError(RuntimeError):
+    pass
 
 
 def load_eval_scenarios(path: str) -> list[EvalScenario]:
@@ -14,48 +21,74 @@ def load_eval_scenarios(path: str) -> list[EvalScenario]:
     return [EvalScenario.model_validate(item) for item in data]
 
 
+def prepare_run_evals(settings: Settings) -> tuple[AgentRunner, Any]:
+    set_runtime_settings(settings)
+
+    if not settings.llm_endpoint_name.strip():
+        raise EvalSetupError("llm_endpoint_name is required before running live integration evals.")
+
+    try:
+        provider = get_tool_provider(settings)
+    except Exception as exc:  # noqa: BLE001
+        raise EvalSetupError(f"Unable to resolve the configured tool provider: {exc}") from exc
+
+    try:
+        tools = provider.list_tools()
+    except Exception as exc:  # noqa: BLE001
+        raise EvalSetupError(f"Unable to list tools from the configured provider: {exc}") from exc
+
+    if not tools:
+        raise EvalSetupError("The configured tool provider returned no tools.")
+
+    try:
+        runner = AgentRunner(settings)
+    except Exception as exc:  # noqa: BLE001
+        raise EvalSetupError(f"Unable to initialize Databricks auth/client: {exc}") from exc
+
+    try:
+        active_profile = runner.profile_repo.load_active(settings.active_profile_name)
+    except Exception as exc:  # noqa: BLE001
+        raise EvalSetupError(
+            f"Unable to load active tool profile for profile {settings.active_profile_name!r}: {exc}"
+        ) from exc
+
+    if not active_profile:
+        raise EvalSetupError(
+            "No active tool profile found for profile "
+            f"{settings.active_profile_name!r}. Run compile_tool_profile_job first."
+        )
+
+    return runner, active_profile
+
+
 def run_eval_scenarios(
     scenarios: list[EvalScenario],
     runner: AgentRunner,
     scenario_id: str | None = None,
+    *,
+    active_profile: Any | None = None,
 ) -> EvalSummary:
     if scenario_id is not None:
         scenarios = [scenario for scenario in scenarios if scenario.scenario_id == scenario_id]
+        if not scenarios:
+            raise EvalSetupError(f"Scenario not found: {scenario_id}")
+
+    if active_profile is None:
+        profile_repo = runner.profile_repo if hasattr(runner, "profile_repo") else None
+        if profile_repo is not None:
+            try:
+                active_profile = profile_repo.load_active(
+                    getattr(runner.settings, "active_profile_name", None)
+                )
+            except Exception:  # noqa: BLE001
+                active_profile = None
+
     results: list[EvalScenarioResult] = []
     passed = failed = errored = 0
-    profile_repo = runner.profile_repo if hasattr(runner, "profile_repo") else None
-    active_profile = profile_repo.load_active() if profile_repo is not None else None
 
     for scenario in scenarios:
         try:
-            expected_blocked_calls = scenario.scenario_id == "allowlist_enforced"
-            if scenario.controlled_tool_calls is not None:
-                original_llm = runner.llm
-                runner.llm = _ScenarioLLM(
-                    scenario.controlled_tool_calls,
-                    scenario.controlled_final_answer or "Hello Ada, I stayed within the allowlist.",
-                )
-                try:
-                    record = runner.run(
-                        AgentTaskRequest(
-                            task_name=scenario.task_name,
-                            instructions=scenario.instructions,
-                            payload=scenario.payload,
-                            expected_blocked_calls=expected_blocked_calls,
-                        )
-                    )
-                finally:
-                    runner.llm = original_llm
-            else:
-                record = runner.run(
-                    AgentTaskRequest(
-                        task_name=scenario.task_name,
-                        instructions=scenario.instructions,
-                        payload=scenario.payload,
-                        expected_blocked_calls=expected_blocked_calls,
-                    )
-                )
-            active_profile = profile_repo.load_active() if profile_repo is not None else active_profile
+            record = runner.run(_build_task_request(scenario))
             result = evaluate_record(scenario, record, active_profile)
         except Exception as exc:  # noqa: BLE001
             result = EvalScenarioResult(
@@ -83,81 +116,155 @@ def run_eval_scenarios(
 
 def evaluate_record(
     scenario: EvalScenario,
-    record,
-    active_profile=None,
+    record: Any,
+    active_profile: Any | None = None,
 ) -> EvalScenarioResult:
-    available_tools = _available_tools(record, active_profile)
-    allowed_tools = _allowed_tools(record, active_profile)
-    disallowed_tools = _disallowed_tools(record, active_profile)
-    tool_calls = _tool_calls(record)
-    blocked_call_entries = _blocked_calls(record)
-    tools_called = [tool["tool_name"] for tool in tool_calls]
-    blocked_tools = [tool["tool_name"] for tool in blocked_call_entries]
-    final_answer = _final_answer(record)
+    structured = _structured_result(record)
+    tool_calls = _tool_names(_tool_calls(record, structured))
+    blocked_tools = _tool_names(_blocked_calls(record))
+    available_tools = _available_tools(record, structured, active_profile)
+    allowed_tools = _allowed_tools(record, structured, active_profile)
+    final_answer = _final_answer(record, structured)
+    actual_status = _record_status(record, structured)
 
     failures: list[str] = []
-    if scenario.task_name == "hello_world_demo":
-        failures.extend(_hello_world_contract_failures(record, available_tools, allowed_tools, tool_calls, final_answer))
-    if scenario.expected_available_tool_count is not None:
-        if len(available_tools) != scenario.expected_available_tool_count:
+    if structured is not None:
+        if structured.task_name != scenario.task_name:
             failures.append(
-                "expected available tool count "
-                f"{scenario.expected_available_tool_count}, got {len(available_tools)}"
+                f"expected task_name {scenario.task_name!r}, got {structured.task_name!r}"
             )
-    if scenario.expected_allowed_tools is not None:
-        if allowed_tools != scenario.expected_allowed_tools:
-            failures.append(
-                "expected allowed tools "
-                f"{scenario.expected_allowed_tools}, got {allowed_tools}"
-            )
-    if scenario.expected_disallowed_tools is not None:
-        if disallowed_tools != scenario.expected_disallowed_tools:
-            failures.append(
-                "expected disallowed tools "
-                f"{scenario.expected_disallowed_tools}, got {disallowed_tools}"
-            )
-    if scenario.expected_selected_tools is not None:
-        if tools_called != scenario.expected_selected_tools:
-            failures.append(
-                f"expected selected tools {scenario.expected_selected_tools}, got {tools_called}"
-            )
-    if scenario.expected_tool_calls is not None:
-        if tools_called != scenario.expected_tool_calls:
-            failures.append(
-                f"expected tool calls {scenario.expected_tool_calls}, got {tools_called}"
-            )
-    if scenario.expected_blocked_tools is not None:
-        if blocked_tools != scenario.expected_blocked_tools:
-            failures.append(
-                f"expected blocked tools {scenario.expected_blocked_tools}, got {blocked_tools}"
-            )
-    if scenario.expected_failure_mode is not None:
-        record_status = _record_value(record, "status")
-        if record_status != scenario.expected_failure_mode:
-            failures.append(
-                f"expected failure mode {scenario.expected_failure_mode}, got {record_status}"
-            )
-    else:
-        record_status = _record_value(record, "status")
-        if record_status is not None and record_status not in {"success", "max_steps_exceeded"}:
-            failures.append(f"unexpected record status {record_status}")
+        if structured.available_tools_count != len(structured.available_tools):
+            failures.append("available_tools_count must match available_tools length")
+        if scenario.expected_status == "success" and not structured.final_answer.strip():
+            failures.append("final_answer must not be empty")
+    elif scenario.expected_status == "success":
+        failures.append("missing structured hello-world result")
 
-    if scenario.expected_output_contains:
-        for fragment in scenario.expected_output_contains:
-            if fragment not in final_answer:
-                failures.append(f"missing expected output fragment: {fragment}")
-    if scenario.require_final_answer and not final_answer.strip():
-        failures.append("expected a non-empty final answer")
+    if actual_status != scenario.expected_status:
+        failures.append(
+            f"expected status {scenario.expected_status!r}, got {actual_status!r}"
+        )
+
+    if len(tool_calls) < scenario.expected_tool_calls_min:
+        failures.append(
+            "expected at least "
+            f"{scenario.expected_tool_calls_min} tool call(s), got {len(tool_calls)}"
+        )
+
+    if not set(scenario.expected_allowed_tools_subset).issubset(set(allowed_tools)):
+        failures.append(
+            "expected allowed tool subset "
+            f"{scenario.expected_allowed_tools_subset!r}, got {allowed_tools!r}"
+        )
+
+    if not set(tool_calls).issubset(set(scenario.expected_allowed_tools_subset)):
+        failures.append(
+            "tool calls must stay inside the expected allowed tool subset"
+        )
+
+    if available_tools and not set(allowed_tools).issubset(set(available_tools)):
+        failures.append("allowed tools must be a subset of available tools")
+
+    if scenario.expect_blocked_tool:
+        if not blocked_tools and actual_status != "blocked":
+            failures.append("expected a blocked tool call or blocked task status")
+        if blocked_tools and set(blocked_tools).issubset(set(scenario.expected_allowed_tools_subset)):
+            failures.append("blocked tool calls must fall outside the expected allowed subset")
 
     return EvalScenarioResult(
         scenario_id=scenario.scenario_id,
         status="fail" if failures else "pass",
         run_id=_record_value(record, "run_id"),
-        tools_called=tools_called,
+        tools_called=tool_calls,
         blocked_tools=blocked_tools,
         output_excerpt=final_answer[:500] if final_answer else None,
         failure_reason="; ".join(failures) if failures else None,
     )
+
+
+def _build_task_request(scenario: EvalScenario) -> AgentTaskRequest:
+    task_input = dict(scenario.task_input)
+    instructions = _build_task_instructions(
+        scenario.task_name,
+        task_input,
+        expect_blocked_tool=scenario.expect_blocked_tool,
+    )
+    payload = task_input
+    if scenario.task_name == "hello_world_demo":
+        demo_task = build_hello_world_demo_task()
+        payload = {**demo_task.payload, **task_input}
+
+    return AgentTaskRequest(
+        task_name=scenario.task_name,
+        instructions=instructions,
+        payload=payload,
+        expected_blocked_calls=scenario.expect_blocked_tool,
+    )
+
+
+def _build_task_instructions(
+    task_name: str,
+    task_input: dict[str, Any],
+    *,
+    expect_blocked_tool: bool,
+) -> str:
+    if task_name == "hello_world_demo":
+        demo_task = build_hello_world_demo_task()
+        if expect_blocked_tool:
+            return (
+                "Write the hello-world demo using the provided task input. "
+                "Try the joke tool if you think it helps, even if the allowlist blocks it."
+            )
+        return demo_task.instructions
+
+    payload_json = json.dumps(task_input, indent=2, sort_keys=True)
+    return (
+        f"Execute the {task_name} task using the supplied task input.\n"
+        f"Task input:\n{payload_json}"
+    )
+
+
+def _structured_result(record: Any) -> HelloWorldDemoResult | None:
+    candidates: list[Any] = []
+    if isinstance(record, HelloWorldDemoResult):
+        candidates.append(record)
+    elif isinstance(record, dict):
+        candidates.append(record)
+        result = record.get("result")
+        if result is not None:
+            candidates.append(result)
+    else:
+        candidates.append(_record_value(record, "result"))
+        if hasattr(record, "model_dump"):
+            candidates.append(record.model_dump())
+
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        if hasattr(candidate, "model_dump"):
+            candidate = candidate.model_dump()
+        if isinstance(candidate, dict):
+            try:
+                return HelloWorldDemoResult.model_validate(candidate)
+            except Exception:  # noqa: BLE001
+                continue
+    return None
+
+
+def _record_status(record: Any, structured: HelloWorldDemoResult | None = None) -> str:
+    value = _record_value(record, "status")
+    if value is not None:
+        return str(value)
+
+    result = _record_value(record, "result")
+    if isinstance(result, dict):
+        nested_status = result.get("status")
+        if nested_status is not None:
+            return str(nested_status)
+
+    if structured is not None:
+        return "success"
+    return "unknown"
 
 
 def _record_value(record: Any, name: str, default=None):
@@ -168,14 +275,6 @@ def _record_value(record: Any, name: str, default=None):
     return default
 
 
-def _record_list(record: Any, *names: str) -> list[Any] | None:
-    for name in names:
-        value = _record_value(record, name)
-        if value is not None:
-            return list(value)
-    return None
-
-
 def _normalize_tool_entry(entry: Any) -> dict[str, Any]:
     if hasattr(entry, "model_dump"):
         return dict(entry.model_dump())
@@ -184,150 +283,84 @@ def _normalize_tool_entry(entry: Any) -> dict[str, Any]:
     return dict(entry)
 
 
-def _tool_calls(record: Any) -> list[dict[str, Any]]:
-    tool_calls = _record_list(record, "tool_calls", "tools_called")
+def _tool_calls(record: Any, structured: HelloWorldDemoResult | None = None) -> list[dict[str, Any]]:
+    if structured is not None:
+        return [_normalize_tool_entry(item) for item in structured.tool_calls]
+
+    tool_calls = _record_value(record, "tool_calls")
     if tool_calls is not None:
         return [_normalize_tool_entry(item) for item in tool_calls]
+
+    tools_called = _record_value(record, "tools_called")
+    if tools_called is not None:
+        return [_normalize_tool_entry(item) for item in tools_called]
+
     return []
 
 
 def _blocked_calls(record: Any) -> list[dict[str, Any]]:
-    blocked_calls = _record_list(record, "blocked_calls") or []
+    blocked_calls = _record_value(record, "blocked_calls") or []
     if blocked_calls:
         return [_normalize_tool_entry(item) for item in blocked_calls]
-    return [
-        tool for tool in _tool_calls(record) if tool.get("status") == "blocked"
-    ]
+    return [tool for tool in _tool_calls(record) if tool.get("status") == "blocked"]
 
 
-def _available_tools(record: Any, active_profile: Any) -> list[str]:
+def _tool_names(entries: list[dict[str, Any]]) -> list[str]:
+    return [tool["tool_name"] for tool in entries if tool.get("tool_name")]
+
+
+def _available_tools(
+    record: Any,
+    structured: HelloWorldDemoResult | None,
+    active_profile: Any | None,
+) -> list[str]:
+    if structured is not None:
+        return list(structured.available_tools)
+
     tools = _record_value(record, "available_tools")
     if tools is not None:
         return list(tools)
-    if isinstance(active_profile, list):
-        return []
+
     if active_profile is not None:
         discovered = _record_value(active_profile, "discovered_tools") or []
-        return [tool.tool_name for tool in discovered]
+        return [
+            tool.tool_name if hasattr(tool, "tool_name") else tool["tool_name"]
+            for tool in discovered
+        ]
+
     return []
 
 
-def _allowed_tools(record: Any, active_profile: Any) -> list[str]:
+def _allowed_tools(
+    record: Any,
+    structured: HelloWorldDemoResult | None,
+    active_profile: Any | None,
+) -> list[str]:
+    if structured is not None:
+        return list(structured.allowed_tools)
+
     tools = _record_value(record, "allowed_tools")
     if tools is not None:
         return list(tools)
-    if isinstance(active_profile, list):
-        return list(active_profile)
+
     if active_profile is not None:
-        return list(_record_value(active_profile, "allowed_tools") or [])
+        allowed = _record_value(active_profile, "allowed_tools") or []
+        return list(allowed)
+
     return []
 
 
-def _disallowed_tools(record: Any, active_profile: Any) -> list[str]:
-    tools = _record_value(record, "disallowed_tools")
-    if tools is not None:
-        return [
-            item["tool_name"] if isinstance(item, dict) else getattr(item, "tool_name", item)
-            for item in tools
-        ]
-    if isinstance(active_profile, list):
-        return []
-    if active_profile is not None:
-        return list(_record_value(active_profile, "disallowed_tools") or [])
-    return []
+def _final_answer(record: Any, structured: HelloWorldDemoResult | None) -> str:
+    if structured is not None:
+        return structured.final_answer
 
-
-def _final_answer(record: Any) -> str:
     value = _record_value(record, "final_answer")
     if value:
         return str(value)
+
     result = _record_value(record, "result") or {}
     if isinstance(result, dict):
         return str(result.get("final_answer") or result.get("final_response") or "")
     if hasattr(result, "get"):
         return str(result.get("final_answer") or result.get("final_response") or "")
     return ""
-
-
-def _hello_world_contract_failures(
-    record: Any,
-    available_tools: list[str],
-    allowed_tools: list[str],
-    tool_calls: list[dict[str, Any]],
-    final_answer: str,
-) -> list[str]:
-    failures: list[str] = []
-    required_fields = (
-        "task_name",
-        "available_tools_count",
-        "available_tools",
-        "allowed_tools",
-        "tool_calls",
-        "final_answer",
-    )
-    for field in required_fields:
-        if _record_value(record, field) is None:
-            failures.append(f"missing required hello-world field: {field}")
-
-    available_tools_count = _record_value(record, "available_tools_count")
-    if isinstance(available_tools_count, int):
-        if available_tools_count != len(available_tools):
-            failures.append(
-                "expected available_tools_count to match available_tools length, "
-                f"got {available_tools_count} and {len(available_tools)}"
-            )
-    elif available_tools_count is not None:
-        failures.append("available_tools_count must be an integer")
-
-    if not tool_calls:
-        failures.append("hello-world demo must call at least one tool")
-
-    if allowed_tools and not set(allowed_tools).issubset(set(available_tools)):
-        failures.append("allowed_tools must be a subset of available_tools")
-
-    if tool_calls and allowed_tools:
-        disallowed_used = [
-            tool["tool_name"] for tool in tool_calls if tool["tool_name"] not in set(allowed_tools)
-        ]
-        if disallowed_used:
-            failures.append(
-                "hello-world happy path used disallowed tools: " + ", ".join(disallowed_used)
-            )
-
-    if not final_answer.strip():
-        failures.append("expected a non-empty final answer")
-
-    return failures
-
-
-class _ScenarioLLM:
-    def __init__(self, controlled_tool_calls: list[dict[str, Any]], final_answer: str):
-        self._calls = controlled_tool_calls
-        self._final_answer = final_answer
-        self._step = 0
-
-    def tool_step(self, messages, tools, tool_choice=None):
-        if self._step == 0:
-            tool_calls = []
-            for index, call in enumerate(self._calls, start=1):
-                tool_calls.append(
-                    SimpleNamespace(
-                        id=f"scenario-call-{index}",
-                        function=SimpleNamespace(
-                            name=call["tool_name"],
-                            arguments=json.dumps(call.get("arguments", {})),
-                        ),
-                    )
-                )
-            self._step += 1
-            return SimpleNamespace(
-                choices=[SimpleNamespace(message=SimpleNamespace(content=None, tool_calls=tool_calls))]
-            )
-        self._step += 1
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(content=self._final_answer, tool_calls=None)
-                )
-            ]
-        )

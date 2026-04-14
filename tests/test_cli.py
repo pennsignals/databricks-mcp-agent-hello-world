@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from databricks_mcp_agent_hello_world.cli import build_parser, run_named_command
+from databricks_mcp_agent_hello_world.evals.harness import EvalSetupError
 
 
 def _write_config(tmp_path: Path) -> Path:
@@ -22,6 +23,16 @@ def _write_config(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     return config_path
+
+
+def _summary(*, passed: int, failed: int, errored: int):
+    return SimpleNamespace(
+        total_scenarios=passed + failed + errored,
+        passed=passed,
+        failed=failed,
+        errored=errored,
+        results=[],
+    )
 
 
 def test_parsers_accept_documented_flags() -> None:
@@ -107,28 +118,92 @@ def test_preflight_json_output_returns_expected_shape(
     assert '"can_compile_profile": true' in output
 
 
-def test_run_evals_rejects_unknown_scenario(tmp_path: Path, monkeypatch) -> None:
+def test_run_evals_returns_setup_failure_exit_code_without_running_scenarios(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
     config_path = _write_config(tmp_path)
+    ran_scenarios = False
+
+    def _unexpected_run_eval_scenarios(*args, **kwargs):
+        nonlocal ran_scenarios
+        ran_scenarios = True
+        raise AssertionError("run_eval_scenarios should not run on setup failure")
+
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.ToolProfileCompiler",
-        lambda settings: type(
-            "Compiler",
-            (),
-            {"compile": lambda self, task=None, force_refresh=False: None},
-        )(),
+        "databricks_mcp_agent_hello_world.cli.prepare_run_evals",
+        lambda settings: (_ for _ in ()).throw(EvalSetupError("auth failed")),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.AgentRunner",
-        lambda settings: object(),
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.load_eval_scenarios",
-        lambda path: [],
+        "databricks_mcp_agent_hello_world.cli.run_eval_scenarios",
+        _unexpected_run_eval_scenarios,
     )
 
     exit_code = run_named_command(
         "run-evals",
-        ["--config-path", str(config_path), "--scenario", "missing"],
+        ["--config-path", str(config_path)],
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert ran_scenarios is False
+    assert "Running live integration evals against the configured Databricks LLM endpoint." in captured.out
+    assert "This command requires valid Databricks auth and may consume tokens." in captured.out
+    assert "auth failed" in captured.err
+
+
+def test_run_evals_returns_failure_exit_code_when_a_scenario_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_config(tmp_path)
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.prepare_run_evals",
+        lambda settings: (object(), SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.load_eval_scenarios",
+        lambda path: [SimpleNamespace(scenario_id="demo")],
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.run_eval_scenarios",
+        lambda scenarios, runner, scenario_id=None, active_profile=None: _summary(
+            passed=0,
+            failed=1,
+            errored=0,
+        ),
+    )
+
+    exit_code = run_named_command(
+        "run-evals",
+        ["--config-path", str(config_path)],
     )
 
     assert exit_code == 1
+
+
+def test_run_evals_returns_success_exit_code_when_all_scenarios_pass(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_config(tmp_path)
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.prepare_run_evals",
+        lambda settings: (object(), SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.load_eval_scenarios",
+        lambda path: [SimpleNamespace(scenario_id="demo")],
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.run_eval_scenarios",
+        lambda scenarios, runner, scenario_id=None, active_profile=None: _summary(
+            passed=1,
+            failed=0,
+            errored=0,
+        ),
+    )
+
+    exit_code = run_named_command(
+        "run-evals",
+        ["--config-path", str(config_path)],
+    )
+
+    assert exit_code == 0
