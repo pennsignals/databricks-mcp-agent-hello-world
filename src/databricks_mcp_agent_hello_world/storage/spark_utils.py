@@ -5,9 +5,11 @@ import os
 from typing import Any
 
 logger = logging.getLogger(__name__)
+_logged_local_fallback = False
 
 
 def get_spark_session():
+    global _logged_local_fallback
     try:
         from pyspark.sql import SparkSession
 
@@ -18,7 +20,11 @@ def get_spark_session():
             return SparkSession.builder.getOrCreate()
     except Exception:  # noqa: BLE001
         pass
-    logger.info("Spark session unavailable; falling back to local persistence.")
+    if not _logged_local_fallback:
+        logger.info(
+            "Local mode: no active Spark session detected; using local fallback persistence."
+        )
+        _logged_local_fallback = True
     return None
 
 
