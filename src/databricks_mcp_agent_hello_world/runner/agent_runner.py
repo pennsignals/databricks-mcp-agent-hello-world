@@ -137,6 +137,7 @@ class AgentRunner:
                     request_id=f"{task.run_id}:{index}",
                     tool_name=tool_name,
                     arguments=tool_args,
+                    expected_blocked_calls=task.expected_blocked_calls,
                 )
                 trace_entry = {
                     "tool_name": tool_name,
@@ -240,6 +241,7 @@ class AgentRunner:
                     request_id=f"{task.run_id}:{index}",
                     tool_name=tool_name,
                     arguments=tool_args,
+                    expected_blocked_calls=task.expected_blocked_calls,
                 )
                 trace_entry = {
                     "tool_name": tool_name,
@@ -304,9 +306,13 @@ class AgentRunner:
         request_id: str,
         tool_name: str,
         arguments: dict[str, Any],
+        expected_blocked_calls: bool = False,
     ) -> ToolResult:
         if tool_name not in set(profile.allowed_tools):
-            logger.warning("Blocked disallowed tool call: %s", tool_name)
+            if expected_blocked_calls:
+                logger.info("Blocked disallowed tool call (expected): %s", tool_name)
+            else:
+                logger.warning("Blocked disallowed tool call: %s", tool_name)
             return ToolResult(
                 tool_name=tool_name,
                 status="blocked",

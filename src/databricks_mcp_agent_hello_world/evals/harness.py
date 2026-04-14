@@ -28,6 +28,7 @@ def run_eval_scenarios(
 
     for scenario in scenarios:
         try:
+            expected_blocked_calls = scenario.scenario_id == "allowlist_enforced"
             if scenario.controlled_tool_calls is not None:
                 original_llm = runner.llm
                 runner.llm = _ScenarioLLM(
@@ -40,6 +41,7 @@ def run_eval_scenarios(
                             task_name=scenario.task_name,
                             instructions=scenario.instructions,
                             payload=scenario.payload,
+                            expected_blocked_calls=expected_blocked_calls,
                         )
                     )
                 finally:
@@ -50,6 +52,7 @@ def run_eval_scenarios(
                         task_name=scenario.task_name,
                         instructions=scenario.instructions,
                         payload=scenario.payload,
+                        expected_blocked_calls=expected_blocked_calls,
                     )
                 )
             active_profile = profile_repo.load_active() if profile_repo is not None else active_profile

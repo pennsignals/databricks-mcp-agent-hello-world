@@ -128,6 +128,7 @@ class AgentTaskRequest(BaseModel):
     task_name: str
     instructions: str
     payload: dict[str, Any] = Field(default_factory=dict)
+    expected_blocked_calls: bool = False
     run_id: str = Field(default_factory=lambda: str(uuid4()))
 
 
