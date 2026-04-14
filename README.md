@@ -1,6 +1,6 @@
 # databricks-mcp-agent-hello-world
 
-`databricks-mcp-agent-hello-world` is a bundle-based, Python-wheel Databricks Job template for a non-interactive, tool-using agent workflow. PRD 3 keeps one guided example path, `hello_world_demo`, while making the runtime durable enough for scheduled jobs.
+`databricks-mcp-agent-hello-world` is a bundle-based, Python-wheel Databricks Job template for a non-interactive, tool-using agent workflow. The guided example path is `hello_world_demo`, and it is meant to show a beginner the full tool-backed flow end to end.
 
 This project is not a Databricks App and does not use `app.yaml`.
 
@@ -52,6 +52,15 @@ For `hello_world_demo`, the expected useful subset is:
 
 The joke tool is intentionally irrelevant so the demo clearly shows both discovery and restriction.
 
+Successful `hello_world_demo` output must make four things obvious:
+
+- how many tools were discovered in total
+- which tools were allowed for the task
+- which tools were actually called
+- how the final answer was assembled from tool output
+
+The important beginner signal is the difference between the full discovered set, the filtered allowlist, and the tools the model really used.
+
 ### Run the documented local flow
 
 ```bash
@@ -70,13 +79,28 @@ You can also run the same flow with the thin wrapper:
 The hello-world JSON result should visibly include these top-level fields:
 
 - `task_name`
+- `available_tools_count`
 - `available_tools`
 - `allowed_tools`
-- `disallowed_tools`
 - `tool_calls`
 - `final_answer`
 
-`available_tools` shows the full discovered registry in order. `allowed_tools` and `disallowed_tools` show the compiled filtered profile in order. `tool_calls` shows the actual execution order. `final_answer` is plain English, not JSON.
+`available_tools_count` and `available_tools` show the full discovered registry. `allowed_tools` shows the filtered subset exposed to the model. `tool_calls` shows the actual execution order. `final_answer` is plain English, not JSON.
+
+Example successful output:
+
+```json
+{
+  "task_name": "hello_world_demo",
+  "available_tools_count": 4,
+  "available_tools": ["greet_user", "search_demo_handbook", "get_demo_setting", "tell_demo_joke"],
+  "allowed_tools": ["greet_user", "search_demo_handbook", "get_demo_setting"],
+  "tool_calls": ["greet_user", "search_demo_handbook"],
+  "final_answer": "Ada, I greeted you and checked the handbook. The handbook says the demo should stay focused on useful tools."
+}
+```
+
+If `tool_calls` is empty for `hello_world_demo`, treat that as a bug or regression rather than acceptable behavior.
 
 ## Commands
 

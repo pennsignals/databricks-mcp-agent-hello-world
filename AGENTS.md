@@ -28,6 +28,11 @@ Review `REQUIREMENTS.md` before starting work, and re-read it before finishing t
 
 All commands accept `--config-path`, which defaults to `workspace-config.yml`.
 
+## Hello-world demo expectations
+
+- `hello_world_demo` should show the total discovered tool count, the allowed subset, the actual tool calls, and the final answer built from tool output.
+- Zero tool calls in `hello_world_demo` are a regression, not an acceptable success case.
+
 ## What `preflight` checks
 
 - config file parse
