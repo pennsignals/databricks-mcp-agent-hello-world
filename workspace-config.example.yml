@@ -2,12 +2,10 @@
 # Local CLI commands read workspace-config.yml from the repo root.
 # Databricks Jobs read the deployed copy at ${workspace.file_path}/workspace-config.yml.
 
+# Required for the hello-world demo.
 tool_provider_type: local_python
 llm_endpoint_name: your-llm-endpoint-name
 active_profile_name: default
-log_level: INFO
-max_allowed_tools: 4
-max_agent_steps: 8
 
 storage:
   tool_profile_table: main.agent_demo.tool_profiles
@@ -15,10 +13,8 @@ storage:
   agent_output_table: main.agent_demo.agent_outputs
   local_data_dir: ./.local_state
 
-# Optional SQL-backed tool configuration.
+# Optional future SQL-backed tool configuration.
 # Not required for the current hello-world demo.
-# The hello-world demo uses local Python tools only.
-# These values are placeholders for future or advanced SQL-backed tools.
 sql:
   warehouse_id: your-sql-warehouse-id
   catalog: main
