@@ -87,11 +87,14 @@ def evaluate_record(
     allowed_tools = _allowed_tools(record, active_profile)
     disallowed_tools = _disallowed_tools(record, active_profile)
     tool_calls = _tool_calls(record)
+    blocked_call_entries = _blocked_calls(record)
     tools_called = [tool["tool_name"] for tool in tool_calls]
-    blocked_tools = [tool["tool_name"] for tool in tool_calls if tool.get("status") == "blocked"]
+    blocked_tools = [tool["tool_name"] for tool in blocked_call_entries]
     final_answer = _final_answer(record)
 
     failures: list[str] = []
+    if scenario.task_name == "hello_world_demo":
+        failures.extend(_hello_world_contract_failures(record, available_tools, allowed_tools, tool_calls, final_answer))
     if scenario.expected_available_tool_count is not None:
         if len(available_tools) != scenario.expected_available_tool_count:
             failures.append(
@@ -182,8 +185,16 @@ def _tool_calls(record: Any) -> list[dict[str, Any]]:
     tool_calls = _record_list(record, "tool_calls", "tools_called")
     if tool_calls is not None:
         return [_normalize_tool_entry(item) for item in tool_calls]
+    return []
+
+
+def _blocked_calls(record: Any) -> list[dict[str, Any]]:
     blocked_calls = _record_list(record, "blocked_calls") or []
-    return [_normalize_tool_entry(item) for item in blocked_calls]
+    if blocked_calls:
+        return [_normalize_tool_entry(item) for item in blocked_calls]
+    return [
+        tool for tool in _tool_calls(record) if tool.get("status") == "blocked"
+    ]
 
 
 def _available_tools(record: Any, active_profile: Any) -> list[str]:
@@ -235,13 +246,64 @@ def _final_answer(record: Any) -> str:
     return ""
 
 
+def _hello_world_contract_failures(
+    record: Any,
+    available_tools: list[str],
+    allowed_tools: list[str],
+    tool_calls: list[dict[str, Any]],
+    final_answer: str,
+) -> list[str]:
+    failures: list[str] = []
+    required_fields = (
+        "task_name",
+        "available_tools_count",
+        "available_tools",
+        "allowed_tools",
+        "tool_calls",
+        "final_answer",
+    )
+    for field in required_fields:
+        if _record_value(record, field) is None:
+            failures.append(f"missing required hello-world field: {field}")
+
+    available_tools_count = _record_value(record, "available_tools_count")
+    if isinstance(available_tools_count, int):
+        if available_tools_count != len(available_tools):
+            failures.append(
+                "expected available_tools_count to match available_tools length, "
+                f"got {available_tools_count} and {len(available_tools)}"
+            )
+    elif available_tools_count is not None:
+        failures.append("available_tools_count must be an integer")
+
+    if not tool_calls:
+        failures.append("hello-world demo must call at least one tool")
+
+    if allowed_tools and not set(allowed_tools).issubset(set(available_tools)):
+        failures.append("allowed_tools must be a subset of available_tools")
+
+    if tool_calls and allowed_tools:
+        disallowed_used = [
+            tool["tool_name"] for tool in tool_calls if tool["tool_name"] not in set(allowed_tools)
+        ]
+        if disallowed_used:
+            failures.append(
+                "hello-world happy path used disallowed tools: " + ", ".join(disallowed_used)
+            )
+
+    if not final_answer.strip():
+        failures.append("expected a non-empty final answer")
+
+    return failures
+
+
 class _ScenarioLLM:
     def __init__(self, controlled_tool_calls: list[dict[str, Any]], final_answer: str):
         self._calls = controlled_tool_calls
         self._final_answer = final_answer
         self._step = 0
 
-    def tool_step(self, messages, tools):
+    def tool_step(self, messages, tools, tool_choice=None):
         if self._step == 0:
             tool_calls = []
             for index, call in enumerate(self._calls, start=1):

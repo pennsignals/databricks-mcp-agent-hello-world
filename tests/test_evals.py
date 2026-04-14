@@ -1,12 +1,7 @@
 from types import SimpleNamespace
 
 from databricks_mcp_agent_hello_world.evals.harness import evaluate_record, run_eval_scenarios
-from databricks_mcp_agent_hello_world.models import (
-    EvalScenario,
-    HelloWorldDemoResult,
-    HelloWorldDisallowedTool,
-    HelloWorldToolCall,
-)
+from databricks_mcp_agent_hello_world.models import EvalScenario
 
 
 class StubRunner:
@@ -19,38 +14,24 @@ class StubRunner:
         return self.record
 
 
-def _record(tool_calls=None, final_answer: str = "Hello Ada.") -> HelloWorldDemoResult:
+def _record(tool_calls=None, final_answer: str = "Hello Ada.") -> dict:
     tool_calls = tool_calls or [
-        HelloWorldToolCall(tool_name="greet_user", arguments={"value": "Ada"}, status="ok"),
-        HelloWorldToolCall(
-            tool_name="search_demo_handbook",
-            arguments={"value": "local setup tip"},
-            status="ok",
-        ),
-        HelloWorldToolCall(
-            tool_name="get_demo_setting",
-            arguments={"value": "runtime_target"},
-            status="ok",
-        ),
+        {"tool_name": "greet_user", "arguments": {"value": "Ada"}, "status": "ok"},
     ]
-    return HelloWorldDemoResult(
-        task_name="hello_world_demo",
-        available_tools=[
+    return {
+        "task_name": "hello_world_demo",
+        "available_tools_count": 4,
+        "available_tools": [
             "greet_user",
             "search_demo_handbook",
             "get_demo_setting",
             "tell_demo_joke",
         ],
-        allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
-        disallowed_tools=[
-            HelloWorldDisallowedTool(
-                tool_name="tell_demo_joke",
-                reason="Intentional novelty tool that should stay out of the hello-world flow unless explicitly requested.",
-            )
-        ],
-        tool_calls=tool_calls,
-        final_answer=final_answer,
-    )
+        "allowed_tools": ["greet_user", "search_demo_handbook", "get_demo_setting"],
+        "disallowed_tools": ["tell_demo_joke"],
+        "tool_calls": tool_calls,
+        "final_answer": final_answer,
+    }
 
 
 def test_evaluate_record_passes_matching_expectations() -> None:
@@ -60,8 +41,7 @@ def test_evaluate_record_passes_matching_expectations() -> None:
         instructions="Write the hello-world report.",
         expected_available_tool_count=4,
         expected_allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
-        expected_disallowed_tools=["tell_demo_joke"],
-        expected_tool_calls=["greet_user", "search_demo_handbook", "get_demo_setting"],
+        expected_tool_calls=["greet_user"],
         require_final_answer=True,
     )
 
@@ -77,26 +57,63 @@ def test_evaluate_record_flags_blocked_attempt() -> None:
         instructions="Try to use the joke tool.",
         expected_allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
         expected_disallowed_tools=["tell_demo_joke"],
-        expected_tool_calls=["tell_demo_joke"],
+        expected_tool_calls=["greet_user"],
         expected_blocked_tools=["tell_demo_joke"],
         require_final_answer=True,
     )
 
     blocked_record = _record(
         tool_calls=[
-            HelloWorldToolCall(
-                tool_name="tell_demo_joke",
-                arguments={"value": "Ada"},
-                status="blocked",
-            )
+            {"tool_name": "greet_user", "arguments": {"value": "Ada"}, "status": "ok"},
         ],
         final_answer="Hello Ada, I stayed within the allowlist.",
     )
 
-    result = evaluate_record(scenario, blocked_record, SimpleNamespace())
+    result = evaluate_record(
+        scenario,
+        {
+            **blocked_record,
+            "blocked_calls": [
+                {"tool_name": "tell_demo_joke", "arguments": {"value": "Ada"}, "status": "blocked"}
+            ],
+        },
+        SimpleNamespace(),
+    )
 
     assert result.status == "pass"
     assert result.blocked_tools == ["tell_demo_joke"]
+
+
+def test_evaluate_record_fails_when_hello_world_has_zero_tool_calls() -> None:
+    scenario = EvalScenario(
+        scenario_id="hello_world_happy_path",
+        task_name="hello_world_demo",
+        instructions="Write the hello-world report.",
+        expected_available_tool_count=4,
+        expected_allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
+        require_final_answer=True,
+    )
+
+    result = evaluate_record(
+        scenario,
+        {
+            "task_name": "hello_world_demo",
+            "available_tools_count": 4,
+            "available_tools": [
+                "greet_user",
+                "search_demo_handbook",
+                "get_demo_setting",
+                "tell_demo_joke",
+            ],
+            "allowed_tools": ["greet_user", "search_demo_handbook", "get_demo_setting"],
+            "tool_calls": [],
+            "final_answer": "Hello Ada.",
+        },
+        SimpleNamespace(),
+    )
+
+    assert result.status == "fail"
+    assert "hello-world demo must call at least one tool" in (result.failure_reason or "")
 
 
 def test_run_eval_scenarios_filters_by_scenario_id() -> None:
@@ -106,7 +123,6 @@ def test_run_eval_scenarios_filters_by_scenario_id() -> None:
         instructions="Write the hello-world report.",
         expected_available_tool_count=4,
         expected_allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
-        expected_disallowed_tools=["tell_demo_joke"],
         require_final_answer=True,
     )
 

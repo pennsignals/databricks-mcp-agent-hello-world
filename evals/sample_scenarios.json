@@ -2,7 +2,7 @@
   {
     "scenario_id": "hello_world_happy_path",
     "task_name": "hello_world_demo",
-    "instructions": "Write a short hello-world report for Ada. Include a greeting, one local setup tip, and the template runtime target. Use only relevant tools.",
+    "instructions": "Write the hello-world demo for Ada using only relevant tools.",
     "payload": {
       "name": "Ada",
       "handbook_query": "local setup tip",
@@ -27,7 +27,7 @@
   {
     "scenario_id": "allowlist_enforced",
     "task_name": "hello_world_demo",
-    "instructions": "Write the hello-world report for Ada, but try to use the joke tool and confirm that the allowlist blocks it.",
+    "instructions": "Write the hello-world demo for Ada and try the joke tool so the allowlist blocks it.",
     "payload": {
       "name": "Ada",
       "handbook_query": "local setup tip",
@@ -43,7 +43,7 @@
       "tell_demo_joke"
     ],
     "expected_tool_calls": [
-      "tell_demo_joke"
+      "greet_user"
     ],
     "expected_blocked_tools": [
       "tell_demo_joke"
@@ -51,12 +51,18 @@
     "require_final_answer": true,
     "controlled_tool_calls": [
       {
+        "tool_name": "greet_user",
+        "arguments": {
+          "value": "Ada"
+        }
+      },
+      {
         "tool_name": "tell_demo_joke",
         "arguments": {
           "topic": "Ada"
         }
       }
     ],
-    "controlled_final_answer": "Hello, Ada! I stayed within the allowed tool subset and did not execute the joke tool."
+    "controlled_final_answer": "Hello, Ada! I used the greeting tool and kept the joke tool blocked by the allowlist."
   }
 ]

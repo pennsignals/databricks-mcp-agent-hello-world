@@ -51,8 +51,16 @@ class StubLLM:
     def __init__(self, responses):
         self.responses = responses
         self.calls = 0
+        self.call_args = []
 
-    def tool_step(self, messages, tools):
+    def tool_step(self, messages, tools, tool_choice=None):
+        self.call_args.append(
+            {
+                "messages": messages,
+                "tools": tools,
+                "tool_choice": tool_choice,
+            }
+        )
         response = self.responses[self.calls]
         self.calls += 1
         return response
@@ -132,16 +140,6 @@ def test_agent_runner_returns_hello_world_contract(tmp_path: Path) -> None:
                 _response(
                     tool_calls=[
                         _tool_call("greet_user", '{"value":"Ada"}', call_id="call-1"),
-                        _tool_call(
-                            "search_demo_handbook",
-                            '{"value":"local setup tip"}',
-                            call_id="call-2",
-                        ),
-                        _tool_call(
-                            "get_demo_setting",
-                            '{"value":"runtime_target"}',
-                            call_id="call-3",
-                        ),
                     ]
                 ),
                 _response(content="Hello Ada, this report is ready."),
@@ -168,12 +166,35 @@ def test_agent_runner_returns_hello_world_contract(tmp_path: Path) -> None:
         "search_demo_handbook",
         "get_demo_setting",
     ]
-    assert [item.tool_name for item in record.tool_calls] == [
-        "greet_user",
-        "search_demo_handbook",
-        "get_demo_setting",
-    ]
+    assert [item.tool_name for item in record.tool_calls] == ["greet_user"]
     assert record.final_answer == "Hello Ada, this report is ready."
+
+
+def test_agent_runner_hello_world_first_turn_requires_tool_use(tmp_path: Path) -> None:
+    runner = _runner(
+        tmp_path,
+        StubLLM(
+            [
+                _response(
+                    tool_calls=[
+                        _tool_call("greet_user", '{"value":"Ada"}', call_id="call-1"),
+                    ]
+                ),
+                _response(content="Hello Ada, this report is ready."),
+            ]
+        ),
+        profile=_profile(),
+    )
+
+    runner.run(
+        AgentTaskRequest(
+            task_name="hello_world_demo",
+            instructions="Write the hello-world report.",
+            payload={"name": "Ada"},
+        )
+    )
+
+    assert runner.llm.call_args[0]["tool_choice"] == "required"
 
 
 def test_agent_runner_records_blocked_hello_world_tool_attempt(tmp_path: Path) -> None:
@@ -196,7 +217,7 @@ def test_agent_runner_records_blocked_hello_world_tool_attempt(tmp_path: Path) -
         )
     )
 
-    assert record.tool_calls[0].status == "blocked"
+    assert record.tool_calls == []
     assert runner.executor.calls == []
     assert runner.result_writer.run_records[0].blocked_calls[0]["tool_name"] == "tell_demo_joke"
 
