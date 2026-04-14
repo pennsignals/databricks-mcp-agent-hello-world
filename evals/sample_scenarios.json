@@ -29,7 +29,9 @@
       "search_demo_handbook",
       "get_demo_setting"
     ],
-    "expect_blocked_tool": true,
+    "expected_excluded_tools": [
+      "tell_demo_joke"
+    ],
     "expected_status": "success"
   }
 ]

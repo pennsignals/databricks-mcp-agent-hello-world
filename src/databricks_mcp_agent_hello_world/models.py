@@ -220,6 +220,7 @@ class EvalScenario(BaseModel):
     task_input: dict[str, Any]
     expected_tool_calls_min: int
     expected_allowed_tools_subset: list[str]
+    expected_excluded_tools: list[str] = Field(default_factory=list)
     expect_blocked_tool: bool = False
     expected_status: Literal["success", "blocked"]
 
