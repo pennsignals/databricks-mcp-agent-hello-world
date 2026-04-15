@@ -1,0 +1,17 @@
+[
+  {
+    "scenario_id": "missing_required_allowed_tool",
+    "description": "Fails when a required allowlisted tool is absent.",
+    "compile_task_input": {
+      "task_name": "workspace_onboarding_brief",
+      "instructions": "Write the onboarding brief.",
+      "payload": {
+        "user_id": "usr_ada_01"
+      }
+    },
+    "required_allowed_tools": [
+      "get_user_profile",
+      "search_onboarding_docs"
+    ]
+  }
+]

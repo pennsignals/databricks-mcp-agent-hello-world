@@ -1,0 +1,16 @@
+[
+  {
+    "scenario_id": "forbidden_executed_tool_present",
+    "description": "Fails when a forbidden executed tool is present.",
+    "compile_task_input": {
+      "task_name": "workspace_onboarding_brief",
+      "instructions": "Write the onboarding brief.",
+      "payload": {
+        "user_id": "usr_ada_01"
+      }
+    },
+    "forbidden_executed_tools": [
+      "create_support_ticket"
+    ]
+  }
+]

@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ToolSpec(BaseModel):
@@ -211,31 +211,68 @@ class CompileToolProfileResult(BaseModel):
 
 
 class EvalScenario(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
     scenario_id: str
-    task_name: str
-    task_input: dict[str, Any]
-    expected_tool_calls_min: int
-    expected_allowed_tools_subset: list[str]
-    expected_excluded_tools: list[str] = Field(default_factory=list)
-    expect_blocked_tool: bool = False
-    expected_status: Literal["success", "blocked"]
+    description: str
+    compile_task_input: AgentTaskRequest
+    run_task_input: AgentTaskRequest | None = None
+
+    expected_status: Literal["success", "error", "max_steps_exceeded"] = "success"
+
+    required_allowed_tools: list[str] = Field(default_factory=list)
+    forbidden_allowed_tools: list[str] = Field(default_factory=list)
+
+    required_executed_tools: list[str] = Field(default_factory=list)
+    forbidden_executed_tools: list[str] = Field(default_factory=list)
+
+    min_tool_calls: int | None = None
+    max_tool_calls: int | None = None
+
+    required_result_keys: list[str] = Field(
+        default_factory=lambda: ["final_response", "allowed_tools", "tool_trace"]
+    )
+
+    required_output_substrings: list[str] = Field(default_factory=list)
+    forbidden_output_substrings: list[str] = Field(default_factory=list)
+
+    expect_blocked_tool_calls: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_tool_call_bounds(self) -> "EvalScenario":
+        if (
+            self.min_tool_calls is not None
+            and self.max_tool_calls is not None
+            and self.min_tool_calls > self.max_tool_calls
+        ):
+            raise ValueError("min_tool_calls must be less than or equal to max_tool_calls")
+        return self
 
 
 class EvalScenarioResult(BaseModel):
     scenario_id: str
-    status: Literal["pass", "fail", "error"]
-    run_id: str | None = None
-    tools_called: list[str] = Field(default_factory=list)
+    passed: bool
+    failed_checks: list[str]
+
+    expected_status: str
+    actual_status: str | None = None
+
+    allowed_tools: list[str] = Field(default_factory=list)
+    executed_tools: list[str] = Field(default_factory=list)
     blocked_tools: list[str] = Field(default_factory=list)
-    output_excerpt: str | None = None
-    failure_reason: str | None = None
+    tool_call_count: int = 0
+
+    final_response_excerpt: str = ""
+
+    compile_task_name: str
+    run_task_name: str
+
+    run_record_id: str | None = None
+    profile_version: str | None = None
 
 
-class EvalSummary(BaseModel):
+class EvalRunReport(BaseModel):
+    scenario_file: str
     total_scenarios: int
-    passed: int
-    failed: int
-    errored: int
+    passed_scenarios: int
+    failed_scenarios: int
+    all_passed: bool
     results: list[EvalScenarioResult]

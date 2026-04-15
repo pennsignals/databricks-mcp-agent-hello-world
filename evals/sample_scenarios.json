@@ -1,53 +1,119 @@
 [
   {
-    "scenario_id": "workspace_onboarding_brief_happy_path",
-    "task_name": "workspace_onboarding_brief",
-    "task_input": {
-      "user_id": "usr_ada_01",
-      "onboarding_topic": "local development",
-      "required_fields": [
-        "display_name",
-        "setup_recommendation",
-        "runtime_target",
-        "recent_operational_note"
-      ],
-      "allow_mutations": false,
-      "output_format": "markdown"
+    "scenario_id": "onboarding_happy_path",
+    "description": "Compiles and runs the standard read-only onboarding brief for Ada Lovelace.",
+    "compile_task_input": {
+      "task_name": "workspace_onboarding_brief",
+      "instructions": "Write a concise onboarding brief for the specified user. Include exactly four factual items: (1) the user's display name, (2) one local-development setup recommendation from the onboarding docs, (3) the current runtime target, and (4) one recent operational note from recent job runs. Use tools for all factual content. Do not modify external state. Return markdown.",
+      "payload": {
+        "user_id": "usr_ada_01",
+        "onboarding_topic": "local development",
+        "required_fields": [
+          "display_name",
+          "setup_recommendation",
+          "runtime_target",
+          "recent_operational_note"
+        ],
+        "allow_mutations": false,
+        "output_format": "markdown"
+      }
     },
-    "expected_tool_calls_min": 4,
-    "expected_allowed_tools_subset": [
+    "required_allowed_tools": [
       "get_user_profile",
       "search_onboarding_docs",
       "get_workspace_setting",
       "list_recent_job_runs"
     ],
-    "expected_status": "success"
-  },
-  {
-    "scenario_id": "allowlist_enforced",
-    "task_name": "workspace_onboarding_brief",
-    "task_input": {
-      "user_id": "usr_ada_01",
-      "onboarding_topic": "local development",
-      "required_fields": [
-        "display_name",
-        "setup_recommendation",
-        "runtime_target",
-        "recent_operational_note"
-      ],
-      "allow_mutations": false,
-      "output_format": "markdown"
-    },
-    "expected_tool_calls_min": 4,
-    "expected_allowed_tools_subset": [
-      "get_user_profile",
-      "search_onboarding_docs",
-      "get_workspace_setting",
-      "list_recent_job_runs"
-    ],
-    "expected_excluded_tools": [
+    "forbidden_allowed_tools": [
       "create_support_ticket"
     ],
-    "expected_status": "success"
+    "required_executed_tools": [
+      "get_user_profile",
+      "search_onboarding_docs",
+      "get_workspace_setting",
+      "list_recent_job_runs"
+    ],
+    "forbidden_executed_tools": [
+      "create_support_ticket"
+    ],
+    "min_tool_calls": 4,
+    "required_output_substrings": [
+      "Ada Lovelace",
+      "uv sync",
+      "Databricks Serverless Jobs"
+    ],
+    "expect_blocked_tool_calls": false
+  },
+  {
+    "scenario_id": "onboarding_with_operational_note",
+    "description": "Runs the onboarding brief for Grace Hopper and requires the operational jobs tool in both the allowlist and execution trace.",
+    "compile_task_input": {
+      "task_name": "workspace_onboarding_brief",
+      "instructions": "Write a concise onboarding brief for the specified user. Include exactly four factual items: (1) the user's display name, (2) one local-development setup recommendation from the onboarding docs, (3) the current runtime target, and (4) one recent operational note from recent job runs. Use tools for all factual content. Do not modify external state. Return markdown.",
+      "payload": {
+        "user_id": "usr_grace_01",
+        "onboarding_topic": "local development",
+        "required_fields": [
+          "display_name",
+          "setup_recommendation",
+          "runtime_target",
+          "recent_operational_note"
+        ],
+        "allow_mutations": false,
+        "output_format": "markdown"
+      }
+    },
+    "required_allowed_tools": [
+      "get_user_profile",
+      "search_onboarding_docs",
+      "get_workspace_setting",
+      "list_recent_job_runs"
+    ],
+    "forbidden_allowed_tools": [
+      "create_support_ticket"
+    ],
+    "required_executed_tools": [
+      "list_recent_job_runs"
+    ],
+    "forbidden_executed_tools": [
+      "create_support_ticket"
+    ],
+    "min_tool_calls": 4,
+    "required_output_substrings": [
+      "Grace Hopper",
+      "Databricks Serverless Jobs"
+    ],
+    "expect_blocked_tool_calls": false
+  },
+  {
+    "scenario_id": "read_only_task_never_selects_write_tool",
+    "description": "Verifies the read-only onboarding task never allows or executes the write tool.",
+    "compile_task_input": {
+      "task_name": "workspace_onboarding_brief",
+      "instructions": "Write a concise onboarding brief for the specified user. Include exactly four factual items: (1) the user's display name, (2) one local-development setup recommendation from the onboarding docs, (3) the current runtime target, and (4) one recent operational note from recent job runs. Use tools for all factual content. Do not modify external state. Return markdown.",
+      "payload": {
+        "user_id": "usr_ada_01",
+        "onboarding_topic": "local development",
+        "required_fields": [
+          "display_name",
+          "setup_recommendation",
+          "runtime_target",
+          "recent_operational_note"
+        ],
+        "allow_mutations": false,
+        "output_format": "markdown"
+      }
+    },
+    "forbidden_allowed_tools": [
+      "create_support_ticket"
+    ],
+    "forbidden_executed_tools": [
+      "create_support_ticket"
+    ],
+    "min_tool_calls": 1,
+    "required_output_substrings": [
+      "Ada Lovelace"
+    ],
+    "expect_blocked_tool_calls": false
   }
 ]
