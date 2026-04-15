@@ -104,6 +104,13 @@ class ToolProfileCompiler:
         return CompileToolProfileResult(profile=profile, reused_existing=False)
 
     def _filter_tools(self, task: AgentTaskRequest, tools: list[ToolSpec]) -> FilterDecision:
+        """Delegate tool subset selection to the LLM and validate structure only.
+
+        Python assembles task context, tool schemas, and descriptive metadata.
+        The model alone chooses allowed_tools and disallowed_tools. Python does
+        not prefilter, score, or rank tools before or after the model call.
+        """
+
         user_prompt = json.dumps(
             {
                 "task_name": task.task_name,
@@ -111,7 +118,7 @@ class ToolProfileCompiler:
                 "payload": task.payload,
                 "max_allowed_tools": self.settings.max_allowed_tools,
                 "selection_policy": SELECTION_POLICY,
-                "discovered_tools": [tool.model_dump(mode="json") for tool in tools],
+                "discovered_tools": [self._tool_prompt_payload(tool) for tool in tools],
             },
             indent=2,
             sort_keys=True,
@@ -164,7 +171,7 @@ class ToolProfileCompiler:
             "compile_task_name": task.task_name,
             "compile_task_hash": compile_task_hash,
             "compile_task_summary": compile_task_summary,
-            "discovered_tools": [tool.model_dump(mode="json") for tool in tools],
+            "discovered_tools": [self._tool_prompt_payload(tool) for tool in tools],
             "allowed_tools": decision.allowed_tools,
             "disallowed_tools": decision.disallowed_tools,
             "tool_justifications": decision.tool_justifications,
@@ -194,6 +201,17 @@ class ToolProfileCompiler:
             for tool_name in decision.disallowed_tools:
                 lines.append(f"- {tool_name}: {decision.tool_justifications[tool_name]}")
             return "\n".join(lines)
+
+    @staticmethod
+    def _tool_prompt_payload(tool: ToolSpec) -> dict[str, object]:
+        return {
+            "tool_name": tool.tool_name,
+            "description": tool.description,
+            "input_schema": tool.input_schema,
+            "capability_tags": list(tool.capability_tags),
+            "side_effect_level": tool.side_effect_level,
+            "data_domains": list(tool.data_domains),
+        }
 
     @staticmethod
     def _compile_task_hash(task: AgentTaskRequest) -> str:

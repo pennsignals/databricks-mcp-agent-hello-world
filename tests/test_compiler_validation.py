@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -12,13 +13,22 @@ from databricks_mcp_agent_hello_world.models import (
 from databricks_mcp_agent_hello_world.profiles.compiler import ToolProfileCompiler
 
 
-def _tool(name: str) -> ToolSpec:
+def _tool(
+    name: str,
+    *,
+    capability_tags: list[str] | None = None,
+    side_effect_level: str = "read_only",
+    data_domains: list[str] | None = None,
+) -> ToolSpec:
     return ToolSpec(
         tool_name=name,
         description=f"{name} description",
         input_schema={"type": "object", "properties": {}, "required": []},
         provider_type="local_python",
         provider_id="builtin_tools",
+        capability_tags=capability_tags or [f"{name}_capability"],
+        side_effect_level=side_effect_level,
+        data_domains=data_domains or [f"{name}_domain"],
     )
 
 
@@ -185,6 +195,61 @@ def test_filter_tools_prompt_includes_task_context() -> None:
     assert payload["selection_policy"]
     assert payload["discovered_tools"][0]["tool_name"] == "alpha"
     assert payload["discovered_tools"][1]["tool_name"] == "beta"
+    assert payload["discovered_tools"][0]["capability_tags"] == ["alpha_capability"]
+    assert payload["discovered_tools"][0]["side_effect_level"] == "read_only"
+    assert payload["discovered_tools"][0]["data_domains"] == ["alpha_domain"]
+
+
+def test_compile_uses_llm_selection_without_python_side_filtering() -> None:
+    task = _task(instructions="Read the current system state.")
+    compiler = ToolProfileCompiler.__new__(ToolProfileCompiler)
+    compiler.settings = _settings(max_allowed_tools=3)
+    compiler.provider = StubProvider(
+        [
+            _tool("reader"),
+            _tool("writer", side_effect_level="write"),
+            _tool("other"),
+        ]
+    )
+    compiler.repo = StubRepo(active_profile=None)
+    compiler.llm = StubLLM(
+        decision={
+            "allowed_tools": ["writer"],
+            "disallowed_tools": ["reader", "other"],
+            "tool_justifications": {
+                "reader": "Not selected by the model for this task.",
+                "writer": "Selected by the model.",
+                "other": "Not selected by the model for this task.",
+            },
+            "summary_reasoning": "Model-chosen subset",
+        }
+    )
+
+    result = compiler.compile(task)
+
+    assert result.profile.allowed_tools == ["writer"]
+    assert result.profile.disallowed_tools == ["reader", "other"]
+
+
+def test_validate_decision_rejects_overlap_and_max_limit() -> None:
+    compiler = ToolProfileCompiler.__new__(ToolProfileCompiler)
+    compiler.settings = _settings(max_allowed_tools=1)
+
+    overlapping = FilterDecision(
+        allowed_tools=["one"],
+        disallowed_tools=["one", "two"],
+        tool_justifications={"one": "needed", "two": "not needed"},
+    )
+    with pytest.raises(ValueError, match="both allowed and disallowed"):
+        compiler._validate_decision([_tool("one"), _tool("two")], overlapping)
+
+    too_many = FilterDecision(
+        allowed_tools=["one", "two"],
+        disallowed_tools=[],
+        tool_justifications={"one": "needed", "two": "needed"},
+    )
+    with pytest.raises(ValueError, match="more allowed tools"):
+        compiler._validate_decision([_tool("one"), _tool("two")], too_many)
 
 
 def test_compile_task_hash_changes_with_task_content() -> None:
@@ -266,6 +331,18 @@ def test_compile_recompiles_when_task_hash_differs() -> None:
     assert result.profile.compile_task_name == task.task_name
     assert result.profile.compile_task_hash == ToolProfileCompiler._compile_task_hash(task)
     assert result.profile.compile_task_summary == ToolProfileCompiler._compile_task_summary(task)
+
+
+def test_tool_filter_prompt_includes_metadata_guidance() -> None:
+    prompt = Path(
+        "src/databricks_mcp_agent_hello_world/prompts/tool_filter_prompt.txt"
+    ).read_text(encoding="utf-8")
+
+    assert "Use tool descriptions as the primary signal for relevance." in prompt
+    assert "capability_tags describe the tool's capabilities." in prompt
+    assert "data_domains describe the kind of data or source the tool operates on." in prompt
+    assert 'side_effect_level="write" means the tool can mutate external state' in prompt
+    assert "hello-world" not in prompt.lower()
 
 
 def test_compile_recompiles_when_prompt_version_differs() -> None:
