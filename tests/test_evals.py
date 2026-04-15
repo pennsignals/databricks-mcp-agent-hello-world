@@ -10,6 +10,7 @@ from databricks_mcp_agent_hello_world.models import AgentRunRecord, EvalRunRepor
 
 class StubCompiler:
     instances: list["StubCompiler"] = []
+    queued_errors: list[Exception | None] = []
 
     def __init__(self, settings):
         self.settings = settings
@@ -18,6 +19,10 @@ class StubCompiler:
 
     def compile(self, task, force_refresh=False):
         self.compile_calls.append((task, force_refresh))
+        if self.queued_errors:
+            queued_error = self.queued_errors.pop(0)
+            if queued_error is not None:
+                raise queued_error
         return SimpleNamespace(
             profile=SimpleNamespace(
                 profile_name="default",
@@ -29,7 +34,7 @@ class StubCompiler:
 
 class StubRunner:
     instances: list["StubRunner"] = []
-    queued_records: list[AgentRunRecord] = []
+    queued_outcomes: list[AgentRunRecord | Exception] = []
 
     def __init__(self, settings):
         self.settings = settings
@@ -38,7 +43,10 @@ class StubRunner:
 
     def run(self, task):
         self.run_calls.append(task)
-        return self.queued_records.pop(0)
+        outcome = self.queued_outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
 
 
 def _settings(tmp_path: Path):
@@ -102,8 +110,9 @@ def _write_scenarios(tmp_path: Path, scenarios: list[dict]) -> str:
 
 def _run_report(tmp_path: Path, monkeypatch, scenarios: list[dict], records: list[AgentRunRecord]) -> EvalRunReport:
     StubCompiler.instances.clear()
+    StubCompiler.queued_errors = []
     StubRunner.instances.clear()
-    StubRunner.queued_records = list(records)
+    StubRunner.queued_outcomes = list(records)
     monkeypatch.setattr("databricks_mcp_agent_hello_world.evals.harness.ToolProfileCompiler", StubCompiler)
     monkeypatch.setattr("databricks_mcp_agent_hello_world.evals.harness.AgentRunner", StubRunner)
     scenario_file = _write_scenarios(tmp_path, scenarios)
@@ -256,6 +265,48 @@ def test_run_evals_writes_latest_eval_report_json(tmp_path: Path, monkeypatch) -
     report_path = tmp_path / "evals" / "latest_eval_report.json"
     assert report_path.exists()
     assert json.loads(report_path.read_text(encoding="utf-8")) == report.model_dump()
+
+
+def test_run_evals_continues_after_per_scenario_execution_errors(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    StubCompiler.instances.clear()
+    StubCompiler.queued_errors = [RuntimeError("compile failed"), None]
+    StubRunner.instances.clear()
+    StubRunner.queued_outcomes = [_record(run_id="run-2")]
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.evals.harness.ToolProfileCompiler", StubCompiler)
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.evals.harness.AgentRunner", StubRunner)
+
+    scenario_file = _write_scenarios(
+        tmp_path,
+        [
+            _scenario("scenario-1"),
+            _scenario(
+                "scenario-2",
+                compile_task_input={
+                    "task_name": "compile-task-2",
+                    "instructions": "Compile the second profile.",
+                    "payload": {"user_id": "usr_grace_01"},
+                },
+            ),
+        ],
+    )
+
+    report = run_evals(_settings(tmp_path), scenario_file)
+
+    assert report.failed_scenarios == 1
+    assert report.passed_scenarios == 1
+    assert report.results[0].failed_checks == ["scenario_execution_error"]
+    assert report.results[0].actual_status is None
+    assert report.results[0].allowed_tools == []
+    assert report.results[0].executed_tools == []
+    assert report.results[0].blocked_tools == []
+    assert report.results[0].tool_call_count == 0
+    assert report.results[1].passed is True
+    assert [call.task_name for call in StubRunner.instances[0].run_calls] == ["compile-task-2"]
+    report_path = tmp_path / "evals" / "latest_eval_report.json"
+    assert report_path.exists()
 
 
 @pytest.mark.parametrize(

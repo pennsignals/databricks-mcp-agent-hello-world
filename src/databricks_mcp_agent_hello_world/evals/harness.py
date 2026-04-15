@@ -42,10 +42,13 @@ def run_evals(settings: Settings, scenario_file: str) -> EvalRunReport:
     results: list[EvalScenarioResult] = []
 
     for scenario in scenarios:
-        compiler.compile(task=scenario.compile_task_input, force_refresh=True)
         run_task = scenario.run_task_input or scenario.compile_task_input
-        run_record = runner.run(run_task)
-        results.append(_score_scenario(scenario, run_record))
+        try:
+            compiler.compile(task=scenario.compile_task_input, force_refresh=True)
+            run_record = runner.run(run_task)
+            results.append(_score_scenario(scenario, run_record))
+        except Exception:  # noqa: BLE001
+            results.append(_execution_error_result(scenario))
 
     report = EvalRunReport(
         scenario_file=scenario_file,
@@ -128,6 +131,26 @@ def _score_scenario(scenario: EvalScenario, run_record: AgentRunRecord) -> EvalS
         run_task_name=(scenario.run_task_input or scenario.compile_task_input).task_name,
         run_record_id=run_record.run_id,
         profile_version=run_record.profile_version,
+    )
+
+
+def _execution_error_result(scenario: EvalScenario) -> EvalScenarioResult:
+    run_task = scenario.run_task_input or scenario.compile_task_input
+    return EvalScenarioResult(
+        scenario_id=scenario.scenario_id,
+        passed=False,
+        failed_checks=["scenario_execution_error"],
+        expected_status=scenario.expected_status,
+        actual_status=None,
+        allowed_tools=[],
+        executed_tools=[],
+        blocked_tools=[],
+        tool_call_count=0,
+        final_response_excerpt="",
+        compile_task_name=scenario.compile_task_input.task_name,
+        run_task_name=run_task.task_name,
+        run_record_id=None,
+        profile_version=None,
     )
 
 
