@@ -1,36 +1,52 @@
 [
   {
-    "scenario_id": "hello_world_happy_path",
-    "task_name": "hello_world_demo",
+    "scenario_id": "workspace_onboarding_brief_happy_path",
+    "task_name": "workspace_onboarding_brief",
     "task_input": {
-      "name": "Ada",
-      "handbook_query": "local setup tip",
-      "setting_key": "runtime_target"
+      "user_id": "usr_ada_01",
+      "onboarding_topic": "local development",
+      "required_fields": [
+        "display_name",
+        "setup_recommendation",
+        "runtime_target",
+        "recent_operational_note"
+      ],
+      "allow_mutations": false,
+      "output_format": "markdown"
     },
-    "expected_tool_calls_min": 1,
+    "expected_tool_calls_min": 3,
     "expected_allowed_tools_subset": [
-      "greet_user",
-      "search_demo_handbook",
-      "get_demo_setting"
+      "get_user_profile",
+      "search_onboarding_docs",
+      "get_workspace_setting",
+      "list_recent_job_runs"
     ],
     "expected_status": "success"
   },
   {
     "scenario_id": "allowlist_enforced",
-    "task_name": "hello_world_demo",
+    "task_name": "workspace_onboarding_brief",
     "task_input": {
-      "name": "Ada",
-      "handbook_query": "local setup tip",
-      "setting_key": "runtime_target"
+      "user_id": "usr_ada_01",
+      "onboarding_topic": "local development",
+      "required_fields": [
+        "display_name",
+        "setup_recommendation",
+        "runtime_target",
+        "recent_operational_note"
+      ],
+      "allow_mutations": false,
+      "output_format": "markdown"
     },
-    "expected_tool_calls_min": 1,
+    "expected_tool_calls_min": 3,
     "expected_allowed_tools_subset": [
-      "greet_user",
-      "search_demo_handbook",
-      "get_demo_setting"
+      "get_user_profile",
+      "search_onboarding_docs",
+      "get_workspace_setting",
+      "list_recent_job_runs"
     ],
     "expected_excluded_tools": [
-      "tell_demo_joke"
+      "create_support_ticket"
     ],
     "expected_status": "success"
   }

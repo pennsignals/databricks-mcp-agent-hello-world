@@ -153,12 +153,13 @@ def test_discover_tools_returns_demo_registry_tools(tmp_path: Path) -> None:
 
     report = discover_tools(settings)
 
-    assert report.tool_count == 4
+    assert report.tool_count == 5
     assert [tool.tool_name for tool in report.tools] == [
-        "greet_user",
-        "search_demo_handbook",
-        "get_demo_setting",
-        "tell_demo_joke",
+        "get_user_profile",
+        "search_onboarding_docs",
+        "get_workspace_setting",
+        "list_recent_job_runs",
+        "create_support_ticket",
     ]
     assert report.tools[0].capability_tags
     assert report.tools[0].data_domains
@@ -175,6 +176,7 @@ def test_discover_tools_json_includes_metadata_fields(tmp_path: Path) -> None:
     assert "capability_tags" in first_tool
     assert "side_effect_level" in first_tool
     assert "data_domains" in first_tool
+    assert "example_uses" in first_tool
 
 
 def test_print_discovery_report_shows_metadata(tmp_path: Path, capsys) -> None:
@@ -185,8 +187,8 @@ def test_print_discovery_report_shows_metadata(tmp_path: Path, capsys) -> None:
     output = capsys.readouterr().out
 
     assert "Side effect level: read_only" in output
-    assert "Tags: greeting" in output
-    assert "Domains: user_profile" in output
+    assert "Tags: identity, profile" in output
+    assert "Domains: user" in output
 
 
 def test_run_example_task_orchestrates_discover_and_run(tmp_path: Path, monkeypatch) -> None:
@@ -195,8 +197,8 @@ def test_run_example_task_orchestrates_discover_and_run(tmp_path: Path, monkeypa
     task_file = tmp_path / "task.json"
     task_file.write_text(
         (
-            '{"task_name":"hello_world_demo","instructions":"Write the report.",'
-            '"payload":{"name":"Ada","handbook_query":"local setup tip","setting_key":"runtime_target"}}'
+            '{"task_name":"workspace_onboarding_brief","instructions":"Write the report.",'
+            '"payload":{"user_id":"usr_ada_01","onboarding_topic":"local development"}}'
         ),
         encoding="utf-8",
     )
@@ -218,21 +220,19 @@ def test_run_example_task_orchestrates_discover_and_run(tmp_path: Path, monkeypa
 
     result = run_example_task(settings, str(task_file))
 
-    assert result["task_name"] == "hello_world_demo"
+    assert result["task_name"] == "workspace_onboarding_brief"
     assert result["payload"] == {
-        "name": "Ada",
-        "handbook_query": "local setup tip",
-        "setting_key": "runtime_target",
+        "user_id": "usr_ada_01",
+        "onboarding_topic": "local development",
     }
     assert calls == [
         ("discover", settings),
         (
             "run",
-            "hello_world_demo",
+            "workspace_onboarding_brief",
             {
-                "name": "Ada",
-                "handbook_query": "local setup tip",
-                "setting_key": "runtime_target",
+                "user_id": "usr_ada_01",
+                "onboarding_topic": "local development",
             },
         ),
     ]
@@ -243,7 +243,7 @@ def test_run_example_task_keeps_sql_fields_optional(tmp_path: Path, monkeypatch)
     observed_sql_fields = {}
     task_file = tmp_path / "task.json"
     task_file.write_text(
-        '{"task_name":"hello_world_demo","instructions":"Write the report.","payload":{"name":"Ada"}}',
+        '{"task_name":"workspace_onboarding_brief","instructions":"Write the report.","payload":{"user_id":"usr_ada_01"}}',
         encoding="utf-8",
     )
 
@@ -272,7 +272,7 @@ def test_run_example_task_keeps_sql_fields_optional(tmp_path: Path, monkeypatch)
 
     result = run_example_task(settings, str(task_file))
 
-    assert result["task_name"] == "hello_world_demo"
+    assert result["task_name"] == "workspace_onboarding_brief"
     assert observed_sql_fields == {
         "warehouse_id": None,
         "catalog": None,

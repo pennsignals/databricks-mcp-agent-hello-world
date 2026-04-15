@@ -8,5 +8,5 @@ uv run discover-tools --config-path "$CONFIG_PATH"
 uv run compile-tool-profile --config-path "$CONFIG_PATH"
 uv run run-agent-task \
   --config-path "$CONFIG_PATH" \
-  --task-input-file examples/hello_world_task.json \
+  --task-input-file examples/demo_run_task.json \
   --output json

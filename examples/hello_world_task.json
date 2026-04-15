@@ -1,9 +1,0 @@
-{
-  "task_name": "hello_world_demo",
-  "instructions": "Write a short hello-world report for Ada. Include a greeting, one local setup tip, and the template runtime target. Use only relevant tools.",
-  "payload": {
-    "name": "Ada",
-    "handbook_query": "local setup tip",
-    "setting_key": "runtime_target"
-  }
-}

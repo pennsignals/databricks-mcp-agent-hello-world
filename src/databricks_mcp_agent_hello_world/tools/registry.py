@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from ..demo import tools as demo_tools
 from ..models import ToolSpec
-from . import builtin
 
 
 class LocalToolDefinition:
@@ -15,98 +15,129 @@ class LocalToolDefinition:
 # Keep registry metadata neutral and capability-based so the compiler model can
 # reason over the full tool inventory without task-specific routing hints.
 TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {
-    "greet_user": LocalToolDefinition(
+    "get_user_profile": LocalToolDefinition(
         spec=ToolSpec(
-            tool_name="greet_user",
-            description="Return a short friendly greeting for a named person.",
+            tool_name="get_user_profile",
+            description="Fetch a user's profile information by user_id. Use this when a task needs a user's display name, team, role, or other profile details.",
             input_schema={
                 "type": "object",
                 "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "Person name to greet.",
-                    }
+                    "user_id": {"type": "string"}
                 },
-                "required": ["name"],
+                "required": ["user_id"],
+                "additionalProperties": False,
             },
             provider_type="local_python",
             provider_id="builtin_tools",
-            capability_tags=["greeting"],
+            capability_tags=["profile", "identity"],
             side_effect_level="read_only",
-            data_domains=["user_profile"],
+            data_domains=["user"],
+            example_uses=[
+                "Look up the display name for a user",
+                "Retrieve profile details for an onboarding brief",
+            ],
         ),
-        fn=builtin.greet_user,
+        fn=demo_tools.get_user_profile,
     ),
-    "search_demo_handbook": LocalToolDefinition(
+    "search_onboarding_docs": LocalToolDefinition(
         spec=ToolSpec(
-            tool_name="search_demo_handbook",
-            description="Search the tiny local handbook for beginner setup tips.",
+            tool_name="search_onboarding_docs",
+            description="Search onboarding and setup documentation by keyword. Use this when a task needs setup guidance, onboarding tips, or repository workflow guidance.",
             input_schema={
                 "type": "object",
                 "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search text for the local handbook.",
-                    },
+                    "query": {"type": "string"},
                     "max_results": {
                         "type": "integer",
-                        "description": "Maximum number of handbook entries to return.",
-                        "default": 1,
+                        "minimum": 1,
                     },
                 },
                 "required": ["query"],
+                "additionalProperties": False,
             },
             provider_type="local_python",
             provider_id="builtin_tools",
-            capability_tags=["docs_search", "keyword_lookup"],
+            capability_tags=["search", "docs", "onboarding"],
             side_effect_level="read_only",
-            data_domains=["demo_handbook"],
+            data_domains=["documentation"],
+            example_uses=[
+                "Find a local development setup tip",
+                "Search onboarding docs for repository workflow guidance",
+            ],
         ),
-        fn=builtin.search_demo_handbook,
+        fn=demo_tools.search_onboarding_docs,
     ),
-    "get_demo_setting": LocalToolDefinition(
+    "get_workspace_setting": LocalToolDefinition(
         spec=ToolSpec(
-            tool_name="get_demo_setting",
-            description="Look up one hardcoded demo setting value.",
+            tool_name="get_workspace_setting",
+            description="Fetch a named workspace setting. Use this when a task needs current configuration values such as runtime target, workspace region, or storage settings.",
             input_schema={
                 "type": "object",
                 "properties": {
-                    "key": {
-                        "type": "string",
-                        "description": "Setting key to look up.",
-                    }
+                    "key": {"type": "string"}
                 },
                 "required": ["key"],
+                "additionalProperties": False,
             },
             provider_type="local_python",
             provider_id="builtin_tools",
-            capability_tags=["config_lookup"],
+            capability_tags=["config", "settings"],
             side_effect_level="read_only",
             data_domains=["workspace_config"],
+            example_uses=[
+                "Retrieve the runtime target",
+                "Look up the workspace region",
+            ],
         ),
-        fn=builtin.get_demo_setting,
+        fn=demo_tools.get_workspace_setting,
     ),
-    "tell_demo_joke": LocalToolDefinition(
+    "list_recent_job_runs": LocalToolDefinition(
         spec=ToolSpec(
-            tool_name="tell_demo_joke",
-            description="Tell a harmless joke about a provided topic.",
+            tool_name="list_recent_job_runs",
+            description="List recent job runs and their summary notes. Use this when a task needs a recent operational update or recent job execution context.",
             input_schema={
                 "type": "object",
                 "properties": {
-                    "topic": {
-                        "type": "string",
-                        "description": "Topic to use as joke inspiration.",
-                    }
+                    "limit": {"type": "integer", "minimum": 1}
                 },
-                "required": ["topic"],
+                "additionalProperties": False,
             },
             provider_type="local_python",
             provider_id="builtin_tools",
-            capability_tags=["joke_generation"],
+            capability_tags=["operations", "jobs", "status"],
             side_effect_level="read_only",
-            data_domains=["user_content"],
+            data_domains=["operations"],
+            example_uses=[
+                "Fetch a recent operational note",
+                "Review recent job run summaries",
+            ],
         ),
-        fn=builtin.tell_demo_joke,
+        fn=demo_tools.list_recent_job_runs,
+    ),
+    "create_support_ticket": LocalToolDefinition(
+        spec=ToolSpec(
+            tool_name="create_support_ticket",
+            description="Create a support ticket with a short summary and severity. Use this only when the task explicitly asks to create or file a support request.",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string"},
+                    "severity": {"type": "string", "enum": ["low", "medium", "high"]},
+                },
+                "required": ["summary"],
+                "additionalProperties": False,
+            },
+            provider_type="local_python",
+            provider_id="builtin_tools",
+            capability_tags=["support", "ticketing"],
+            side_effect_level="write",
+            data_domains=["support"],
+            example_uses=[
+                "File a support ticket for an incident",
+                "Create a support request for a broken workflow",
+            ],
+        ),
+        fn=demo_tools.create_support_ticket,
     ),
 }
 

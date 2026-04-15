@@ -14,10 +14,11 @@ def test_local_provider_lists_tools():
     provider = LocalPythonToolProvider()
     tools = provider.list_tools()
     assert [tool.tool_name for tool in tools] == [
-        "greet_user",
-        "search_demo_handbook",
-        "get_demo_setting",
-        "tell_demo_joke",
+        "get_user_profile",
+        "search_onboarding_docs",
+        "get_workspace_setting",
+        "list_recent_job_runs",
+        "create_support_ticket",
     ]
 
 
@@ -58,8 +59,8 @@ def test_local_python_executor_does_not_touch_sql_config(monkeypatch) -> None:
 
     result = executor.call_tool(
         SimpleNamespace(
-            tool_name="greet_user",
-            arguments={"value": "Ada"},
+            tool_name="get_user_profile",
+            arguments={"user_id": "usr_ada_01"},
             profile_name="default",
             profile_version="v1",
             request_id="req-1",

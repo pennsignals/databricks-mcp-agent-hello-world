@@ -6,7 +6,7 @@
 tool_provider_type: local_python
 llm_endpoint_name: your-llm-endpoint-name
 active_profile_name: default
-default_compile_task_file: examples/hello_world_task.json
+default_compile_task_file: examples/demo_compile_task.json
 
 storage:
   tool_profile_table: main.agent_demo.tool_profiles

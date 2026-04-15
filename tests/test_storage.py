@@ -24,7 +24,7 @@ def test_result_writer_appends_run_and_output_rows_locally(
     writer.write_run_record(
         {
             "run_id": "run-1",
-            "task_name": "hello_world_demo",
+            "task_name": "workspace_onboarding_brief",
             "status": "success",
             "profile_name": "default",
             "profile_version": "v1",
@@ -34,7 +34,7 @@ def test_result_writer_appends_run_and_output_rows_locally(
     writer.write_output_record(
         {
             "run_id": "run-1",
-            "task_name": "hello_world_demo",
+            "task_name": "workspace_onboarding_brief",
             "status": "success",
             "profile_name": "default",
             "profile_version": "v1",
