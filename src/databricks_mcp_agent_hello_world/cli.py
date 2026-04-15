@@ -11,20 +11,55 @@ from .config import (
     parse_task_input,
     parse_task_input_file,
 )
-from .evals.harness import EvalSetupError, load_eval_scenarios, prepare_run_evals, run_eval_scenarios
 from .logging_utils import configure_logging
 from .models import AgentTaskRequest
-from .ops import (
-    discover_tools,
-    print_discovery_report,
-    print_json_report,
-    print_preflight_summary,
-    run_preflight,
-)
 from .profiles.compiler import ToolProfileCompiler
-from .profiles.compiler import build_hello_world_demo_task
 from .runner.agent_runner import AgentRunner
 from .tooling.runtime import set_runtime_settings
+
+try:
+    from .ops import (
+        discover_tools,
+        print_discovery_report,
+        print_json_report,
+        print_preflight_summary,
+        run_preflight,
+    )
+except ImportError:  # pragma: no cover - compatibility shim for in-flight model changes
+    def discover_tools(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise ImportError("ops module is unavailable")
+
+    def print_discovery_report(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise ImportError("ops module is unavailable")
+
+    def print_json_report(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise ImportError("ops module is unavailable")
+
+    def print_preflight_summary(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise ImportError("ops module is unavailable")
+
+    def run_preflight(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise ImportError("ops module is unavailable")
+
+try:
+    from .evals.harness import (
+        EvalSetupError,
+        load_eval_scenarios,
+        prepare_run_evals,
+        run_eval_scenarios,
+    )
+except ImportError:  # pragma: no cover - compatibility shim for in-flight model changes
+    class EvalSetupError(RuntimeError):
+        pass
+
+    def load_eval_scenarios(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise ImportError("evals.harness is unavailable")
+
+    def prepare_run_evals(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise ImportError("evals.harness is unavailable")
+
+    def run_eval_scenarios(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise ImportError("evals.harness is unavailable")
 
 OUTPUT_CHOICES = ("text", "json")
 COMMAND_NAMES = (
@@ -107,6 +142,9 @@ def build_parser(command_name: str, *, prog: str) -> argparse.ArgumentParser:
     parser.add_argument("--output", choices=OUTPUT_CHOICES, default="text")
 
     if command_name == "compile-tool-profile":
+        group = parser.add_mutually_exclusive_group()
+        group.add_argument("--task-input-json")
+        group.add_argument("--task-input-file")
         parser.add_argument("--force-refresh", action="store_true")
     elif command_name == "run-agent-task":
         group = parser.add_mutually_exclusive_group(required=True)
@@ -140,10 +178,8 @@ def _run_compile_tool_profile(args: argparse.Namespace) -> int:
     )
     set_runtime_settings(settings)
     compiler = ToolProfileCompiler(settings)
-    result = compiler.compile(
-        build_hello_world_demo_task(),
-        force_refresh=args.force_refresh,
-    )
+    request = _build_agent_task_request(_load_compile_task_payload(args, settings))
+    result = compiler.compile(request, force_refresh=args.force_refresh)
     _render_output(result, output_format=args.output, text_renderer=_print_compilation_summary)
     return 0
 
@@ -155,16 +191,7 @@ def _run_agent_task(args: argparse.Namespace) -> int:
         next_step="run_agent_task_job",
     )
     set_runtime_settings(settings)
-    payload = _load_task_payload(args)
-    request_kwargs = {
-        "task_name": payload.get("task_name", "demo-task"),
-        "instructions": payload.get("instructions", "Complete the requested task."),
-        "payload": payload.get("payload", payload),
-    }
-    if payload.get("run_id"):
-        request_kwargs["run_id"] = payload["run_id"]
-
-    request = AgentTaskRequest(**request_kwargs)
+    request = _build_agent_task_request(_load_task_payload(args))
     runner = AgentRunner(settings)
     record = runner.run(request)
     _render_output(record, output_format=args.output, text_renderer=_print_run_summary)
@@ -207,6 +234,31 @@ def _load_task_payload(args: argparse.Namespace) -> dict[str, Any]:
     return parse_task_input_file(args.task_input_file)
 
 
+def _load_compile_task_payload(args: argparse.Namespace, settings) -> dict[str, Any]:
+    if args.task_input_json:
+        return parse_task_input(args.task_input_json)
+    if args.task_input_file:
+        return parse_task_input_file(args.task_input_file)
+    default_compile_task_file = getattr(settings, "default_compile_task_file", None)
+    if default_compile_task_file and str(default_compile_task_file).strip():
+        return parse_task_input_file(default_compile_task_file)
+    raise RuntimeError(
+        "compile-tool-profile requires a compile task. Provide --task-input-json, "
+        "--task-input-file, or configure default_compile_task_file."
+    )
+
+
+def _build_agent_task_request(payload: dict[str, Any]) -> AgentTaskRequest:
+    request_kwargs = {
+        "task_name": payload.get("task_name", "demo-task"),
+        "instructions": payload.get("instructions", "Complete the requested task."),
+        "payload": payload.get("payload", payload),
+    }
+    if payload.get("run_id"):
+        request_kwargs["run_id"] = payload["run_id"]
+    return AgentTaskRequest(**request_kwargs)
+
+
 def _load_settings_for_command(
     config_path: str,
     command_name: str,
@@ -239,34 +291,24 @@ def _render_output(
 
 def _print_compilation_summary(profile) -> None:
     status = "Reused" if profile.reused_existing else "Compiled"
-    print(f"{status} tool profile: {profile.profile.profile_name}")
-    print(f"Profile version: {profile.profile.profile_version}")
-    print(f"Allowed tools: {len(profile.profile.allowed_tools)}")
-    print(f"Inventory hash: {profile.profile.inventory_hash}")
+    compiled_profile = profile.profile
+    print(f"{status} tool profile: {compiled_profile.profile_name}")
+    print(f"Profile version: {compiled_profile.profile_version}")
+    print(f"Compile task name: {getattr(compiled_profile, 'compile_task_name', '<unknown>')}")
+    print(f"Allowed tools: {len(compiled_profile.allowed_tools)}")
+    print(f"Inventory hash: {compiled_profile.inventory_hash}")
+    print(f"Compile task hash: {getattr(compiled_profile, 'compile_task_hash', '<unknown>')}")
 
 
 def _print_run_summary(record) -> None:
-    if hasattr(record, "status"):
-        print(f"Run status: {record.status}")
-        print(f"Run id: {record.run_id}")
-        print(f"Task name: {record.task_name}")
-        print(f"Tools called: {len(record.tools_called)}")
-        final_response = record.result.get("final_response")
-        if final_response:
-            print("Final response:")
-            print(final_response)
-        return
-
+    print(f"Run status: {record.status}")
+    print(f"Run id: {record.run_id}")
     print(f"Task name: {record.task_name}")
-    print(f"Available tools: {record.available_tools_count}")
-    print(", ".join(record.available_tools))
-    print(f"Allowed tools: {', '.join(record.allowed_tools)}")
-    print(f"Tool calls: {len(record.tool_calls)}")
-    if record.tool_calls:
-        print(", ".join(call.tool_name for call in record.tool_calls))
-    if record.final_answer:
+    print(f"Tools called: {len(record.tools_called)}")
+    final_response = record.result.get("final_response")
+    if final_response:
         print("Final answer:")
-        print(record.final_answer)
+        print(final_response)
 
 
 def _print_eval_summary(summary) -> None:

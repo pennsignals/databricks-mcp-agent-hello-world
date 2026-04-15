@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from datetime import datetime, timezone
@@ -22,28 +23,9 @@ logger = logging.getLogger(__name__)
 
 PROMPT_VERSION = "v1"
 SELECTION_POLICY = (
-    "Prefer the smallest useful allowlist for a formulaic, "
+    "Prefer the smallest useful allowlist for the supplied task in a "
     "non-interactive Databricks batch workflow."
 )
-HELLO_WORLD_TASK_NAME = "hello_world_demo"
-HELLO_WORLD_ALLOWED_TOOLS = (
-    "greet_user",
-    "search_demo_handbook",
-    "get_demo_setting",
-)
-HELLO_WORLD_SELECTION_POLICY = (
-    "temperature=0, strict JSON, smallest useful subset, and no novelty/humor tools "
-    "unless explicitly requested."
-)
-HELLO_WORLD_INSTRUCTIONS = (
-    "Write a short hello-world report for Ada. Include a greeting, one local setup tip, "
-    "and the template runtime target. Use only relevant tools."
-)
-HELLO_WORLD_PAYLOAD = {
-    "name": "Ada",
-    "handbook_query": "local setup tip",
-    "setting_key": "runtime_target",
-}
 
 
 class ToolProfileCompiler:
@@ -55,13 +37,14 @@ class ToolProfileCompiler:
 
     def compile(
         self,
-        task: AgentTaskRequest | None = None,
+        task: AgentTaskRequest,
         *,
         force_refresh: bool = False,
     ) -> CompileToolProfileResult:
-        task = task or build_hello_world_demo_task()
         tools = self.provider.list_tools()
         inventory_hash = self.provider.inventory_hash()
+        compile_task_hash = self._compile_task_hash(task)
+        compile_task_summary = self._compile_task_summary(task)
         try:
             active_profile = self.repo.load_active(self.settings.active_profile_name)
         except Exception as exc:  # noqa: BLE001
@@ -72,7 +55,10 @@ class ToolProfileCompiler:
         logger.info("Discovered tool inventory hash %s", inventory_hash)
         if (
             active_profile
+            and active_profile.profile_name == self.settings.active_profile_name
             and active_profile.inventory_hash == inventory_hash
+            and active_profile.compile_task_hash == compile_task_hash
+            and active_profile.prompt_version == PROMPT_VERSION
             and not force_refresh
         ):
             logger.info(
@@ -81,15 +67,16 @@ class ToolProfileCompiler:
                 active_profile.profile_version,
             )
             return CompileToolProfileResult(profile=active_profile, reused_existing=True)
-        if task.task_name == HELLO_WORLD_TASK_NAME:
-            decision = self._build_hello_world_decision(tools)
-            selection_policy = HELLO_WORLD_SELECTION_POLICY
-            audit_report = self._build_hello_world_audit_report(tools, decision)
-        else:
-            decision = self._filter_tools(tools)
-            selection_policy = SELECTION_POLICY
-            audit_report = self._build_audit_report(tools, decision)
+
+        decision = self._filter_tools(task, tools)
         self._validate_decision(tools, decision)
+        audit_report = self._build_audit_report(
+            task,
+            tools,
+            decision,
+            compile_task_hash=compile_task_hash,
+            compile_task_summary=compile_task_summary,
+        )
         profile = ToolProfile(
             profile_name=self.settings.active_profile_name,
             profile_version=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ"),
@@ -97,12 +84,15 @@ class ToolProfileCompiler:
             provider_type=self.settings.provider_type,
             llm_endpoint_name=self.settings.llm_endpoint_name,
             prompt_version=PROMPT_VERSION,
+            compile_task_name=task.task_name,
+            compile_task_hash=compile_task_hash,
+            compile_task_summary=compile_task_summary,
             discovered_tools=tools,
             allowed_tools=decision.allowed_tools,
             disallowed_tools=decision.disallowed_tools,
             justifications=decision.tool_justifications,
             audit_report_text=audit_report,
-            selection_policy=selection_policy,
+            selection_policy=SELECTION_POLICY,
             is_active=True,
         )
         self.repo.save(profile)
@@ -113,39 +103,24 @@ class ToolProfileCompiler:
         )
         return CompileToolProfileResult(profile=profile, reused_existing=False)
 
-    def _filter_tools(self, tools: list[ToolSpec]) -> FilterDecision:
-        tool_payload = [tool.model_dump() for tool in tools]
-        user_prompt = (
-            "Mission: compile a governed allowlist for a formulaic "
-            "non-interactive Databricks batch agent.\n"
-            f"Maximum allowed tools: {self.settings.max_allowed_tools}\n"
-            f"Selection policy: {SELECTION_POLICY}\n"
-            "Return strict JSON with keys allowed_tools, disallowed_tools, "
-            "tool_justifications, summary_reasoning.\n"
-            f"Tools:\n{json.dumps(tool_payload, indent=2)}"
+    def _filter_tools(self, task: AgentTaskRequest, tools: list[ToolSpec]) -> FilterDecision:
+        user_prompt = json.dumps(
+            {
+                "task_name": task.task_name,
+                "instructions": task.instructions,
+                "payload": task.payload,
+                "max_allowed_tools": self.settings.max_allowed_tools,
+                "selection_policy": SELECTION_POLICY,
+                "discovered_tools": [tool.model_dump(mode="json") for tool in tools],
+            },
+            indent=2,
+            sort_keys=True,
         )
         raw = self.llm.complete_json(self.settings.prompts.filter_prompt, user_prompt)
         try:
             return FilterDecision.model_validate(raw)
         except ValidationError as exc:
             raise ValueError(f"Invalid filter decision from model: {exc}") from exc
-
-    def _build_hello_world_decision(self, tools: list[ToolSpec]) -> FilterDecision:
-        discovered = [tool.tool_name for tool in tools]
-        allowed = [name for name in discovered if name in HELLO_WORLD_ALLOWED_TOOLS]
-        disallowed = [name for name in discovered if name not in HELLO_WORLD_ALLOWED_TOOLS]
-        justifications = {
-            tool_name: self._hello_world_justification(tool_name) for tool_name in discovered
-        }
-        return FilterDecision(
-            allowed_tools=allowed,
-            disallowed_tools=disallowed,
-            tool_justifications=justifications,
-            summary_reasoning=(
-                "Use the smallest useful subset: greeting, handbook lookup, and setting lookup. "
-                "Leave novelty and humor tools out unless the task explicitly asks for them."
-            ),
-        )
 
     def _validate_decision(self, tools: list[ToolSpec], decision: FilterDecision) -> None:
         discovered_list = [tool.tool_name for tool in tools]
@@ -172,29 +147,24 @@ class ToolProfileCompiler:
             if not reason.strip():
                 raise ValueError(f"Tool {tool_name} is missing a non-empty justification.")
 
-    def _build_hello_world_audit_report(self, tools: list[ToolSpec], decision: FilterDecision) -> str:
-        payload = {
-            "task_name": HELLO_WORLD_TASK_NAME,
-            "temperature": 0,
-            "output_format": "json",
-            "selection_policy": HELLO_WORLD_SELECTION_POLICY,
-            "available_tools": [tool.tool_name for tool in tools],
-            "allowed_tools": decision.allowed_tools,
-            "disallowed_tools": [
-                {
-                    "tool_name": tool_name,
-                    "reason": decision.tool_justifications[tool_name],
-                }
-                for tool_name in decision.disallowed_tools
-            ],
-            "summary_reasoning": decision.summary_reasoning,
-        }
-        return json.dumps(payload, indent=2, sort_keys=True)
-
-    def _build_audit_report(self, tools: list[ToolSpec], decision: FilterDecision) -> str:
+    def _build_audit_report(
+        self,
+        task: AgentTaskRequest,
+        tools: list[ToolSpec],
+        decision: FilterDecision,
+        *,
+        compile_task_hash: str,
+        compile_task_summary: str,
+    ) -> str:
         payload = {
             "profile_name": self.settings.active_profile_name,
-            "discovered_tools": [tool.model_dump() for tool in tools],
+            "task_name": task.task_name,
+            "instructions": task.instructions,
+            "payload": task.payload,
+            "compile_task_name": task.task_name,
+            "compile_task_hash": compile_task_hash,
+            "compile_task_summary": compile_task_summary,
+            "discovered_tools": [tool.model_dump(mode="json") for tool in tools],
             "allowed_tools": decision.allowed_tools,
             "disallowed_tools": decision.disallowed_tools,
             "tool_justifications": decision.tool_justifications,
@@ -212,6 +182,8 @@ class ToolProfileCompiler:
             logger.exception("Falling back to deterministic local audit report generation.")
             lines = [
                 f"Profile: {self.settings.active_profile_name}",
+                f"Compile task: {task.task_name}",
+                f"Compile task hash: {compile_task_hash}",
                 f"LLM endpoint: {self.settings.llm_endpoint_name}",
                 "",
                 "Allowed",
@@ -224,21 +196,14 @@ class ToolProfileCompiler:
             return "\n".join(lines)
 
     @staticmethod
-    def _hello_world_justification(tool_name: str) -> str:
-        if tool_name == "greet_user":
-            return "Needed to greet Ada directly."
-        if tool_name == "search_demo_handbook":
-            return "Needed to retrieve the local setup tip from the handbook."
-        if tool_name == "get_demo_setting":
-            return "Needed to look up the template runtime target."
-        if tool_name == "tell_demo_joke":
-            return "Intentional novelty tool that should stay out of the hello-world flow unless explicitly requested."
-        return "Not part of the frozen hello-world demo tool set."
+    def _compile_task_hash(task: AgentTaskRequest) -> str:
+        canonical_json = json.dumps(
+            task.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
 
-
-def build_hello_world_demo_task() -> AgentTaskRequest:
-    return AgentTaskRequest(
-        task_name=HELLO_WORLD_TASK_NAME,
-        instructions=HELLO_WORLD_INSTRUCTIONS,
-        payload=dict(HELLO_WORLD_PAYLOAD),
-    )
+    @staticmethod
+    def _compile_task_summary(task: AgentTaskRequest) -> str:
+        return f"{task.task_name}: {task.instructions}"[:240]
