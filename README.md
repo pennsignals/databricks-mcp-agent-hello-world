@@ -20,7 +20,7 @@ The runtime stays intentionally small:
 
 Tool selection is LLM-driven. The template does not use task-specific hard-coded allowlists.
 
-Compile-time tool filtering happens in `_filter_tools(...)` in [compiler.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/profiles/compiler.py). Runtime tool use happens through the generic tool-calling loop in [agent_runner.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/runner/agent_runner.py), and runtime allowlist enforcement still exists as a safety boundary.
+Compile-time tool filtering happens in `_filter_tools(...)` in [`src/databricks_mcp_agent_hello_world/profiles/compiler.py`](src/databricks_mcp_agent_hello_world/profiles/compiler.py). Runtime tool use happens through the generic tool-calling loop in [`src/databricks_mcp_agent_hello_world/runner/agent_runner.py`](src/databricks_mcp_agent_hello_world/runner/agent_runner.py), and runtime allowlist enforcement still exists as a safety boundary.
 
 Architecture summary: the compiler asks the model to choose the smallest useful tool subset for a representative task, persists that `ToolProfile`, then the generic runner executes the real task with only those tools exposed and persists run traces plus final outputs.
 
@@ -89,22 +89,22 @@ The deployed jobs read the workspace copy of `workspace-config.yml` from `${work
 
 ## Files you will customize first
 
-- [examples/demo_compile_task.json](/Users/mbecker/git/databricks-mcp-agent-hello-world/examples/demo_compile_task.json) — the representative compile-time task contract the LLM compiler uses to select a minimal useful tool subset.
-- [examples/demo_run_task.json](/Users/mbecker/git/databricks-mcp-agent-hello-world/examples/demo_run_task.json) — the runtime task payload the generic runner executes after a profile already exists.
-- [src/databricks_mcp_agent_hello_world/demo/tools.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/demo/tools.py) — the current demo tool implementations you replace with real project tools.
-- [src/databricks_mcp_agent_hello_world/tools/registry.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/tools/registry.py) — the demo tool registry entries and metadata the compiler sees.
-- [evals/sample_scenarios.json](/Users/mbecker/git/databricks-mcp-agent-hello-world/evals/sample_scenarios.json) — the demo eval scenarios that should be rewritten for your domain.
-- [databricks.yml](/Users/mbecker/git/databricks-mcp-agent-hello-world/databricks.yml) — the bundle name and default run payload that downstream teams commonly rename.
-- [resources/databricks_mcp_agent_hello_world_job.yml](/Users/mbecker/git/databricks-mcp-agent-hello-world/resources/databricks_mcp_agent_hello_world_job.yml) — the demo job names and task names for the compile and runtime jobs.
-- [workspace-config.example.yml](/Users/mbecker/git/databricks-mcp-agent-hello-world/workspace-config.example.yml) — the example config fields, including `default_compile_task_file`, profile naming, endpoint naming, and storage targets.
+- [`examples/demo_compile_task.json`](examples/demo_compile_task.json) — the representative compile-time task contract the LLM compiler uses to select a minimal useful tool subset.
+- [`examples/demo_run_task.json`](examples/demo_run_task.json) — the runtime task payload the generic runner executes after a profile already exists.
+- [`src/databricks_mcp_agent_hello_world/demo/tools.py`](src/databricks_mcp_agent_hello_world/demo/tools.py) — the current demo tool implementations you replace with real project tools.
+- [`src/databricks_mcp_agent_hello_world/tools/registry.py`](src/databricks_mcp_agent_hello_world/tools/registry.py) — the demo tool registry entries and metadata the compiler sees.
+- [`evals/sample_scenarios.json`](evals/sample_scenarios.json) — the demo eval scenarios that should be rewritten for your domain.
+- [`databricks.yml`](databricks.yml) — the bundle name and default run payload that downstream teams commonly rename.
+- [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/databricks_mcp_agent_hello_world_job.yml) — the demo job names and task names for the compile and runtime jobs.
+- [`workspace-config.example.yml`](workspace-config.example.yml) — the example config fields, including `default_compile_task_file`, profile naming, endpoint naming, and storage targets.
 
 ## Files you should usually leave alone
 
-- [src/databricks_mcp_agent_hello_world/profiles/compiler.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/profiles/compiler.py) — compiler core; keep the LLM-driven profile compilation architecture intact.
-- [src/databricks_mcp_agent_hello_world/runner/agent_runner.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/runner/agent_runner.py) — runner core; keep the generic tool-calling loop and allowlist boundary intact.
-- [src/databricks_mcp_agent_hello_world/storage/result_writer.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/storage/result_writer.py) — storage/result writer; keep the local-versus-Delta persistence behavior intact.
-- [src/databricks_mcp_agent_hello_world/evals/harness.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/evals/harness.py) — generic eval harness; keep the compile-then-run scoring flow intact.
-- [src/databricks_mcp_agent_hello_world/models.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/models.py) — core data models for `ToolProfile`, `AgentRunRecord`, and `AgentOutputRecord`.
+- [`src/databricks_mcp_agent_hello_world/profiles/compiler.py`](src/databricks_mcp_agent_hello_world/profiles/compiler.py) — compiler core; keep the LLM-driven profile compilation architecture intact.
+- [`src/databricks_mcp_agent_hello_world/runner/agent_runner.py`](src/databricks_mcp_agent_hello_world/runner/agent_runner.py) — runner core; keep the generic tool-calling loop and allowlist boundary intact.
+- [`src/databricks_mcp_agent_hello_world/storage/result_writer.py`](src/databricks_mcp_agent_hello_world/storage/result_writer.py) — storage/result writer; keep the local-versus-Delta persistence behavior intact.
+- [`src/databricks_mcp_agent_hello_world/evals/harness.py`](src/databricks_mcp_agent_hello_world/evals/harness.py) — generic eval harness; keep the compile-then-run scoring flow intact.
+- [`src/databricks_mcp_agent_hello_world/models.py`](src/databricks_mcp_agent_hello_world/models.py) — core data models for `ToolProfile`, `AgentRunRecord`, and `AgentOutputRecord`.
 
 ## Convert this template into a real app
 
@@ -124,16 +124,16 @@ uv run compile-tool-profile \
 
 ### compile task file missing
 
-Your config or CLI path points at a file that does not exist. Check [workspace-config.example.yml](/Users/mbecker/git/databricks-mcp-agent-hello-world/workspace-config.example.yml) and confirm `default_compile_task_file` or your `--task-input-file` path matches a real file.
+Your config or CLI path points at a file that does not exist. Check [`workspace-config.example.yml`](workspace-config.example.yml) and confirm `default_compile_task_file` or your `--task-input-file` path matches a real file.
 
 ### selected tools are wrong
 
-Check the task wording in [examples/demo_compile_task.json](/Users/mbecker/git/databricks-mcp-agent-hello-world/examples/demo_compile_task.json) and the metadata in [registry.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/tools/registry.py). Metadata quality and task clarity directly affect `_filter_tools(...)`.
+Check the task wording in [`examples/demo_compile_task.json`](examples/demo_compile_task.json) and the metadata in [`src/databricks_mcp_agent_hello_world/tools/registry.py`](src/databricks_mcp_agent_hello_world/tools/registry.py). Metadata quality and task clarity directly affect `_filter_tools(...)`.
 
 ### Databricks job runs but output is empty
 
-Inspect `storage.agent_runs_table` and `storage.agent_output_table`, then check whether the run hit a max-step or empty-final-response case in [agent_runner.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/runner/agent_runner.py). Also confirm the compile job ran first and that the task input JSON passed to the job is valid.
+Inspect `storage.agent_runs_table` and `storage.agent_output_table`, then check whether the run hit a max-step or empty-final-response case in [`src/databricks_mcp_agent_hello_world/runner/agent_runner.py`](src/databricks_mcp_agent_hello_world/runner/agent_runner.py). Also confirm the compile job ran first and that the task input JSON passed to the job is valid.
 
 ### evals failing after demo replacement
 
-Update [evals/sample_scenarios.json](/Users/mbecker/git/databricks-mcp-agent-hello-world/evals/sample_scenarios.json) to match your new tools, task files, and output contract. The generic harness in [harness.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/evals/harness.py) is meant to stay stable while scenario content changes.
+Update [`evals/sample_scenarios.json`](evals/sample_scenarios.json) to match your new tools, task files, and output contract. The generic harness in [`src/databricks_mcp_agent_hello_world/evals/harness.py`](src/databricks_mcp_agent_hello_world/evals/harness.py) is meant to stay stable while scenario content changes.

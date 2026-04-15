@@ -38,13 +38,13 @@ examples/demo_run_task.json
 
 ## Compile-time tool selection
 
-`_filter_tools(...)` in [compiler.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/profiles/compiler.py) is the selection mechanism. The LLM receives the task plus tool metadata, then returns a profile decision with `allowed_tools` and `disallowed_tools`. The compiler validates the structure, persists the resulting `ToolProfile`, and reuses that profile when the compile task and inventory hash still match.
+`_filter_tools(...)` in [`src/databricks_mcp_agent_hello_world/profiles/compiler.py`](../src/databricks_mcp_agent_hello_world/profiles/compiler.py) is the selection mechanism. The LLM receives the task plus tool metadata, then returns a profile decision with `allowed_tools` and `disallowed_tools`. The compiler validates the structure, persists the resulting `ToolProfile`, and reuses that profile when the compile task and inventory hash still match.
 
 There is no task-name-based branching. There is no task-specific hard-coded allowlist. There is no deterministic rule engine choosing tools. Metadata quality and prompt design influence the LLM’s selection quality, so the descriptive fields in each `ToolSpec` matter.
 
 ## Runtime execution loop
 
-The runtime loop in [agent_runner.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/runner/agent_runner.py) works like this:
+The runtime loop in [`src/databricks_mcp_agent_hello_world/runner/agent_runner.py`](../src/databricks_mcp_agent_hello_world/runner/agent_runner.py) works like this:
 
 - system prompt + task message
 - tools exposed = allowed tools only
@@ -70,12 +70,12 @@ Locally, persistence falls back to JSON and JSONL under `storage.local_data_dir`
 
 ## What downstream teams should customize
 
-- demo tools in [demo/tools.py](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/demo/tools.py)
-- task files in [examples/demo_compile_task.json](/Users/mbecker/git/databricks-mcp-agent-hello-world/examples/demo_compile_task.json) and [examples/demo_run_task.json](/Users/mbecker/git/databricks-mcp-agent-hello-world/examples/demo_run_task.json)
-- prompts where applicable in [tool_filter_prompt.txt](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/prompts/tool_filter_prompt.txt), [tool_audit_prompt.txt](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/prompts/tool_audit_prompt.txt), and [agent_system_prompt.txt](/Users/mbecker/git/databricks-mcp-agent-hello-world/src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt)
-- eval scenarios in [evals/sample_scenarios.json](/Users/mbecker/git/databricks-mcp-agent-hello-world/evals/sample_scenarios.json)
-- bundle/job names in [databricks.yml](/Users/mbecker/git/databricks-mcp-agent-hello-world/databricks.yml) and [databricks_mcp_agent_hello_world_job.yml](/Users/mbecker/git/databricks-mcp-agent-hello-world/resources/databricks_mcp_agent_hello_world_job.yml)
-- environment-specific config in [workspace-config.example.yml](/Users/mbecker/git/databricks-mcp-agent-hello-world/workspace-config.example.yml)
+- demo tools in [`src/databricks_mcp_agent_hello_world/demo/tools.py`](../src/databricks_mcp_agent_hello_world/demo/tools.py)
+- task files in [`examples/demo_compile_task.json`](../examples/demo_compile_task.json) and [`examples/demo_run_task.json`](../examples/demo_run_task.json)
+- prompts where applicable in [`src/databricks_mcp_agent_hello_world/prompts/tool_filter_prompt.txt`](../src/databricks_mcp_agent_hello_world/prompts/tool_filter_prompt.txt), [`src/databricks_mcp_agent_hello_world/prompts/tool_audit_prompt.txt`](../src/databricks_mcp_agent_hello_world/prompts/tool_audit_prompt.txt), and [`src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt`](../src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt)
+- eval scenarios in [`evals/sample_scenarios.json`](../evals/sample_scenarios.json)
+- bundle/job names in [`databricks.yml`](../databricks.yml) and [`resources/databricks_mcp_agent_hello_world_job.yml`](../resources/databricks_mcp_agent_hello_world_job.yml)
+- environment-specific config in [`workspace-config.example.yml`](../workspace-config.example.yml)
 
 ## What downstream teams should not fork
 

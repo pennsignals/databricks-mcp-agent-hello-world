@@ -1,5 +1,4 @@
 {
-  "TEMPLATE_CUSTOMIZE_HERE": "Replace this demo runtime task with the per-run payload for your own async agent job.",
   "task_name": "workspace_onboarding_brief",
   "instructions": "Write a concise onboarding brief for the specified user. Include exactly four factual items: (1) the user's display name, (2) one local-development setup recommendation from the onboarding docs, (3) the current runtime target, and (4) one recent operational note from recent job runs. Use tools for all factual content. Do not modify external state. Return markdown.",
   "payload": {

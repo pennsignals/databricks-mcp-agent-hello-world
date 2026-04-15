@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -111,3 +112,17 @@ def test_docs_do_not_present_removed_manual_allowlist_pattern_as_supported() -> 
 
     assert "hello-world allowlist" not in combined_docs
     assert "manual allowlist is the supported pattern" not in combined_docs
+
+
+def test_docs_do_not_use_machine_specific_absolute_paths() -> None:
+    combined_docs = "\n".join(
+        [
+            _read(README_PATH),
+            _read(ARCHITECTURE_PATH),
+            _read(CONVERSION_PATH),
+        ]
+    )
+
+    assert "/Users/" not in combined_docs
+    assert "\\Users\\" not in combined_docs
+    assert re.search(r"[A-Za-z]:\\\\", combined_docs) is None
