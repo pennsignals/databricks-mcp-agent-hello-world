@@ -166,8 +166,13 @@ def print_discovery_report(report: DiscoveryReport) -> None:
     print(f"Total tools: {report.tool_count}")
     for tool in report.tools:
         summary = _summarize_input_schema(tool.input_schema)
+        capability_tags = ", ".join(tool.capability_tags) or "-"
+        data_domains = ", ".join(tool.data_domains) or "-"
         print(f"- {tool.tool_name}: {tool.description}")
         print(f"  Input schema: {summary}")
+        print(f"  Side effect level: {tool.side_effect_level}")
+        print(f"  Tags: {capability_tags}")
+        print(f"  Domains: {data_domains}")
 
 
 def _check_databricks_profile(settings: Settings) -> PreflightCheck:

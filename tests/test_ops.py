@@ -2,7 +2,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from databricks_mcp_agent_hello_world.config import load_settings
-from databricks_mcp_agent_hello_world.ops import discover_tools, run_example_task, run_preflight
+from databricks_mcp_agent_hello_world.ops import (
+    discover_tools,
+    print_discovery_report,
+    run_example_task,
+    run_preflight,
+)
 
 
 def _write_config(tmp_path: Path, *, include_profile: bool = True) -> Path:
@@ -155,6 +160,33 @@ def test_discover_tools_returns_demo_registry_tools(tmp_path: Path) -> None:
         "get_demo_setting",
         "tell_demo_joke",
     ]
+    assert report.tools[0].capability_tags
+    assert report.tools[0].data_domains
+    assert report.tools[0].side_effect_level == "read_only"
+
+
+def test_discover_tools_json_includes_metadata_fields(tmp_path: Path) -> None:
+    settings = load_settings(str(_write_config(tmp_path)))
+
+    report = discover_tools(settings)
+    payload = report.model_dump(mode="json")
+
+    first_tool = payload["tools"][0]
+    assert "capability_tags" in first_tool
+    assert "side_effect_level" in first_tool
+    assert "data_domains" in first_tool
+
+
+def test_print_discovery_report_shows_metadata(tmp_path: Path, capsys) -> None:
+    settings = load_settings(str(_write_config(tmp_path)))
+    report = discover_tools(settings)
+
+    print_discovery_report(report)
+    output = capsys.readouterr().out
+
+    assert "Side effect level: read_only" in output
+    assert "Tags: greeting" in output
+    assert "Domains: user_profile" in output
 
 
 def test_run_example_task_orchestrates_discover_and_run(tmp_path: Path, monkeypatch) -> None:
