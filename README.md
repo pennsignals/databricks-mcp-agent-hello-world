@@ -40,6 +40,18 @@ Before you start, make sure you have:
 
 The default deployed job definition in this repo uses **serverless job environments**. If your workspace does not support that pattern, you can still use this template, but you will need to edit the job resource before deployment.
 
+## Compute note
+
+This template uses serverless compute by default for supported jobs. Serverless is the easiest way to get started because Databricks manages the compute for you, but it may not be the lowest-cost or most customizable option for every production workload. If your team wants lower cost or tighter platform controls, talk to your Databricks platform team about switching production to policy-managed jobs compute and a service principal.
+
+Resources:
+- [Run your Lakeflow Jobs with serverless compute for workflows](https://docs.databricks.com/aws/en/jobs/run-serverless-jobs)
+- [Compute configuration recommendations](https://docs.databricks.com/aws/en/compute/cluster-config-best-practices)
+- [Configure compute for jobs](https://docs.databricks.com/aws/en/jobs/compute)
+- [Declarative Automation Bundles configuration](https://docs.databricks.com/aws/en/dev-tools/bundles/settings)
+- [Best practices for configuring classic Lakeflow Jobs](https://docs.databricks.com/aws/en/jobs/run-classic-jobs)
+- [Specify a run identity for a Declarative Automation Bundles workflow](https://docs.databricks.com/aws/en/dev-tools/bundles/run-as)
+
 ## Authentication model
 
 This project uses two auth modes:
@@ -183,11 +195,11 @@ uv run run-agent-task \
 
 A successful run shows that the project can:
 
-- load the compiled profile
-- restrict the tool set to the allowlist
-- call allowed tools
-- generate a final answer
-- persist run artifacts
+* load the compiled profile
+* restrict the tool set to the allowlist
+* call allowed tools
+* generate a final answer
+* persist run artifacts
 
 If you want machine-readable output:
 
@@ -226,12 +238,12 @@ That runs `preflight`, `discover-tools`, `compile-tool-profile`, and `run-agent-
 
 A healthy first pass looks like this:
 
-- `preflight` passes
-- `discover-tools` shows **4** tools
-- `compile-tool-profile` creates or reuses an active profile
-- the compiled hello-world profile allows **3** tools
-- `run-agent-task` completes successfully
-- local artifacts appear in `./.local_state`
+* `preflight` passes
+* `discover-tools` shows **4** tools
+* `compile-tool-profile` creates or reuses an active profile
+* the compiled hello-world profile allows **3** tools
+* `run-agent-task` completes successfully
+* local artifacts appear in `./.local_state`
 
 ## Deploying to Databricks
 
@@ -239,8 +251,8 @@ Do this only after the local flow is green.
 
 This repo deploys **two Python wheel jobs**:
 
-- `compile_tool_profile_job`
-- `run_agent_task_job`
+* `compile_tool_profile_job`
+* `run_agent_task_job`
 
 The split is intentional: one job compiles and persists the active tool profile, and the second job runs the actual agent task using that profile.
 
@@ -279,9 +291,9 @@ This is expected and normal for local development.
 
 When Spark is available, the project uses the Delta targets configured in `workspace-config.yml`:
 
-- `storage.tool_profile_table`
-- `storage.agent_runs_table`
-- `storage.agent_output_table`
+* `storage.tool_profile_table`
+* `storage.agent_runs_table`
+* `storage.agent_output_table`
 
 Before you rely on deployed runs, make sure those table names point to a writable location.
 
