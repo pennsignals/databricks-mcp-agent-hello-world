@@ -11,7 +11,7 @@ from .config import (
     parse_task_input,
     parse_task_input_file,
 )
-from .evals.harness import EvalSetupError, load_eval_scenarios, prepare_run_evals, run_eval_scenarios
+from .evals.harness import EvalSetupError, run_evals
 from .logging_utils import configure_logging
 from .models import AgentTaskRequest
 from .ops import (
@@ -94,7 +94,7 @@ def run_named_command(
         return int(exc.code) if isinstance(exc.code, int) else 2
     except EvalSetupError as exc:
         print(str(exc), file=sys.stderr)
-        return 2
+        return 1
     except Exception as exc:  # noqa: BLE001
         print(str(exc), file=sys.stderr)
         return 1
@@ -115,7 +115,7 @@ def build_parser(command_name: str, *, prog: str) -> argparse.ArgumentParser:
         group.add_argument("--task-input-json")
         group.add_argument("--task-input-file")
     elif command_name == "run-evals":
-        parser.add_argument("--scenario")
+        parser.add_argument("--scenario-file", default="evals/sample_scenarios.json")
 
     return parser
 
@@ -169,9 +169,6 @@ def _run_agent_task(args: argparse.Namespace) -> int:
 
 
 def _run_evals(args: argparse.Namespace) -> int:
-    print("Running live integration evals against the configured Databricks LLM endpoint.")
-    print("This command requires valid Databricks auth and may consume tokens.")
-
     try:
         settings = load_settings(args.config_path)
     except Exception as exc:  # noqa: BLE001
@@ -181,21 +178,14 @@ def _run_evals(args: argparse.Namespace) -> int:
 
     set_runtime_settings(settings)
     try:
-        runner, active_profile = prepare_run_evals(settings)
-        scenarios = load_eval_scenarios(str(Path("evals") / "sample_scenarios.json"))
-        summary = run_eval_scenarios(
-            scenarios,
-            runner,
-            scenario_id=args.scenario,
-            active_profile=active_profile,
-        )
+        summary = run_evals(settings, args.scenario_file)
     except EvalSetupError:
         raise
     except Exception as exc:  # noqa: BLE001
         raise EvalSetupError(str(exc)) from exc
 
     _render_output(summary, output_format=args.output, text_renderer=_print_eval_summary)
-    return 0 if summary.failed == 0 and summary.errored == 0 else 1
+    return 0 if summary.all_passed else 1
 
 
 def _load_task_payload(args: argparse.Namespace) -> dict[str, Any]:
@@ -295,11 +285,12 @@ def _print_run_summary(record) -> None:
 
 
 def _print_eval_summary(summary) -> None:
-    print(f"Total passed: {summary.passed}")
-    print(f"Total failed: {summary.failed}")
-    print(f"Total errored: {summary.errored}")
     for result in summary.results:
-        print(f"{result.scenario_id}: {result.status}")
+        if result.passed:
+            print(f"PASS {result.scenario_id}")
+            continue
+        print(f"FAIL {result.scenario_id}: {'; '.join(result.failed_checks)}")
+    print(f"Passed {summary.passed_scenarios}/{summary.total_scenarios} scenarios")
 
 
 COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], int]] = {
