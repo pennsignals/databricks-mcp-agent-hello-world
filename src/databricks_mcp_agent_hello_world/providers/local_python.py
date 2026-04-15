@@ -30,6 +30,9 @@ class LocalPythonToolProvider(ToolProvider):
                     "version": tool.version,
                     "provider_type": tool.provider_type,
                     "provider_id": tool.provider_id,
+                    "capability_tags": tool.capability_tags,
+                    "side_effect_level": tool.side_effect_level,
+                    "data_domains": tool.data_domains,
                 }
                 for tool in sorted(self.list_tools(), key=lambda item: item.tool_name)
             ],

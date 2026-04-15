@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
@@ -8,12 +9,38 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ToolSpec(BaseModel):
+    """Tool definition plus descriptive metadata for LLM-guided selection.
+
+    The metadata fields are lightweight context for the compiler model:
+    capability_tags describe what the tool can do, data_domains describe what
+    data or source it operates on, and side_effect_level signals whether the
+    tool is read-only or can mutate external state. They are not used for
+    deterministic Python-side routing.
+    """
+
     tool_name: str
     description: str
     input_schema: dict[str, Any]
     provider_type: str
     provider_id: str
     version: str = "1"
+    capability_tags: list[str] = Field(default_factory=list)
+    side_effect_level: Literal["read_only", "write"] = "read_only"
+    data_domains: list[str] = Field(default_factory=list)
+
+    @staticmethod
+    def _normalize_metadata_values(values: list[str], field_name: str) -> list[str]:
+        normalized_values: set[str] = set()
+        for raw_value in values:
+            candidate = raw_value.strip().lower()
+            if not candidate:
+                raise ValueError(f"{field_name} entries must not be empty")
+            if not re.fullmatch(r"[a-z0-9_]+", candidate):
+                raise ValueError(
+                    f"{field_name} entries must be lowercase snake_case strings; got {raw_value!r}"
+                )
+            normalized_values.add(candidate)
+        return sorted(normalized_values)
 
     @field_validator("tool_name")
     @classmethod
@@ -29,6 +56,11 @@ class ToolSpec(BaseModel):
         if value.get("type") != "object":
             raise ValueError("input_schema must be a JSON schema object with type=object")
         return value
+
+    @field_validator("capability_tags", "data_domains")
+    @classmethod
+    def validate_metadata_list(cls, value: list[str], info) -> list[str]:
+        return cls._normalize_metadata_values(value, info.field_name)
 
     def to_openai_tool(self) -> dict[str, Any]:
         return {
