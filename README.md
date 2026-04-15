@@ -1,114 +1,250 @@
 # databricks-mcp-agent-hello-world
 
-`databricks-mcp-agent-hello-world` is a bundle-based, Python-wheel Databricks Job template for a non-interactive, tool-using agent workflow. It is a Databricks Job template, not a Databricks App, and it is meant to be run locally first and then deployed as a bundle.
+A lightweight starter template for building **non-interactive, tool-using LLM agents that run as Databricks Jobs**.
 
-The starter uses a local-first development flow, deploys as Python wheel Jobs on Databricks, and uses serverless compute as the default deployed compute path for MVP.
+This template is intentionally:
 
-For MVP, `local_python` is the only working runtime backend. `managed_mcp` is reserved for a future extension path.
+- **Job-first**: package the project as a Python wheel and run it as a Databricks Job
+- **local-first**: develop and validate from your laptop before deploying
+- **simple by default**: keep the runtime small and easy to extend
+
+This repo is for **autonomous batch-style agent workflows**, not chat apps, Databricks Apps, or long-running interactive services.
+
+For the current MVP, **`local_python` is the only working tool runtime**. `managed_mcp` is reserved for a future extension path and is not part of the first-run flow.
+
+On a successful first pass, you should be able to authenticate locally to Databricks, configure a Databricks-hosted LLM endpoint, run a hello-world workflow locally, verify tool discovery and allowlisting, and deploy the same workflow as a Python wheel Job.
+
+## How it works
+
+The runtime flow is intentionally small:
+
+1. load config from `workspace-config.yml`
+2. discover tools from the active provider
+3. compile a tool profile that allowlists the tools needed for the task
+4. run the task with only that allowlisted subset exposed to the model
+5. persist run artifacts locally or to Delta
+6. exit
+
+For the built-in demo, the runtime discovers four tools and the hello-world profile allowlists only the relevant subset. One demo tool is intentionally excluded so you can verify that restriction really works.
+
+## Prerequisites
+
+Before you start, make sure you have:
+
+- **Python 3.11+**
+- **[`uv`](https://docs.astral.sh/uv/)**
+- the **Databricks CLI** installed
+- a Databricks workspace you can authenticate to locally
+- a **Databricks model serving endpoint** to use as `llm_endpoint_name`
+- permission to deploy bundles and run jobs in your target workspace
+
+The default deployed job definition in this repo uses **serverless job environments**. If your workspace does not support that pattern, you can still use this template, but you will need to edit the job resource before deployment.
+
+## Authentication model
+
+This project uses two auth modes:
+
+- **Local development**: use **Databricks CLI profile auth**, sign in with `databricks auth login`, and store the profile name in `.env` as `DATABRICKS_CONFIG_PROFILE`.
+- **Scheduled or CI/CD execution**: use your organization’s approved non-interactive auth path, typically a service principal with OAuth M2M.
+
+For the supported beginner path, use CLI profile auth locally rather than direct Databricks credentials in `.env`.
+
+## First-time setup
+
+From the repo root:
+
+```bash
+uv sync
+cp workspace-config.example.yml workspace-config.yml
+cp .env.example .env
+```
 
 ## Required edits before your first run
 
-- [ ] Replace the placeholder workspace host in `databricks.yml` before you run `databricks bundle validate` or `databricks bundle deploy`.
-  - Placeholder:
-    ```yaml
-    targets:
-      dev:
-        workspace:
-          host: https://your-workspace.cloud.databricks.com
-      prod:
-        workspace:
-          host: https://your-workspace.cloud.databricks.com
-    ```
-  - Intended pattern:
-    ```yaml
-    targets:
-      dev:
-        workspace:
-          host: https://<your-workspace-host>
-      prod:
-        workspace:
-          host: https://<your-workspace-host>
-    ```
-- [ ] Create a real repo-root `workspace-config.yml` by copying `workspace-config.example.yml`.
-- [ ] Keep `workspace-config.yml` in the repo root for local runs.
-- [ ] Make sure the deployed job YAML uses this exact config path syntax:
-  ```yaml
-  config_path: ${workspace.file_path}/workspace-config.yml
-  ```
+### 1) Set your workspace host in `databricks.yml`
 
-## Quickstart
+Replace the placeholder host in every target you plan to validate or deploy:
 
-Use one path only: CLI profile auth, repo-root `workspace-config.yml`, then local checks in the order below.
+```yaml
+targets:
+  dev:
+    workspace:
+      host: https://<your-workspace-host>
+  prod:
+    workspace:
+      host: https://<your-workspace-host>
+```
 
-The quickstart assumes the default deployed compute path: serverless Databricks Jobs. There is no alternate compute branch in the first-run setup.
+If you leave the placeholder host in place, `databricks bundle validate` will fail.
 
-1. `uv sync`
-2. `databricks auth login`
-   If you are not using the `DEFAULT` profile, pass `--profile <name>` and use the same profile name in `DATABRICKS_CONFIG_PROFILE`.
-3. copy `.env.example` and `workspace-config.example.yml`
-4. `uv run preflight --config-path workspace-config.yml`
-5. `uv run discover-tools --config-path workspace-config.yml`
-6. `uv run compile-tool-profile --config-path workspace-config.yml`
-7. `uv run run-agent-task --config-path workspace-config.yml --task-input-json '{"task_name":"hello_world_demo"}'`
-8. `uv run pytest`
-9. `uv run run-evals --config-path workspace-config.yml`
+### 2) Set your local CLI profile in `.env`
 
-## Testing levels
+```dotenv
+DATABRICKS_CONFIG_PROFILE=DEFAULT
+```
 
-### Unit tests
+If you use a different profile name, put that value here instead.
 
-Command:
+### 3) Set the LLM endpoint in `workspace-config.yml`
+
+At minimum, update these fields:
+
+```yaml
+tool_provider_type: local_python
+llm_endpoint_name: <your-serving-endpoint-name>
+active_profile_name: default
+```
+
+You can also override `llm_endpoint_name` from `.env` with `LLM_ENDPOINT_NAME`, but keeping the main value in `workspace-config.yml` is the clearest beginner path.
+
+### 4) Decide where Databricks runs should persist state
+
+The example config ships with placeholder Unity Catalog tables:
+
+```yaml
+storage:
+  tool_profile_table: main.agent_demo.tool_profiles
+  agent_runs_table: main.agent_demo.agent_runs
+  agent_output_table: main.agent_demo.agent_outputs
+  local_data_dir: ./.local_state
+```
+
+For real Databricks runs, change those table names to a **catalog and schema you can create and write to**.
+
+For local runs, Spark is usually unavailable, so the project automatically falls back to local files under `./.local_state`.
+
+### 5) Ignore the SQL section for the hello-world demo
+
+The `sql:` block in `workspace-config.example.yml` is for future SQL-backed tools. It is **not required** for the current `local_python` hello-world path.
+
+## Quickstart: first successful local run
+
+### Step 1: authenticate to Databricks
+
+```bash
+databricks auth login --host https://<your-workspace-host>
+```
+
+If you want to use a non-default profile:
+
+```bash
+databricks auth login --host https://<your-workspace-host> --profile DEV
+```
+
+Then set the same profile in `.env`:
+
+```dotenv
+DATABRICKS_CONFIG_PROFILE=DEV
+```
+
+You can verify your saved profiles with:
+
+```bash
+databricks auth profiles
+```
+
+### Step 2: run preflight
+
+```bash
+uv run preflight --config-path workspace-config.yml
+```
+
+This checks that the config loads, the CLI profile resolves, the Databricks client initializes, the LLM endpoint name is present, the provider can be created, and the project can discover tools.
+
+On a clean first run, it is normal for preflight to report that **no active profile exists yet**.
+
+### Step 3: discover tools
+
+```bash
+uv run discover-tools --config-path workspace-config.yml
+```
+
+For the built-in demo, you should see **4 tools**.
+
+### Step 4: compile the tool profile
+
+```bash
+uv run compile-tool-profile --config-path workspace-config.yml
+```
+
+This discovers the full tool inventory, compiles the active allowlist for the hello-world task, and persists the active profile.
+
+For the built-in demo, the compiled profile should allow **3 tools** and exclude the intentionally irrelevant demo tool.
+
+### Step 5: run the hello-world task
+
+Use the example task file instead of inline shell JSON:
+
+```bash
+uv run run-agent-task \
+  --config-path workspace-config.yml \
+  --task-input-file examples/hello_world_task.json
+```
+
+A successful run shows that the project can:
+
+- load the compiled profile
+- restrict the tool set to the allowlist
+- call allowed tools
+- generate a final answer
+- persist run artifacts
+
+If you want machine-readable output:
+
+```bash
+uv run run-agent-task \
+  --config-path workspace-config.yml \
+  --task-input-file examples/hello_world_task.json \
+  --output json
+```
+
+### Step 6: validate locally
+
+Fast local tests:
 
 ```bash
 uv run pytest
 ```
 
-Definition:
-
-- local
-- fast
-- no live LLM call required
-- no token usage expected
-
-### Live integration evals
-
-Command:
+Live integration evals against the configured Databricks endpoint:
 
 ```bash
 uv run run-evals --config-path workspace-config.yml
 ```
 
-Definition:
+Live evals require valid Databricks auth and may consume tokens, so use them after the local hello-world flow is already working.
 
-- uses configured Databricks-hosted LLM endpoint
-- requires valid auth
-- consumes tokens
-- may vary slightly between runs
-
-Live integration evals call the configured Databricks-hosted LLM endpoint and may consume tokens.
-Use them after local setup and basic hello-world verification succeed. Normal success means the
-agent uses only allowlisted tools, explicitly excluded tools stay out of execution, and blocked
-tool attempts are not expected during normal live runs.
-
-### Hello-world demo run
-
-Command:
+Once the project is configured, you can also use the convenience wrapper:
 
 ```bash
-uv run run-agent-task --config-path workspace-config.yml --task-input-json '{"task_name":"hello_world_demo"}'
+bash scripts/dev/run_hello_world.sh
 ```
 
-Definition:
+That runs `preflight`, `discover-tools`, `compile-tool-profile`, and `run-agent-task --task-input-file examples/hello_world_task.json --output json` for you.
 
-- demonstrates the actual end-to-end hello-world workflow
-- not a test harness
-- should be used after preflight and profile compilation
+### Success checklist
 
-## Deployment
+A healthy first pass looks like this:
 
-Deploy to Databricks after the local flow is green.
+- `preflight` passes
+- `discover-tools` shows **4** tools
+- `compile-tool-profile` creates or reuses an active profile
+- the compiled hello-world profile allows **3** tools
+- `run-agent-task` completes successfully
+- local artifacts appear in `./.local_state`
 
-The bundled Jobs use serverless compute by default. That is the recommended MVP path because it removes the most common first-run blocker: permission to create a classic jobs cluster. Local commands still run entirely from your machine and do not require Databricks compute.
+## Deploying to Databricks
+
+Do this only after the local flow is green.
+
+This repo deploys **two Python wheel jobs**:
+
+- `compile_tool_profile_job`
+- `run_agent_task_job`
+
+The split is intentional: one job compiles and persists the active tool profile, and the second job runs the actual agent task using that profile.
+
+### Deploy commands
 
 ```bash
 databricks bundle validate --target dev
@@ -117,79 +253,112 @@ databricks bundle run --target dev compile_tool_profile_job
 databricks bundle run --target dev run_agent_task_job
 ```
 
-Success:
-- `bundle validate` passes after the placeholder host has been replaced.
-- `bundle deploy --target dev` succeeds.
-- `compile_tool_profile_job` runs successfully and compiles the active profile in the workspace.
-- `run_agent_task_job` runs successfully and returns the hello-world result on Databricks.
+Run them in exactly that order. The task job expects an active profile to exist.
 
-If a downstream project needs a different compute model, edit [resources/databricks_mcp_agent_hello_world_job.yml](/Users/mbecker/git/databricks-mcp-agent-hello-world/resources/databricks_mcp_agent_hello_world_job.yml) and replace the serverless task environment configuration with the compute configuration your workspace requires. That is a downstream customization and does not change the local CLI workflow or the Job-first architecture of this starter.
+The bundled jobs use **serverless** as the default deployed path. If your workspace does not support that pattern, edit [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/databricks_mcp_agent_hello_world_job.yml) and replace the default job environment configuration with the compute model your environment allows.
 
-## Compute defaults
+This starter is intentionally **not scheduled by default**. Get the on-demand flow working first, then add a schedule in a downstream project.
 
-This starter defaults bundled Databricks Jobs to serverless compute.
+## Where outputs go
 
-Why this is the MVP default:
+### Local development
 
-- it avoids the common first-run failure where a user can deploy the bundle but cannot create a classic jobs cluster
-- it reduces manual compute setup for new users
-- it keeps the template focused on the agent workflow instead of cluster provisioning
-- it preserves one obvious path: configure locally, verify locally, deploy, then run the Job
+When Spark is unavailable, the project falls back to local persistence under:
 
-What this means in practice:
+```text
+.local_state/
+├── active_tool_profile.json
+├── profiles/
+├── agent_runs.jsonl
+└── agent_outputs.jsonl
+```
 
-- local development does not depend on Databricks compute
-- deployed `compile_tool_profile_job` and `run_agent_task_job` use serverless by default
-- if your workspace does not support serverless for this pattern, you can intentionally change the job resource later
+This is expected and normal for local development.
 
-To change compute mode later in a downstream project:
+### Databricks runs
 
-1. Edit [resources/databricks_mcp_agent_hello_world_job.yml](/Users/mbecker/git/databricks-mcp-agent-hello-world/resources/databricks_mcp_agent_hello_world_job.yml).
-2. Replace each task's `environment_key` plus job-level `environments` block with the compute configuration your workspace requires, such as a classic `new_cluster`, a shared existing cluster, or another approved job compute pattern.
-3. Keep the Python wheel task shape and keep `config_path: ${workspace.file_path}/workspace-config.yml` unchanged so the local and deployed flows stay aligned.
+When Spark is available, the project uses the Delta targets configured in `workspace-config.yml`:
 
-This documentation is here to show where the compute decision lives. It is not a second recommended quickstart.
+- `storage.tool_profile_table`
+- `storage.agent_runs_table`
+- `storage.agent_output_table`
+
+Before you rely on deployed runs, make sure those table names point to a writable location.
+
+## Add your own tool
+
+When you are ready to extend the template:
+
+1. add a Python function in [`src/databricks_mcp_agent_hello_world/tools/builtin.py`](src/databricks_mcp_agent_hello_world/tools/builtin.py) or another tool module
+2. register it in [`src/databricks_mcp_agent_hello_world/tools/registry.py`](src/databricks_mcp_agent_hello_world/tools/registry.py)
+3. rerun `discover-tools`
+4. rerun `compile-tool-profile`
+5. update tests and evals for the new behavior
+
+Keep tools small, explicit, and easy to reason about.
 
 ## Troubleshooting
 
-1. `databricks bundle validate` fails with the placeholder host
+### `databricks bundle validate` fails with the placeholder host
 
-   Symptom: validation errors reference `https://your-workspace.cloud.databricks.com`.
+You still have `https://your-workspace.cloud.databricks.com` in `databricks.yml`.
 
-   Fix: update `targets.<target>.workspace.host` in `databricks.yml`.
+Fix: replace it for every target you validate or deploy.
 
-2. `preflight` or runtime cannot find `workspace-config.yml`
+### `preflight` says `DATABRICKS_CONFIG_PROFILE` is missing
 
-   Symptom: the command fails because the config file is missing.
+Your CLI profile name is not set in `.env` or `workspace-config.yml`.
 
-   Fix: copy `workspace-config.example.yml` to `workspace-config.yml` and keep it in the repo root.
+Fix: set `DATABRICKS_CONFIG_PROFILE=<your-profile>` in `.env`.
 
-3. `LLM_ENDPOINT_NAME` is missing or invalid
+### `preflight` or runtime cannot find `workspace-config.yml`
 
-   Symptom: local validation fails or the agent cannot start with the configured endpoint.
+You did not copy the example config into the repo root.
 
-   Fix: update `.env` or `workspace-config.yml` with the correct Databricks-hosted endpoint name.
+Fix:
 
-4. Local logs say Spark is unavailable
+```bash
+cp workspace-config.example.yml workspace-config.yml
+```
 
-   Symptom: local runs print a message about Spark not being present.
+### `.env` parsing fails because of Databricks credentials
 
-   Fix: that is expected in local mode. Local fallback persistence is normal off-cluster.
+This project intentionally rejects direct local credentials in `.env` for the supported quickstart.
 
-5. `databricks bundle deploy` fails before the Jobs are created
+Fix: remove those keys and use `databricks auth login` plus a CLI profile.
 
-   Symptom: deployment fails while validating or creating bundle-managed resources.
+### `llm_endpoint_name` is missing or wrong
 
-   Fix: treat this as a bundle deployment problem first. Re-check `databricks.yml`, authentication, target workspace access, and any workspace-level bundle restrictions.
+The endpoint name is empty, misspelled, or points at the wrong serving endpoint.
 
-6. `databricks bundle run` fails because serverless is unavailable or unsupported
+Fix: update `workspace-config.yml` and rerun `preflight`.
 
-   Symptom: deployment succeeded, but a bundled Job run fails during compute provisioning before your wheel entry point starts.
+### `run-agent-task` fails saying no active tool profile exists
 
-   Fix: this usually means the configured job compute mode is incompatible with the target workspace's capabilities, policies, or permissions. The Python wheel Job model is still correct; the compute configuration is the mismatch. If the workspace does not support the default serverless path, update [resources/databricks_mcp_agent_hello_world_job.yml](/Users/mbecker/git/databricks-mcp-agent-hello-world/resources/databricks_mcp_agent_hello_world_job.yml) to use the compute model your environment allows.
+You skipped the compile step.
 
-7. Job runtime cannot find the config path
+Fix:
 
-   Symptom: the Databricks job cannot load `workspace-config.yml`.
+```bash
+uv run compile-tool-profile --config-path workspace-config.yml
+```
 
-   Fix: confirm `config_path` in the job YAML matches the deployed workspace file path and that `workspace-config.yml` is part of the deployed project.
+Then rerun the task.
+
+### Local logs say Spark is unavailable
+
+That is normal during local development.
+
+The project will use `./.local_state` instead of Delta when Spark is not available.
+
+### Deployed job run fails during compute provisioning
+
+Your workspace may not support the default serverless job path in the current resource file.
+
+Fix: update [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/databricks_mcp_agent_hello_world_job.yml) to use the compute pattern your workspace allows.
+
+### Deployed runtime cannot read or write the configured Delta tables
+
+Your `storage.*` table names point to a catalog or schema your deployed identity cannot access.
+
+Fix: update the table names in `workspace-config.yml` to a writable location and redeploy.
