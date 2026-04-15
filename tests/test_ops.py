@@ -2,7 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from databricks_mcp_agent_hello_world.config import load_settings
-from databricks_mcp_agent_hello_world.ops import discover_tools, run_hello_world_demo, run_preflight
+from databricks_mcp_agent_hello_world.ops import discover_tools, run_example_task, run_preflight
 
 
 def _write_config(tmp_path: Path, *, include_profile: bool = True) -> Path:
@@ -157,9 +157,17 @@ def test_discover_tools_returns_demo_registry_tools(tmp_path: Path) -> None:
     ]
 
 
-def test_run_hello_world_demo_orchestrates_discover_and_run(tmp_path: Path, monkeypatch) -> None:
+def test_run_example_task_orchestrates_discover_and_run(tmp_path: Path, monkeypatch) -> None:
     settings = load_settings(str(_write_config(tmp_path)))
     calls = []
+    task_file = tmp_path / "task.json"
+    task_file.write_text(
+        (
+            '{"task_name":"hello_world_demo","instructions":"Write the report.",'
+            '"payload":{"name":"Ada","handbook_query":"local setup tip","setting_key":"runtime_target"}}'
+        ),
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.ops.discover_tools",
@@ -171,20 +179,41 @@ def test_run_hello_world_demo_orchestrates_discover_and_run(tmp_path: Path, monk
             assert passed_settings == settings
 
         def run(self, task):
-            calls.append(("run", task.task_name))
-            return {"task_name": task.task_name}
+            calls.append(("run", task.task_name, task.payload))
+            return {"task_name": task.task_name, "payload": task.payload}
 
     monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.AgentRunner", StubRunner)
 
-    result = run_hello_world_demo(settings)
+    result = run_example_task(settings, str(task_file))
 
-    assert result == {"task_name": "hello_world_demo"}
-    assert calls == [("discover", settings), ("run", "hello_world_demo")]
+    assert result["task_name"] == "hello_world_demo"
+    assert result["payload"] == {
+        "name": "Ada",
+        "handbook_query": "local setup tip",
+        "setting_key": "runtime_target",
+    }
+    assert calls == [
+        ("discover", settings),
+        (
+            "run",
+            "hello_world_demo",
+            {
+                "name": "Ada",
+                "handbook_query": "local setup tip",
+                "setting_key": "runtime_target",
+            },
+        ),
+    ]
 
 
-def test_run_hello_world_demo_keeps_sql_fields_optional(tmp_path: Path, monkeypatch) -> None:
+def test_run_example_task_keeps_sql_fields_optional(tmp_path: Path, monkeypatch) -> None:
     settings = load_settings(str(_write_config(tmp_path)))
     observed_sql_fields = {}
+    task_file = tmp_path / "task.json"
+    task_file.write_text(
+        '{"task_name":"hello_world_demo","instructions":"Write the report.","payload":{"name":"Ada"}}',
+        encoding="utf-8",
+    )
 
     def _discover(passed_settings):
         observed_sql_fields.update(
@@ -205,13 +234,13 @@ def test_run_hello_world_demo_keeps_sql_fields_optional(tmp_path: Path, monkeypa
             assert passed_settings.sql.schema is None
 
         def run(self, task):
-            return {"task_name": task.task_name}
+            return {"task_name": task.task_name, "payload": task.payload}
 
     monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.AgentRunner", StubRunner)
 
-    result = run_hello_world_demo(settings)
+    result = run_example_task(settings, str(task_file))
 
-    assert result == {"task_name": "hello_world_demo"}
+    assert result["task_name"] == "hello_world_demo"
     assert observed_sql_fields == {
         "warehouse_id": None,
         "catalog": None,

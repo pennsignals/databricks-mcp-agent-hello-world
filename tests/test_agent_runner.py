@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import pytest
 
 from databricks_mcp_agent_hello_world.models import (
+    AgentRunRecord,
     AgentTaskRequest,
-    HelloWorldDemoResult,
     ToolProfile,
     ToolResult,
     ToolSpec,
@@ -89,6 +89,9 @@ def _profile() -> ToolProfile:
         provider_type="local_python",
         llm_endpoint_name="endpoint-a",
         prompt_version="v1",
+        compile_task_name="generic_task",
+        compile_task_hash="compile-task-hash",
+        compile_task_summary="generic_task: Write the report.",
         discovered_tools=[
             _tool("greet_user"),
             _tool("search_demo_handbook"),
@@ -118,11 +121,17 @@ def _tool_call(name: str, arguments: str, call_id: str = "call-1"):
     return SimpleNamespace(id=call_id, function=function)
 
 
-def _runner(tmp_path: Path, llm, *, profile: ToolProfile | None = None) -> AgentRunner:
+def _runner(
+    tmp_path: Path,
+    llm,
+    *,
+    profile: ToolProfile | None = None,
+    max_agent_steps: int = 2,
+) -> AgentRunner:
     runner = AgentRunner.__new__(AgentRunner)
     runner.settings = SimpleNamespace(
         prompts=SimpleNamespace(agent_system_prompt="system"),
-        max_agent_steps=2,
+        max_agent_steps=max_agent_steps,
         active_profile_name="default",
         storage=SimpleNamespace(local_data_dir=str(tmp_path)),
     )
@@ -133,7 +142,7 @@ def _runner(tmp_path: Path, llm, *, profile: ToolProfile | None = None) -> Agent
     return runner
 
 
-def test_agent_runner_returns_hello_world_contract(tmp_path: Path) -> None:
+def test_agent_runner_returns_generic_result_contract(tmp_path: Path) -> None:
     runner = _runner(
         tmp_path,
         StubLLM(
@@ -151,8 +160,8 @@ def test_agent_runner_returns_hello_world_contract(tmp_path: Path) -> None:
 
     record = runner.run(
         AgentTaskRequest(
-            task_name="hello_world_demo",
-            instructions="Write the hello-world report.",
+            task_name="generic_task",
+            instructions="Write the report.",
             payload={
                 "name": "Ada",
                 "handbook_query": "local setup tip",
@@ -161,17 +170,43 @@ def test_agent_runner_returns_hello_world_contract(tmp_path: Path) -> None:
         )
     )
 
-    assert isinstance(record, HelloWorldDemoResult)
-    assert record.allowed_tools == [
-        "greet_user",
-        "search_demo_handbook",
-        "get_demo_setting",
-    ]
-    assert [item.tool_name for item in record.tool_calls] == ["greet_user"]
-    assert record.final_answer == "Hello Ada, this report is ready."
+    assert isinstance(record, AgentRunRecord)
+    assert runner.llm.call_args[0]["tool_choice"] is None
+    assert record.result == {
+        "final_response": "Hello Ada, this report is ready.",
+        "task_payload": {
+            "name": "Ada",
+            "handbook_query": "local setup tip",
+            "setting_key": "runtime_target",
+        },
+        "available_tools": [
+            "greet_user",
+            "search_demo_handbook",
+            "get_demo_setting",
+            "tell_demo_joke",
+        ],
+        "allowed_tools": [
+            "greet_user",
+            "search_demo_handbook",
+            "get_demo_setting",
+        ],
+        "tool_trace": [
+            {
+                "tool_name": "greet_user",
+                "arguments": {"value": "Ada"},
+                "status": "ok",
+                "error": None,
+            }
+        ],
+    }
+    assert [item.tool_name for item in runner.executor.calls] == ["greet_user"]
+    assert runner.result_writer.run_records[0].result == record.result
+    assert runner.result_writer.output_records[0].output_payload == record.result
 
 
-def test_agent_runner_hello_world_first_turn_requires_tool_use(tmp_path: Path) -> None:
+def test_agent_runner_marks_max_steps_exceeded_with_generic_result_payload(
+    tmp_path: Path,
+) -> None:
     runner = _runner(
         tmp_path,
         StubLLM(
@@ -181,24 +216,70 @@ def test_agent_runner_hello_world_first_turn_requires_tool_use(tmp_path: Path) -
                         _tool_call("greet_user", '{"value":"Ada"}', call_id="call-1"),
                     ]
                 ),
-                _response(content="Hello Ada, this report is ready."),
             ]
         ),
+        profile=_profile(),
+        max_agent_steps=1,
+    )
+
+    record = runner.run(
+        AgentTaskRequest(
+            task_name="generic_task",
+            instructions="Write the report.",
+            payload={"name": "Ada"},
+        )
+    )
+
+    assert record.status == "max_steps_exceeded"
+    assert record.error_message == "Maximum agent steps exceeded."
+    assert record.result == {
+        "final_response": "",
+        "task_payload": {"name": "Ada"},
+        "available_tools": [
+            "greet_user",
+            "search_demo_handbook",
+            "get_demo_setting",
+            "tell_demo_joke",
+        ],
+        "allowed_tools": [
+            "greet_user",
+            "search_demo_handbook",
+            "get_demo_setting",
+        ],
+        "tool_trace": [
+            {
+                "tool_name": "greet_user",
+                "arguments": {"value": "Ada"},
+                "status": "ok",
+                "error": None,
+            }
+        ],
+    }
+    assert runner.result_writer.run_records[0].result == record.result
+    assert runner.result_writer.output_records[0].output_payload == record.result
+
+
+def test_agent_runner_does_not_force_first_turn_tool_use(tmp_path: Path) -> None:
+    runner = _runner(
+        tmp_path,
+        StubLLM([_response(content="Hello Ada, this report is ready.")]),
         profile=_profile(),
     )
 
     runner.run(
         AgentTaskRequest(
-            task_name="hello_world_demo",
-            instructions="Write the hello-world report.",
+            task_name="generic_task",
+            instructions="Write the report.",
             payload={"name": "Ada"},
         )
     )
 
-    assert runner.llm.call_args[0]["tool_choice"] == "required"
+    assert runner.llm.call_args[0]["tool_choice"] is None
 
 
-def test_agent_runner_records_blocked_hello_world_tool_attempt(tmp_path: Path) -> None:
+def test_agent_runner_records_blocked_tool_attempt_and_persists_result(
+    tmp_path: Path,
+) -> None:
     runner = _runner(
         tmp_path,
         StubLLM(
@@ -212,15 +293,17 @@ def test_agent_runner_records_blocked_hello_world_tool_attempt(tmp_path: Path) -
 
     record = runner.run(
         AgentTaskRequest(
-            task_name="hello_world_demo",
-            instructions="Write the hello-world report.",
+            task_name="generic_task",
+            instructions="Write the report.",
             payload={"name": "Ada"},
         )
     )
 
-    assert record.tool_calls == []
+    assert record.result["tool_trace"][0]["status"] == "blocked"
+    assert record.result["tool_trace"][0]["error"]
     assert runner.executor.calls == []
     assert runner.result_writer.run_records[0].blocked_calls[0]["tool_name"] == "tell_demo_joke"
+    assert runner.result_writer.output_records[0].output_payload == record.result
 
 
 def test_agent_runner_logs_expected_blocked_call_at_info(
@@ -241,8 +324,8 @@ def test_agent_runner_logs_expected_blocked_call_at_info(
 
     runner.run(
         AgentTaskRequest(
-            task_name="hello_world_demo",
-            instructions="Write the hello-world report.",
+            task_name="generic_task",
+            instructions="Write the report.",
             payload={"name": "Ada"},
             expected_blocked_calls=True,
         )
@@ -271,8 +354,8 @@ def test_agent_runner_logs_unexpected_blocked_call_at_warning(
 
     runner.run(
         AgentTaskRequest(
-            task_name="hello_world_demo",
-            instructions="Write the hello-world report.",
+            task_name="generic_task",
+            instructions="Write the report.",
             payload={"name": "Ada"},
         )
     )
@@ -287,8 +370,8 @@ def test_agent_runner_fails_when_no_active_profile_exists(tmp_path: Path) -> Non
     with pytest.raises(RuntimeError, match="No active tool profile found"):
         runner.run(
             AgentTaskRequest(
-                task_name="hello_world_demo",
-                instructions="Write the hello-world report.",
+                task_name="generic_task",
+                instructions="Write the report.",
                 payload={"name": "Ada"},
             )
         )
@@ -310,8 +393,8 @@ def test_agent_runner_fails_clearly_when_delta_profile_table_is_unreadable(
     with pytest.raises(RuntimeError, match="compile_tool_profile_job first"):
         runner.run(
             AgentTaskRequest(
-                task_name="hello_world_demo",
-                instructions="Write the hello-world report.",
+                task_name="generic_task",
+                instructions="Write the report.",
                 payload={"name": "Ada"},
             )
         )

@@ -5,9 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from ..config import Settings
-from ..models import AgentTaskRequest, EvalScenario, EvalScenarioResult, EvalSummary, HelloWorldDemoResult
+from ..models import AgentRunRecord, AgentTaskRequest, EvalScenario, EvalScenarioResult, EvalSummary
 from ..providers.factory import get_tool_provider
-from ..profiles.compiler import build_hello_world_demo_task
 from ..runner.agent_runner import AgentRunner
 from ..tooling.runtime import set_runtime_settings
 
@@ -116,36 +115,30 @@ def run_eval_scenarios(
 
 def evaluate_record(
     scenario: EvalScenario,
-    record: Any,
+    record: AgentRunRecord | dict[str, Any] | Any,
     active_profile: Any | None = None,
 ) -> EvalScenarioResult:
-    structured = _structured_result(record)
-    tool_calls = _tool_names(_tool_calls(record, structured))
-    blocked_tools = _tool_names(_blocked_calls(record))
-    available_tools = _available_tools(record, structured, active_profile)
-    allowed_tools = _allowed_tools(record, structured, active_profile)
-    final_answer = _final_answer(record, structured)
-    actual_status = _record_status(record, structured)
+    result_payload = _result_payload(record)
+    tool_calls = _tool_names(_tool_calls(record, result_payload))
+    blocked_tools = _tool_names(_blocked_calls(record, result_payload))
+    available_tools = _available_tools(record, result_payload, active_profile)
+    allowed_tools = _allowed_tools(record, result_payload, active_profile)
+    final_response = _final_response(result_payload, record)
+    actual_status = _record_status(record)
     expected_allowed_tools = set(scenario.expected_allowed_tools_subset)
     expected_excluded_tools = set(scenario.expected_excluded_tools)
 
     failures: list[str] = []
-    if structured is not None:
-        if structured.task_name != scenario.task_name:
-            failures.append(
-                f"expected task_name {scenario.task_name!r}, got {structured.task_name!r}"
-            )
-        if structured.available_tools_count != len(structured.available_tools):
-            failures.append("available_tools_count must match available_tools length")
-        if scenario.expected_status == "success" and not structured.final_answer.strip():
-            failures.append("final_answer must not be empty")
-    elif scenario.expected_status == "success":
-        failures.append("missing structured hello-world result")
+
+    actual_task_name = _record_value(record, "task_name")
+    if actual_task_name != scenario.task_name:
+        failures.append(f"expected task_name {scenario.task_name!r}, got {actual_task_name!r}")
+
+    if scenario.expected_status == "success" and not final_response.strip():
+        failures.append("final_response must not be empty")
 
     if actual_status != scenario.expected_status:
-        failures.append(
-            f"expected status {scenario.expected_status!r}, got {actual_status!r}"
-        )
+        failures.append(f"expected status {scenario.expected_status!r}, got {actual_status!r}")
 
     if len(tool_calls) < scenario.expected_tool_calls_min:
         failures.append(
@@ -160,9 +153,7 @@ def evaluate_record(
         )
 
     if not set(tool_calls).issubset(expected_allowed_tools):
-        failures.append(
-            "tool calls must stay inside the expected allowed tool subset"
-        )
+        failures.append("tool calls must stay inside the expected allowed tool subset")
 
     if available_tools and not set(allowed_tools).issubset(set(available_tools)):
         failures.append("allowed tools must be a subset of available tools")
@@ -201,27 +192,21 @@ def evaluate_record(
         run_id=_record_value(record, "run_id"),
         tools_called=tool_calls,
         blocked_tools=blocked_tools,
-        output_excerpt=final_answer[:500] if final_answer else None,
+        output_excerpt=final_response[:500] if final_response else None,
         failure_reason="; ".join(failures) if failures else None,
     )
 
 
 def _build_task_request(scenario: EvalScenario) -> AgentTaskRequest:
     task_input = dict(scenario.task_input)
-    instructions = _build_task_instructions(
-        scenario.task_name,
-        task_input,
-        expect_blocked_tool=scenario.expect_blocked_tool,
-    )
-    payload = task_input
-    if scenario.task_name == "hello_world_demo":
-        demo_task = build_hello_world_demo_task()
-        payload = {**demo_task.payload, **task_input}
-
     return AgentTaskRequest(
         task_name=scenario.task_name,
-        instructions=instructions,
-        payload=payload,
+        instructions=_build_task_instructions(
+            scenario.task_name,
+            task_input,
+            expect_blocked_tool=scenario.expect_blocked_tool,
+        ),
+        payload=task_input,
         expected_blocked_calls=scenario.expect_blocked_tool,
     )
 
@@ -232,66 +217,41 @@ def _build_task_instructions(
     *,
     expect_blocked_tool: bool,
 ) -> str:
-    if task_name == "hello_world_demo":
-        demo_task = build_hello_world_demo_task()
-        if expect_blocked_tool:
-            return (
-                "Write the hello-world demo using the provided task input. "
-                "Try the joke tool if you think it helps, even if the allowlist blocks it."
-            )
-        return demo_task.instructions
-
     payload_json = json.dumps(task_input, indent=2, sort_keys=True)
+    blocked_call_hint = (
+        "\nA blocked tool call is acceptable if the allowlist prevents it."
+        if expect_blocked_tool
+        else ""
+    )
     return (
         f"Execute the {task_name} task using the supplied task input.\n"
         f"Task input:\n{payload_json}"
+        f"{blocked_call_hint}"
     )
 
 
-def _structured_result(record: Any) -> HelloWorldDemoResult | None:
-    candidates: list[Any] = []
-    if isinstance(record, HelloWorldDemoResult):
-        candidates.append(record)
-    elif isinstance(record, dict):
-        candidates.append(record)
-        result = record.get("result")
-        if result is not None:
-            candidates.append(result)
-    else:
-        candidates.append(_record_value(record, "result"))
-        if hasattr(record, "model_dump"):
-            candidates.append(record.model_dump())
+def _result_payload(record: AgentRunRecord | dict[str, Any] | Any) -> dict[str, Any]:
+    if isinstance(record, AgentRunRecord):
+        return dict(record.result)
 
-    for candidate in candidates:
-        if candidate is None:
-            continue
-        if hasattr(candidate, "model_dump"):
-            candidate = candidate.model_dump()
-        if isinstance(candidate, dict):
-            try:
-                return HelloWorldDemoResult.model_validate(candidate)
-            except Exception:  # noqa: BLE001
-                continue
-    return None
-
-
-def _record_status(record: Any, structured: HelloWorldDemoResult | None = None) -> str:
-    value = _record_value(record, "status")
-    if value is not None:
-        return str(value)
-
-    result = _record_value(record, "result")
+    result = _record_value(record, "result", {})
+    if hasattr(result, "model_dump"):
+        return dict(result.model_dump())
     if isinstance(result, dict):
-        nested_status = result.get("status")
-        if nested_status is not None:
-            return str(nested_status)
+        return dict(result)
 
-    if structured is not None:
-        return "success"
-    return "unknown"
+    fallback_keys = {"final_response", "task_payload", "available_tools", "allowed_tools", "tool_trace"}
+    if isinstance(record, dict) and fallback_keys.intersection(record):
+        return {key: record.get(key) for key in fallback_keys if key in record}
+    return {}
 
 
-def _record_value(record: Any, name: str, default=None):
+def _record_status(record: AgentRunRecord | dict[str, Any] | Any) -> str:
+    value = _record_value(record, "status")
+    return str(value) if value is not None else "unknown"
+
+
+def _record_value(record: AgentRunRecord | dict[str, Any] | Any, name: str, default=None):
     if hasattr(record, name):
         return getattr(record, name)
     if isinstance(record, dict):
@@ -307,26 +267,30 @@ def _normalize_tool_entry(entry: Any) -> dict[str, Any]:
     return dict(entry)
 
 
-def _tool_calls(record: Any, structured: HelloWorldDemoResult | None = None) -> list[dict[str, Any]]:
-    if structured is not None:
-        return [_normalize_tool_entry(item) for item in structured.tool_calls]
-
-    tool_calls = _record_value(record, "tool_calls")
-    if tool_calls is not None:
-        return [_normalize_tool_entry(item) for item in tool_calls]
+def _tool_calls(record: AgentRunRecord | dict[str, Any] | Any, result_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    tool_trace = result_payload.get("tool_trace")
+    if tool_trace is not None:
+        return [_normalize_tool_entry(item) for item in tool_trace]
 
     tools_called = _record_value(record, "tools_called")
     if tools_called is not None:
         return [_normalize_tool_entry(item) for item in tools_called]
 
+    tool_calls = _record_value(record, "tool_calls")
+    if tool_calls is not None:
+        return [_normalize_tool_entry(item) for item in tool_calls]
+
     return []
 
 
-def _blocked_calls(record: Any) -> list[dict[str, Any]]:
+def _blocked_calls(
+    record: AgentRunRecord | dict[str, Any] | Any,
+    result_payload: dict[str, Any],
+) -> list[dict[str, Any]]:
     blocked_calls = _record_value(record, "blocked_calls") or []
     if blocked_calls:
         return [_normalize_tool_entry(item) for item in blocked_calls]
-    return [tool for tool in _tool_calls(record) if tool.get("status") == "blocked"]
+    return [tool for tool in _tool_calls(record, result_payload) if tool.get("status") == "blocked"]
 
 
 def _tool_names(entries: list[dict[str, Any]]) -> list[str]:
@@ -334,12 +298,13 @@ def _tool_names(entries: list[dict[str, Any]]) -> list[str]:
 
 
 def _available_tools(
-    record: Any,
-    structured: HelloWorldDemoResult | None,
+    record: AgentRunRecord | dict[str, Any] | Any,
+    result_payload: dict[str, Any],
     active_profile: Any | None,
 ) -> list[str]:
-    if structured is not None:
-        return list(structured.available_tools)
+    tools = result_payload.get("available_tools")
+    if tools is not None:
+        return list(tools)
 
     tools = _record_value(record, "available_tools")
     if tools is not None:
@@ -351,17 +316,17 @@ def _available_tools(
             tool.tool_name if hasattr(tool, "tool_name") else tool["tool_name"]
             for tool in discovered
         ]
-
     return []
 
 
 def _allowed_tools(
-    record: Any,
-    structured: HelloWorldDemoResult | None,
+    record: AgentRunRecord | dict[str, Any] | Any,
+    result_payload: dict[str, Any],
     active_profile: Any | None,
 ) -> list[str]:
-    if structured is not None:
-        return list(structured.allowed_tools)
+    tools = result_payload.get("allowed_tools")
+    if tools is not None:
+        return list(tools)
 
     tools = _record_value(record, "allowed_tools")
     if tools is not None:
@@ -370,21 +335,16 @@ def _allowed_tools(
     if active_profile is not None:
         allowed = _record_value(active_profile, "allowed_tools") or []
         return list(allowed)
-
     return []
 
 
-def _final_answer(record: Any, structured: HelloWorldDemoResult | None) -> str:
-    if structured is not None:
-        return structured.final_answer
-
-    value = _record_value(record, "final_answer")
+def _final_response(
+    result_payload: dict[str, Any],
+    record: AgentRunRecord | dict[str, Any] | Any,
+) -> str:
+    value = result_payload.get("final_response")
     if value:
         return str(value)
 
-    result = _record_value(record, "result") or {}
-    if isinstance(result, dict):
-        return str(result.get("final_answer") or result.get("final_response") or "")
-    if hasattr(result, "get"):
-        return str(result.get("final_answer") or result.get("final_response") or "")
-    return ""
+    value = _record_value(record, "final_response")
+    return str(value) if value else ""

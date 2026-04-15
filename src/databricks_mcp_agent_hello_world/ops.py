@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import Any
 
 from .clients.databricks import get_workspace_client
-from .config import Settings, build_settings, load_dotenv_values, load_yaml_config
-from .models import DiscoveryReport, PreflightCheck, PreflightReport
-from .profiles.compiler import ToolProfileCompiler, build_hello_world_demo_task
+from .config import Settings, build_settings, load_dotenv_values, load_yaml_config, parse_task_input_file
+from .models import AgentTaskRequest, DiscoveryReport, PreflightCheck, PreflightReport
+from .profiles.compiler import ToolProfileCompiler
 from .profiles.repository import ToolProfileRepository
 from .providers.factory import get_tool_provider
 from .runner.agent_runner import AgentRunner
@@ -135,11 +135,18 @@ def discover_tools(settings: Settings) -> DiscoveryReport:
     )
 
 
-def run_hello_world_demo(settings: Settings):
+def run_example_task(settings: Settings, task_input_file: str) -> Any:
     set_runtime_settings(settings)
     discover_tools(settings)
     runner = AgentRunner(settings)
-    return runner.run(build_hello_world_demo_task())
+    task_input = parse_task_input_file(task_input_file)
+    return runner.run(
+        AgentTaskRequest(
+            task_name=task_input.get("task_name", "example_task"),
+            instructions=task_input.get("instructions", "Complete the requested task."),
+            payload=task_input.get("payload", task_input),
+        )
+    )
 
 
 def print_json_report(payload: Any) -> None:
