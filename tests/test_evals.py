@@ -32,7 +32,14 @@ class SequencedRunner:
 def _record(
     tool_trace=None,
     blocked_calls=None,
-    final_response: str = "## Onboarding Brief\nAda Lovelace",
+    final_response: str = (
+        "## Onboarding Brief\n"
+        "- Display name: Ada Lovelace\n"
+        "- Setup recommendation: For local development, create an isolated environment "
+        "with uv sync.\n"
+        "- Runtime target: Databricks Serverless Jobs\n"
+        "- Recent operational note: Nightly feature refresh completed successfully in 18 minutes."
+    ),
     task_payload: dict | None = None,
 ) -> dict:
     tool_trace = tool_trace or [
@@ -51,6 +58,12 @@ def _record(
         {
             "tool_name": "get_workspace_setting",
             "arguments": {"key": "runtime_target"},
+            "status": "ok",
+            "error": None,
+        },
+        {
+            "tool_name": "list_recent_job_runs",
+            "arguments": {"limit": 1},
             "status": "ok",
             "error": None,
         },
@@ -86,11 +99,12 @@ def test_evaluate_record_passes_happy_path_expectations() -> None:
         scenario_id="happy_path",
         task_name="workspace_onboarding_brief",
         task_input={"user_id": "usr_ada_01"},
-        expected_tool_calls_min=3,
+        expected_tool_calls_min=4,
         expected_allowed_tools_subset=[
             "get_user_profile",
             "search_onboarding_docs",
             "get_workspace_setting",
+            "list_recent_job_runs",
         ],
         expected_status="success",
     )
@@ -105,7 +119,7 @@ def test_evaluate_record_fails_when_excluded_tool_appears_in_allowed_tools() -> 
         scenario_id="allowlist_enforced",
         task_name="workspace_onboarding_brief",
         task_input={"user_id": "usr_ada_01"},
-        expected_tool_calls_min=3,
+        expected_tool_calls_min=4,
         expected_allowed_tools_subset=[
             "get_user_profile",
             "search_onboarding_docs",
@@ -171,11 +185,12 @@ def test_evaluate_record_passes_synthetic_guardrail_expectations() -> None:
         scenario_id="synthetic_guardrail",
         task_name="workspace_onboarding_brief",
         task_input={"user_id": "usr_ada_01"},
-        expected_tool_calls_min=3,
+        expected_tool_calls_min=4,
         expected_allowed_tools_subset=[
             "get_user_profile",
             "search_onboarding_docs",
             "get_workspace_setting",
+            "list_recent_job_runs",
         ],
         expect_blocked_tool=True,
         expected_status="success",
@@ -199,16 +214,69 @@ def test_evaluate_record_passes_synthetic_guardrail_expectations() -> None:
     assert result.blocked_tools == ["create_support_ticket"]
 
 
+def test_evaluate_record_fails_when_recent_operational_note_tool_is_omitted() -> None:
+    scenario = EvalScenario(
+        scenario_id="happy_path",
+        task_name="workspace_onboarding_brief",
+        task_input={"user_id": "usr_ada_01"},
+        expected_tool_calls_min=4,
+        expected_allowed_tools_subset=[
+            "get_user_profile",
+            "search_onboarding_docs",
+            "get_workspace_setting",
+            "list_recent_job_runs",
+        ],
+        expected_status="success",
+    )
+
+    result = evaluate_record(
+        scenario,
+        _record(
+            tool_trace=[
+                {
+                    "tool_name": "get_user_profile",
+                    "arguments": {"user_id": "usr_ada_01"},
+                    "status": "ok",
+                    "error": None,
+                },
+                {
+                    "tool_name": "search_onboarding_docs",
+                    "arguments": {"query": "local development"},
+                    "status": "ok",
+                    "error": None,
+                },
+                {
+                    "tool_name": "get_workspace_setting",
+                    "arguments": {"key": "runtime_target"},
+                    "status": "ok",
+                    "error": None,
+                },
+            ],
+            final_response=(
+                "## Onboarding Brief\n"
+                "- Display name: Ada Lovelace\n"
+                "- Setup recommendation: For local development, create an isolated environment "
+                "with uv sync.\n"
+                "- Runtime target: Databricks Serverless Jobs"
+            ),
+        ),
+    )
+
+    assert result.status == "fail"
+    assert "expected at least 4 tool call(s), got 3" in (result.failure_reason or "")
+
+
 def test_run_eval_scenarios_filters_by_scenario_id() -> None:
     scenario = EvalScenario(
         scenario_id="happy_path",
         task_name="workspace_onboarding_brief",
         task_input={"user_id": "usr_ada_01"},
-        expected_tool_calls_min=3,
+        expected_tool_calls_min=4,
         expected_allowed_tools_subset=[
             "get_user_profile",
             "search_onboarding_docs",
             "get_workspace_setting",
+            "list_recent_job_runs",
         ],
         expected_status="success",
     )
