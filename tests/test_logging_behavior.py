@@ -6,22 +6,15 @@ import types
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
-from databricks_mcp_agent_hello_world.models import (
-    AgentTaskRequest,
-    ToolProfile,
-    ToolResult,
-    ToolSpec,
-)
+from databricks_mcp_agent_hello_world.models import AgentTaskRequest, ToolProfile, ToolResult, ToolSpec
 from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
 from databricks_mcp_agent_hello_world.storage import spark_utils
 
 EXPECTED_SPARK_FALLBACK_MESSAGE = (
     "Local mode: no active Spark session detected; using local fallback persistence."
 )
-EXPECTED_BLOCKED_INFO_MESSAGE = "Blocked disallowed tool call (expected): tell_demo_joke"
-EXPECTED_BLOCKED_WARNING_MESSAGE = "Blocked disallowed tool call: tell_demo_joke"
+EXPECTED_BLOCKED_INFO_MESSAGE = "Blocked disallowed tool call (expected): create_support_ticket"
+EXPECTED_BLOCKED_WARNING_MESSAGE = "Blocked disallowed tool call: create_support_ticket"
 
 
 class StubProfileRepo:
@@ -79,13 +72,12 @@ def _tool(name: str) -> ToolSpec:
     return ToolSpec(
         tool_name=name,
         description=f"{name} description",
-        input_schema={
-            "type": "object",
-            "properties": {"value": {"type": "string"}},
-            "required": [],
-        },
+        input_schema={"type": "object", "properties": {"value": {"type": "string"}}, "required": []},
         provider_type="local_python",
         provider_id="builtin_tools",
+        capability_tags=["demo"],
+        data_domains=["demo"],
+        example_uses=["Example"],
     )
 
 
@@ -97,22 +89,29 @@ def _profile() -> ToolProfile:
         provider_type="local_python",
         llm_endpoint_name="endpoint-a",
         prompt_version="v1",
-        compile_task_name="generic_task",
+        compile_task_name="workspace_onboarding_brief",
         compile_task_hash="compile-task-hash",
-        compile_task_summary="generic_task: Write the report.",
+        compile_task_summary="workspace_onboarding_brief: Write the report.",
         discovered_tools=[
-            _tool("greet_user"),
-            _tool("search_demo_handbook"),
-            _tool("get_demo_setting"),
-            _tool("tell_demo_joke"),
+            _tool("get_user_profile"),
+            _tool("search_onboarding_docs"),
+            _tool("get_workspace_setting"),
+            _tool("list_recent_job_runs"),
+            _tool("create_support_ticket"),
         ],
-        allowed_tools=["greet_user", "search_demo_handbook", "get_demo_setting"],
-        disallowed_tools=["tell_demo_joke"],
+        allowed_tools=[
+            "get_user_profile",
+            "search_onboarding_docs",
+            "get_workspace_setting",
+            "list_recent_job_runs",
+        ],
+        disallowed_tools=["create_support_ticket"],
         justifications={
-            "greet_user": "needed",
-            "search_demo_handbook": "needed",
-            "get_demo_setting": "needed",
-            "tell_demo_joke": "not needed",
+            "get_user_profile": "needed",
+            "search_onboarding_docs": "needed",
+            "get_workspace_setting": "needed",
+            "list_recent_job_runs": "needed",
+            "create_support_ticket": "not needed",
         },
         audit_report_text="audit",
         selection_policy="small allowlist",
@@ -147,7 +146,7 @@ def test_get_spark_session_logs_local_fallback_once(caplog, monkeypatch) -> None
 
     fake_sql.SparkSession = FakeSparkSession
     fake_pyspark = types.ModuleType("pyspark")
-    fake_pyspark.__path__ = []  # mark as package for the import machinery
+    fake_pyspark.__path__ = []
     fake_pyspark.sql = fake_sql
     monkeypatch.setitem(sys.modules, "pyspark", fake_pyspark)
     monkeypatch.setitem(sys.modules, "pyspark.sql", fake_sql)
@@ -164,8 +163,8 @@ def test_expected_blocked_call_logs_at_info(tmp_path: Path, caplog) -> None:
         tmp_path,
         StubLLM(
             [
-                _response(tool_calls=[_tool_call("tell_demo_joke", '{"value":"Ada"}')]),
-                _response(content="Hello Ada, I stayed within the allowlist."),
+                _response(tool_calls=[_tool_call("create_support_ticket", '{"summary":"help"}')]),
+                _response(content="Read-only run complete."),
             ]
         ),
         profile=_profile(),
@@ -175,14 +174,20 @@ def test_expected_blocked_call_logs_at_info(tmp_path: Path, caplog) -> None:
 
     runner.run(
         AgentTaskRequest(
-            task_name="generic_task",
-            instructions="Try to use the joke tool.",
+            task_name="workspace_onboarding_brief",
+            instructions="Try the blocked write tool.",
             expected_blocked_calls=True,
         )
     )
 
-    assert any(record.levelno == logging.INFO and record.message == EXPECTED_BLOCKED_INFO_MESSAGE for record in caplog.records)
-    assert not any(record.levelno == logging.WARNING and record.message == EXPECTED_BLOCKED_WARNING_MESSAGE for record in caplog.records)
+    assert any(
+        record.levelno == logging.INFO and record.message == EXPECTED_BLOCKED_INFO_MESSAGE
+        for record in caplog.records
+    )
+    assert not any(
+        record.levelno == logging.WARNING and record.message == EXPECTED_BLOCKED_WARNING_MESSAGE
+        for record in caplog.records
+    )
 
 
 def test_unexpected_blocked_call_logs_at_warning(tmp_path: Path, caplog) -> None:
@@ -190,8 +195,8 @@ def test_unexpected_blocked_call_logs_at_warning(tmp_path: Path, caplog) -> None
         tmp_path,
         StubLLM(
             [
-                _response(tool_calls=[_tool_call("tell_demo_joke", '{"value":"Ada"}')]),
-                _response(content="Hello Ada, I stayed within the allowlist."),
+                _response(tool_calls=[_tool_call("create_support_ticket", '{"summary":"help"}')]),
+                _response(content="Read-only run complete."),
             ]
         ),
         profile=_profile(),
@@ -201,10 +206,16 @@ def test_unexpected_blocked_call_logs_at_warning(tmp_path: Path, caplog) -> None
 
     runner.run(
         AgentTaskRequest(
-            task_name="generic_task",
-            instructions="Try to use the joke tool.",
+            task_name="workspace_onboarding_brief",
+            instructions="Try the blocked write tool.",
         )
     )
 
-    assert any(record.levelno == logging.WARNING and record.message == EXPECTED_BLOCKED_WARNING_MESSAGE for record in caplog.records)
-    assert not any(record.levelno == logging.INFO and record.message == EXPECTED_BLOCKED_INFO_MESSAGE for record in caplog.records)
+    assert any(
+        record.levelno == logging.WARNING and record.message == EXPECTED_BLOCKED_WARNING_MESSAGE
+        for record in caplog.records
+    )
+    assert not any(
+        record.levelno == logging.INFO and record.message == EXPECTED_BLOCKED_INFO_MESSAGE
+        for record in caplog.records
+    )

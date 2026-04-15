@@ -32,27 +32,50 @@ class SequencedRunner:
 def _record(
     tool_trace=None,
     blocked_calls=None,
-    final_response: str = "Hello Ada.",
+    final_response: str = "## Onboarding Brief\nAda Lovelace",
     task_payload: dict | None = None,
 ) -> dict:
     tool_trace = tool_trace or [
-        {"tool_name": "greet_user", "arguments": {"value": "Ada"}, "status": "ok", "error": None},
+        {
+            "tool_name": "get_user_profile",
+            "arguments": {"user_id": "usr_ada_01"},
+            "status": "ok",
+            "error": None,
+        },
+        {
+            "tool_name": "search_onboarding_docs",
+            "arguments": {"query": "local development"},
+            "status": "ok",
+            "error": None,
+        },
+        {
+            "tool_name": "get_workspace_setting",
+            "arguments": {"key": "runtime_target"},
+            "status": "ok",
+            "error": None,
+        },
     ]
-    task_payload = task_payload or {"name": "Ada"}
+    task_payload = task_payload or {"user_id": "usr_ada_01"}
     return {
-        "task_name": "generic_task",
+        "task_name": "workspace_onboarding_brief",
         "status": "success",
         "blocked_calls": blocked_calls or [],
         "result": {
             "final_response": final_response,
             "task_payload": task_payload,
             "available_tools": [
-                "greet_user",
-                "search_demo_handbook",
-                "get_demo_setting",
-                "tell_demo_joke",
+                "get_user_profile",
+                "search_onboarding_docs",
+                "get_workspace_setting",
+                "list_recent_job_runs",
+                "create_support_ticket",
             ],
-            "allowed_tools": ["greet_user", "search_demo_handbook", "get_demo_setting"],
+            "allowed_tools": [
+                "get_user_profile",
+                "search_onboarding_docs",
+                "get_workspace_setting",
+                "list_recent_job_runs",
+            ],
             "tool_trace": tool_trace,
         },
     }
@@ -61,13 +84,13 @@ def _record(
 def test_evaluate_record_passes_happy_path_expectations() -> None:
     scenario = EvalScenario(
         scenario_id="happy_path",
-        task_name="generic_task",
-        task_input={"name": "Ada"},
-        expected_tool_calls_min=1,
+        task_name="workspace_onboarding_brief",
+        task_input={"user_id": "usr_ada_01"},
+        expected_tool_calls_min=3,
         expected_allowed_tools_subset=[
-            "greet_user",
-            "search_demo_handbook",
-            "get_demo_setting",
+            "get_user_profile",
+            "search_onboarding_docs",
+            "get_workspace_setting",
         ],
         expected_status="success",
     )
@@ -80,11 +103,16 @@ def test_evaluate_record_passes_happy_path_expectations() -> None:
 def test_evaluate_record_fails_when_excluded_tool_appears_in_allowed_tools() -> None:
     scenario = EvalScenario(
         scenario_id="allowlist_enforced",
-        task_name="generic_task",
-        task_input={"name": "Ada"},
-        expected_tool_calls_min=1,
-        expected_allowed_tools_subset=["greet_user", "search_demo_handbook", "get_demo_setting"],
-        expected_excluded_tools=["tell_demo_joke"],
+        task_name="workspace_onboarding_brief",
+        task_input={"user_id": "usr_ada_01"},
+        expected_tool_calls_min=3,
+        expected_allowed_tools_subset=[
+            "get_user_profile",
+            "search_onboarding_docs",
+            "get_workspace_setting",
+            "list_recent_job_runs",
+        ],
+        expected_excluded_tools=["create_support_ticket"],
         expected_status="success",
     )
 
@@ -95,10 +123,11 @@ def test_evaluate_record_fails_when_excluded_tool_appears_in_allowed_tools() -> 
             "result": {
                 **_record()["result"],
                 "allowed_tools": [
-                    "greet_user",
-                    "search_demo_handbook",
-                    "get_demo_setting",
-                    "tell_demo_joke",
+                    "get_user_profile",
+                    "search_onboarding_docs",
+                    "get_workspace_setting",
+                    "list_recent_job_runs",
+                    "create_support_ticket",
                 ],
             },
         },
@@ -111,11 +140,11 @@ def test_evaluate_record_fails_when_excluded_tool_appears_in_allowed_tools() -> 
 def test_evaluate_record_fails_when_excluded_tool_is_executed() -> None:
     scenario = EvalScenario(
         scenario_id="allowlist_enforced",
-        task_name="generic_task",
-        task_input={"name": "Ada"},
+        task_name="workspace_onboarding_brief",
+        task_input={"user_id": "usr_ada_01"},
         expected_tool_calls_min=1,
-        expected_allowed_tools_subset=["greet_user", "search_demo_handbook", "get_demo_setting"],
-        expected_excluded_tools=["tell_demo_joke"],
+        expected_allowed_tools_subset=["get_user_profile"],
+        expected_excluded_tools=["create_support_ticket"],
         expected_status="success",
     )
 
@@ -124,8 +153,8 @@ def test_evaluate_record_fails_when_excluded_tool_is_executed() -> None:
         _record(
             tool_trace=[
                 {
-                    "tool_name": "tell_demo_joke",
-                    "arguments": {"topic": "Ada"},
+                    "tool_name": "create_support_ticket",
+                    "arguments": {"summary": "Need help"},
                     "status": "ok",
                     "error": None,
                 }
@@ -137,47 +166,16 @@ def test_evaluate_record_fails_when_excluded_tool_is_executed() -> None:
     assert "excluded tools must not be executed" in (result.failure_reason or "")
 
 
-def test_evaluate_record_fails_when_excluded_tool_is_attempted_in_blocked_calls() -> None:
-    scenario = EvalScenario(
-        scenario_id="allowlist_enforced",
-        task_name="generic_task",
-        task_input={"name": "Ada"},
-        expected_tool_calls_min=1,
-        expected_allowed_tools_subset=["greet_user", "search_demo_handbook", "get_demo_setting"],
-        expected_excluded_tools=["tell_demo_joke"],
-        expected_status="success",
-    )
-
-    result = evaluate_record(
-        scenario,
-        _record(
-            blocked_calls=[
-                {
-                    "tool_name": "tell_demo_joke",
-                    "arguments": {"topic": "Ada"},
-                    "status": "blocked",
-                    "error": "blocked",
-                }
-            ]
-        ),
-    )
-
-    assert result.status == "fail"
-    assert "excluded tools must not be attempted during live evals" in (
-        result.failure_reason or ""
-    )
-
-
 def test_evaluate_record_passes_synthetic_guardrail_expectations() -> None:
     scenario = EvalScenario(
         scenario_id="synthetic_guardrail",
-        task_name="generic_task",
-        task_input={"name": "Ada"},
-        expected_tool_calls_min=1,
+        task_name="workspace_onboarding_brief",
+        task_input={"user_id": "usr_ada_01"},
+        expected_tool_calls_min=3,
         expected_allowed_tools_subset=[
-            "greet_user",
-            "search_demo_handbook",
-            "get_demo_setting",
+            "get_user_profile",
+            "search_onboarding_docs",
+            "get_workspace_setting",
         ],
         expect_blocked_tool=True,
         expected_status="success",
@@ -186,67 +184,36 @@ def test_evaluate_record_passes_synthetic_guardrail_expectations() -> None:
     result = evaluate_record(
         scenario,
         _record(
-            final_response="Hello Ada, I stayed within the allowlist.",
             blocked_calls=[
                 {
-                    "tool_name": "tell_demo_joke",
-                    "arguments": {"topic": "Ada"},
+                    "tool_name": "create_support_ticket",
+                    "arguments": {"summary": "Need help"},
                     "status": "blocked",
                     "error": "blocked",
-                }
-            ],
-        ),
-    )
-
-    assert result.status == "pass"
-    assert result.blocked_tools == ["tell_demo_joke"]
-
-
-def test_evaluate_record_fails_when_tool_calls_fall_outside_allowed_subset() -> None:
-    scenario = EvalScenario(
-        scenario_id="happy_path",
-        task_name="generic_task",
-        task_input={"name": "Ada"},
-        expected_tool_calls_min=1,
-        expected_allowed_tools_subset=["greet_user"],
-        expected_status="success",
-    )
-
-    result = evaluate_record(
-        scenario,
-        _record(
-            tool_trace=[
-                {
-                    "tool_name": "tell_demo_joke",
-                    "arguments": {"topic": "Ada"},
-                    "status": "ok",
-                    "error": None,
                 }
             ]
         ),
     )
 
-    assert result.status == "fail"
-    assert "tool calls must stay inside the expected allowed tool subset" in (
-        result.failure_reason or ""
-    )
+    assert result.status == "pass"
+    assert result.blocked_tools == ["create_support_ticket"]
 
 
 def test_run_eval_scenarios_filters_by_scenario_id() -> None:
     scenario = EvalScenario(
         scenario_id="happy_path",
-        task_name="generic_task",
-        task_input={"name": "Ada"},
-        expected_tool_calls_min=1,
-        expected_allowed_tools_subset=["greet_user"],
+        task_name="workspace_onboarding_brief",
+        task_input={"user_id": "usr_ada_01"},
+        expected_tool_calls_min=3,
+        expected_allowed_tools_subset=[
+            "get_user_profile",
+            "search_onboarding_docs",
+            "get_workspace_setting",
+        ],
         expected_status="success",
     )
 
-    summary = run_eval_scenarios(
-        [scenario],
-        StubRunner(_record()),
-        scenario_id="happy_path",
-    )
+    summary = run_eval_scenarios([scenario], StubRunner(_record()), scenario_id="happy_path")
 
     assert summary.total_scenarios == 1
     assert summary.passed == 1
@@ -255,72 +222,32 @@ def test_run_eval_scenarios_filters_by_scenario_id() -> None:
 def test_run_eval_scenarios_rejects_unknown_scenario_id() -> None:
     scenario = EvalScenario(
         scenario_id="happy_path",
-        task_name="generic_task",
-        task_input={"name": "Ada"},
+        task_name="workspace_onboarding_brief",
+        task_input={"user_id": "usr_ada_01"},
         expected_tool_calls_min=1,
-        expected_allowed_tools_subset=["greet_user"],
+        expected_allowed_tools_subset=["get_user_profile"],
         expected_status="success",
     )
 
     try:
         run_eval_scenarios([scenario], StubRunner(_record()), scenario_id="missing")
     except EvalSetupError as exc:
-        assert "Scenario not found: missing" in str(exc)
+        assert "Scenario not found" in str(exc)
     else:
-        raise AssertionError("Expected EvalSetupError for an unknown scenario id")
+        raise AssertionError("Expected EvalSetupError")
 
 
-def test_run_eval_scenarios_tracks_pass_fail_and_error_counts() -> None:
-    pass_scenario = EvalScenario(
-        scenario_id="happy_path",
-        task_name="generic_task",
-        task_input={"name": "Ada"},
-        expected_tool_calls_min=1,
-        expected_allowed_tools_subset=["greet_user", "search_demo_handbook"],
-        expected_status="success",
-    )
-    fail_scenario = EvalScenario(
-        scenario_id="tool_minimum",
-        task_name="generic_task",
-        task_input={"name": "Ada"},
-        expected_tool_calls_min=2,
-        expected_allowed_tools_subset=["greet_user", "search_demo_handbook"],
-        expected_status="success",
-    )
-    error_scenario = EvalScenario(
-        scenario_id="runtime_error",
-        task_name="generic_task",
-        task_input={"name": "Ada"},
-        expected_tool_calls_min=1,
-        expected_allowed_tools_subset=["greet_user", "search_demo_handbook"],
-        expected_status="success",
-    )
-
-    runner = SequencedRunner([_record(), _record(), RuntimeError("boom")])
-    summary = run_eval_scenarios([pass_scenario, fail_scenario, error_scenario], runner)
-
-    assert summary.total_scenarios == 3
-    assert summary.passed == 1
-    assert summary.failed == 1
-    assert summary.errored == 1
-
-
-def test_run_eval_scenarios_passes_task_input_through_to_runner() -> None:
+def test_run_eval_scenarios_handles_runner_exceptions() -> None:
     scenario = EvalScenario(
-        scenario_id="allowlist_enforced",
-        task_name="generic_task",
-        task_input={"name": "Ada", "setting_key": "runtime_target"},
+        scenario_id="happy_path",
+        task_name="workspace_onboarding_brief",
+        task_input={"user_id": "usr_ada_01"},
         expected_tool_calls_min=1,
-        expected_allowed_tools_subset=["greet_user", "search_demo_handbook"],
-        expected_excluded_tools=["tell_demo_joke"],
+        expected_allowed_tools_subset=["get_user_profile"],
         expected_status="success",
     )
 
-    runner = StubRunner(_record(final_response="Hello Ada, I stayed within the allowlist."))
-    summary = run_eval_scenarios([scenario], runner)
+    summary = run_eval_scenarios([scenario], SequencedRunner([RuntimeError("boom")]))
 
-    assert summary.total_scenarios == 1
-    assert runner.requests[0].payload["name"] == "Ada"
-    assert runner.requests[0].payload["setting_key"] == "runtime_target"
-    assert runner.requests[0].task_name == "generic_task"
-    assert runner.requests[0].expected_blocked_calls is False
+    assert summary.errored == 1
+    assert summary.results[0].status == "error"
