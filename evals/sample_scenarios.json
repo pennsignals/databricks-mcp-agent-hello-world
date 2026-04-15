@@ -14,7 +14,7 @@
       "allow_mutations": false,
       "output_format": "markdown"
     },
-    "expected_tool_calls_min": 3,
+    "expected_tool_calls_min": 4,
     "expected_allowed_tools_subset": [
       "get_user_profile",
       "search_onboarding_docs",
@@ -38,7 +38,7 @@
       "allow_mutations": false,
       "output_format": "markdown"
     },
-    "expected_tool_calls_min": 3,
+    "expected_tool_calls_min": 4,
     "expected_allowed_tools_subset": [
       "get_user_profile",
       "search_onboarding_docs",
