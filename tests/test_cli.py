@@ -64,17 +64,6 @@ class StubCompiler:
         )
         return SimpleNamespace(profile=profile, reused_existing=False)
 
-
-def _summary(*, passed: int, failed: int, errored: int):
-    return SimpleNamespace(
-        total_scenarios=passed + failed + errored,
-        passed=passed,
-        failed=failed,
-        errored=errored,
-        results=[],
-    )
-
-
 def test_parsers_accept_documented_flags() -> None:
     preflight_args = build_parser("preflight", prog="preflight").parse_args([])
     discover_args = build_parser("discover-tools", prog="discover-tools").parse_args([])
@@ -88,7 +77,10 @@ def test_parsers_accept_documented_flags() -> None:
     run_task_args = build_parser("run-agent-task", prog="run-agent-task").parse_args(
         ["--task-input-json", "{}"]
     )
-    run_evals_args = build_parser("run-evals", prog="run-evals").parse_args(["--scenario", "demo"])
+    run_evals_default_args = build_parser("run-evals", prog="run-evals").parse_args([])
+    run_evals_args = build_parser("run-evals", prog="run-evals").parse_args(
+        ["--scenario-file", "evals/custom.json"]
+    )
 
     assert preflight_args.config_path == "workspace-config.yml"
     assert discover_args.output == "text"
@@ -98,7 +90,8 @@ def test_parsers_accept_documented_flags() -> None:
     assert compile_json_args.task_input_json == "{}"
     assert compile_file_args.task_input_file == "task.json"
     assert run_task_args.task_input_json == "{}"
-    assert run_evals_args.scenario == "demo"
+    assert run_evals_default_args.scenario_file == "evals/sample_scenarios.json"
+    assert run_evals_args.scenario_file == "evals/custom.json"
 
 
 def test_compile_tool_profile_uses_cli_json_source(
@@ -391,20 +384,9 @@ def test_run_evals_returns_setup_failure_exit_code_without_running_scenarios(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
     config_path = _write_config(tmp_path)
-    ran_scenarios = False
-
-    def _unexpected_run_eval_scenarios(*args, **kwargs):
-        nonlocal ran_scenarios
-        ran_scenarios = True
-        raise AssertionError("run_eval_scenarios should not run on setup failure")
-
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.prepare_run_evals",
-        lambda settings: (_ for _ in ()).throw(EvalSetupError("auth failed")),
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_eval_scenarios",
-        _unexpected_run_eval_scenarios,
+        "databricks_mcp_agent_hello_world.cli.run_evals",
+        lambda settings, scenario_file: (_ for _ in ()).throw(EvalSetupError("auth failed")),
     )
 
     exit_code = run_named_command(
@@ -413,31 +395,28 @@ def test_run_evals_returns_setup_failure_exit_code_without_running_scenarios(
     )
     captured = capsys.readouterr()
 
-    assert exit_code == 2
-    assert ran_scenarios is False
-    assert "Running live integration evals against the configured Databricks LLM endpoint." in captured.out
-    assert "This command requires valid Databricks auth and may consume tokens." in captured.out
+    assert exit_code == 1
     assert "auth failed" in captured.err
 
 
 def test_run_evals_returns_failure_exit_code_when_a_scenario_fails(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch, capsys
 ) -> None:
     config_path = _write_config(tmp_path)
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.prepare_run_evals",
-        lambda settings: (object(), SimpleNamespace()),
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.load_eval_scenarios",
-        lambda path: [SimpleNamespace(scenario_id="demo")],
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_eval_scenarios",
-        lambda scenarios, runner, scenario_id=None, active_profile=None: _summary(
-            passed=0,
-            failed=1,
-            errored=0,
+        "databricks_mcp_agent_hello_world.cli.run_evals",
+        lambda settings, scenario_file: SimpleNamespace(
+            total_scenarios=1,
+            passed_scenarios=0,
+            failed_scenarios=1,
+            all_passed=False,
+            results=[
+                SimpleNamespace(
+                    scenario_id="demo",
+                    passed=False,
+                    failed_checks=["missing_required_allowed_tools", "below_min_tool_calls"],
+                )
+            ],
         ),
     )
 
@@ -445,28 +424,25 @@ def test_run_evals_returns_failure_exit_code_when_a_scenario_fails(
         "run-evals",
         ["--config-path", str(config_path)],
     )
+    output = capsys.readouterr().out
 
     assert exit_code == 1
+    assert "FAIL demo: missing_required_allowed_tools; below_min_tool_calls" in output
+    assert "Passed 0/1 scenarios" in output
 
 
 def test_run_evals_returns_success_exit_code_when_all_scenarios_pass(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch, capsys
 ) -> None:
     config_path = _write_config(tmp_path)
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.prepare_run_evals",
-        lambda settings: (object(), SimpleNamespace()),
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.load_eval_scenarios",
-        lambda path: [SimpleNamespace(scenario_id="demo")],
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_eval_scenarios",
-        lambda scenarios, runner, scenario_id=None, active_profile=None: _summary(
-            passed=1,
-            failed=0,
-            errored=0,
+        "databricks_mcp_agent_hello_world.cli.run_evals",
+        lambda settings, scenario_file: SimpleNamespace(
+            total_scenarios=1,
+            passed_scenarios=1,
+            failed_scenarios=0,
+            all_passed=True,
+            results=[SimpleNamespace(scenario_id="demo", passed=True, failed_checks=[])],
         ),
     )
 
@@ -474,5 +450,50 @@ def test_run_evals_returns_success_exit_code_when_all_scenarios_pass(
         "run-evals",
         ["--config-path", str(config_path)],
     )
+    output = capsys.readouterr().out
 
     assert exit_code == 0
+    assert "PASS demo" in output
+    assert "Passed 1/1 scenarios" in output
+
+
+def test_run_evals_reports_missing_scenario_file_concisely(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    config_path = _write_config(tmp_path)
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.run_evals",
+        lambda settings, scenario_file: (_ for _ in ()).throw(
+            EvalSetupError(f"Scenario file not found: {scenario_file}")
+        ),
+    )
+
+    exit_code = run_named_command(
+        "run-evals",
+        ["--config-path", str(config_path), "--scenario-file", "evals/missing.json"],
+    )
+    output = capsys.readouterr().err
+
+    assert exit_code == 1
+    assert "Scenario file not found: evals/missing.json" in output
+
+
+def test_run_evals_reports_invalid_json_concisely(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    config_path = _write_config(tmp_path)
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.run_evals",
+        lambda settings, scenario_file: (_ for _ in ()).throw(
+            EvalSetupError(f"Invalid scenario JSON: {scenario_file}")
+        ),
+    )
+
+    exit_code = run_named_command(
+        "run-evals",
+        ["--config-path", str(config_path), "--scenario-file", "evals/invalid.json"],
+    )
+    output = capsys.readouterr().err
+
+    assert exit_code == 1
+    assert "Invalid scenario JSON: evals/invalid.json" in output

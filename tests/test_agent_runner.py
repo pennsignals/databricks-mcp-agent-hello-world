@@ -176,6 +176,10 @@ def test_agent_runner_returns_generic_result_contract(tmp_path: Path) -> None:
 
     assert isinstance(record, AgentRunRecord)
     assert runner.llm.call_args[0]["tool_choice"] is None
+    assert set(record.result) == {"final_response", "task_payload", "available_tools", "allowed_tools", "tool_trace"}
+    assert isinstance(record.result["final_response"], str)
+    assert isinstance(record.result["allowed_tools"], list)
+    assert isinstance(record.result["tool_trace"], list)
     assert record.result == {
         "final_response": "## Onboarding Brief\nAda Lovelace",
         "task_payload": {"user_id": "usr_ada_01"},
@@ -201,6 +205,13 @@ def test_agent_runner_returns_generic_result_contract(tmp_path: Path) -> None:
             }
         ],
     }
+    assert all(
+        set(entry) == {"tool_name", "arguments", "status", "error"}
+        and isinstance(entry["tool_name"], str)
+        and isinstance(entry["arguments"], dict)
+        and isinstance(entry["status"], str)
+        for entry in record.result["tool_trace"]
+    )
     assert [item.tool_name for item in runner.executor.calls] == ["get_user_profile"]
     assert runner.result_writer.run_records[0].result == record.result
     assert runner.result_writer.output_records[0].output_payload == record.result
@@ -264,6 +275,43 @@ def test_agent_runner_blocks_disallowed_tool_and_records_it(tmp_path: Path) -> N
 
     assert record.blocked_calls[0]["tool_name"] == "create_support_ticket"
     assert record.tools_called[0]["status"] == "blocked"
+    assert record.result["tool_trace"][0] == {
+        "tool_name": "create_support_ticket",
+        "arguments": {"summary": "help"},
+        "status": "blocked",
+        "error": "Tool 'create_support_ticket' is not allowlisted in profile v1.",
+    }
+
+
+def test_agent_runner_preserves_tool_trace_order(tmp_path: Path) -> None:
+    runner = _runner(
+        tmp_path,
+        StubLLM(
+            [
+                _response(
+                    tool_calls=[
+                        _tool_call("get_user_profile", '{"user_id":"usr_ada_01"}', call_id="call-1"),
+                        _tool_call("search_onboarding_docs", '{"query":"local development"}', call_id="call-2"),
+                    ]
+                ),
+                _response(content="Ordered trace."),
+            ]
+        ),
+        profile=_profile(),
+    )
+
+    record = runner.run(
+        AgentTaskRequest(
+            task_name="workspace_onboarding_brief",
+            instructions="Write the report.",
+            payload={"user_id": "usr_ada_01"},
+        )
+    )
+
+    assert [entry["tool_name"] for entry in record.result["tool_trace"]] == [
+        "get_user_profile",
+        "search_onboarding_docs",
+    ]
 
 
 def test_expected_blocked_call_logs_at_info(tmp_path: Path, caplog) -> None:

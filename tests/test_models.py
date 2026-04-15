@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from databricks_mcp_agent_hello_world.models import ToolSpec
+from databricks_mcp_agent_hello_world.models import EvalScenario, ToolSpec
 
 
 def _base_tool_spec(**overrides) -> dict:
@@ -73,3 +73,18 @@ def test_tool_spec_rejects_invalid_metadata_values(field_name: str, bad_values: 
 def test_tool_spec_rejects_invalid_side_effect_level() -> None:
     with pytest.raises(ValidationError):
         ToolSpec(**_base_tool_spec(side_effect_level="mutate"))
+
+
+def test_eval_scenario_rejects_min_tool_calls_above_max_tool_calls() -> None:
+    with pytest.raises(ValidationError):
+        EvalScenario(
+            scenario_id="bad-bounds",
+            description="Invalid bounds",
+            compile_task_input={
+                "task_name": "workspace_onboarding_brief",
+                "instructions": "Write the onboarding brief.",
+                "payload": {"user_id": "usr_ada_01"},
+            },
+            min_tool_calls=3,
+            max_tool_calls=2,
+        )
