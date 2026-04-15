@@ -36,6 +36,9 @@ def _profile(version: str, created_at: str) -> ToolProfile:
         provider_type="local_python",
         llm_endpoint_name="endpoint-a",
         prompt_version="v1",
+        compile_task_name="demo_compile_task",
+        compile_task_hash="compile-hash-1",
+        compile_task_summary="demo_compile_task: compile this profile",
         discovered_tools=[_tool("greet_user")],
         allowed_tools=["greet_user"],
         disallowed_tools=[],
@@ -140,6 +143,9 @@ def test_profile_repository_loads_latest_active_profile_from_delta(
             provider_type="local_python",
             llm_endpoint_name="endpoint-a",
             prompt_version="v1",
+            compile_task_name="other_compile_task",
+            compile_task_hash="compile-hash-9",
+            compile_task_summary="other_compile_task: compile this profile",
             discovered_tools=[_tool("greet_user")],
             allowed_tools=["greet_user"],
             disallowed_tools=[],
@@ -168,6 +174,7 @@ def test_profile_repository_loads_latest_active_profile_from_delta(
     assert loaded.profile_version == "v2"
     assert loaded.created_at == "2026-04-13T10:00:00+00:00"
     assert loaded.profile_name == "default"
+    assert loaded == _profile("v2", "2026-04-13T10:00:00+00:00")
     assert spark.table_names == ["main.agent.tool_profiles"]
     assert spark.last_frame is not None
     assert spark.last_frame.filters == [
@@ -201,7 +208,7 @@ def test_profile_repository_raises_clear_error_for_invalid_delta_schema(
     )
     repo = ToolProfileRepository(_settings(tmp_path))
 
-    with pytest.raises(ValueError, match="expected schema"):
+    with pytest.raises(ValueError, match="compile_task_name"):
         repo.load_active("default")
 
 

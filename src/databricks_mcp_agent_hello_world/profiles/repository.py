@@ -131,6 +131,9 @@ class ToolProfileRepository:
             "provider_type": profile.provider_type,
             "llm_endpoint_name": profile.llm_endpoint_name,
             "prompt_version": profile.prompt_version,
+            "compile_task_name": profile.compile_task_name,
+            "compile_task_hash": profile.compile_task_hash,
+            "compile_task_summary": profile.compile_task_summary,
             "is_active": profile.is_active,
             "discovered_tools_json": json.dumps(
                 [tool.model_dump() for tool in profile.discovered_tools],
@@ -152,6 +155,7 @@ class ToolProfileRepository:
                 "Delta tool profile table does not match the expected schema. "
                 "Required columns include profile_name, profile_version, inventory_hash, "
                 "provider_type, llm_endpoint_name, prompt_version, is_active, created_at, "
+                "compile_task_name, compile_task_hash, compile_task_summary, "
                 "selection_policy, audit_report_text, discovered_tools_json, "
                 "allowed_tools_json, disallowed_tools_json, and justifications_json."
             ) from exc
@@ -178,6 +182,9 @@ class ToolProfileRepository:
             provider_type=persisted.provider_type,
             llm_endpoint_name=persisted.llm_endpoint_name,
             prompt_version=persisted.prompt_version,
+            compile_task_name=persisted.compile_task_name,
+            compile_task_hash=persisted.compile_task_hash,
+            compile_task_summary=persisted.compile_task_summary,
             is_active=bool(persisted.is_active),
             discovered_tools=discovered_tools,
             allowed_tools=allowed_tools,

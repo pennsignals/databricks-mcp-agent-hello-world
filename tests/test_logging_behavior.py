@@ -97,6 +97,9 @@ def _profile() -> ToolProfile:
         provider_type="local_python",
         llm_endpoint_name="endpoint-a",
         prompt_version="v1",
+        compile_task_name="generic_task",
+        compile_task_hash="compile-task-hash",
+        compile_task_summary="generic_task: Write the report.",
         discovered_tools=[
             _tool("greet_user"),
             _tool("search_demo_handbook"),

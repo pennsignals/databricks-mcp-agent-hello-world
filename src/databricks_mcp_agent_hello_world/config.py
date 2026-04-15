@@ -66,6 +66,7 @@ class Settings:
     max_agent_steps: int
     storage: StorageConfig
     prompts: PromptConfig
+    default_compile_task_file: str | None = None
     databricks_cli_profile: str | None = None
     workspace_host: str | None = None
     local_tool_backend_mode: str = "auto"
@@ -241,6 +242,14 @@ def build_settings(
                 ),
             ),
         ),
+        default_compile_task_file=(
+            _resolve_value(
+                yaml_value=raw.get("default_compile_task_file"),
+                dotenv_values=dotenv_values,
+                dotenv_key="DEFAULT_COMPILE_TASK_FILE",
+            )
+            or None
+        ),
         databricks_cli_profile=_resolve_value(
             yaml_value=raw.get("databricks_config_profile") or raw.get("databricks_cli_profile"),
             dotenv_values=dotenv_values,
@@ -352,6 +361,13 @@ def validate_settings(settings: Settings) -> None:
         raise ValueError("max_allowed_tools must be at least 1.")
     if settings.max_agent_steps < 1:
         raise ValueError("max_agent_steps must be at least 1.")
+    if settings.default_compile_task_file and settings.default_compile_task_file.strip():
+        compile_task_path = Path(settings.default_compile_task_file)
+        if not compile_task_path.exists():
+            raise ValueError(
+                "default_compile_task_file does not exist: "
+                f"{settings.default_compile_task_file}"
+            )
 
 
 def load_settings(config_path: str | None = None, *, validate: bool = True) -> Settings:

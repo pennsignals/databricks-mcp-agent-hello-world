@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ToolSpec(BaseModel):
@@ -57,56 +57,6 @@ class ToolResult(BaseModel):
     error: str | None = None
 
 
-class HelloWorldToolCall(BaseModel):
-    tool_name: str
-    arguments: dict[str, Any] = Field(default_factory=dict)
-    status: Literal["ok", "blocked", "error"] = "ok"
-
-    @field_validator("tool_name")
-    @classmethod
-    def validate_tool_name(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("tool_name must not be empty")
-        return normalized
-
-
-class HelloWorldDemoResult(BaseModel):
-    task_name: Literal["hello_world_demo"]
-    available_tools_count: int = 0
-    available_tools: list[str]
-    allowed_tools: list[str]
-    tool_calls: list[HelloWorldToolCall]
-    final_answer: str
-
-    @field_validator("tool_calls", mode="before")
-    @classmethod
-    def normalize_tool_calls(cls, value: Any) -> list[HelloWorldToolCall]:
-        if value is None:
-            return []
-        normalized: list[HelloWorldToolCall] = []
-        for item in value:
-            if isinstance(item, HelloWorldToolCall):
-                normalized.append(item)
-            elif isinstance(item, dict):
-                normalized.append(HelloWorldToolCall.model_validate(item))
-            elif isinstance(item, str):
-                normalized.append(HelloWorldToolCall(tool_name=item))
-            else:
-                normalized.append(HelloWorldToolCall(tool_name=str(item)))
-        return normalized
-
-    @model_validator(mode="after")
-    def normalize_counts_and_answer(self):
-        self.available_tools_count = len(self.available_tools)
-        self.available_tools = [tool.strip() for tool in self.available_tools]
-        self.allowed_tools = [tool.strip() for tool in self.allowed_tools]
-        if not self.final_answer or not self.final_answer.strip():
-            raise ValueError("final_answer must not be empty")
-        self.final_answer = self.final_answer.strip()
-        return self
-
-
 class ToolProfile(BaseModel):
     profile_name: str
     profile_version: str
@@ -114,6 +64,9 @@ class ToolProfile(BaseModel):
     provider_type: str
     llm_endpoint_name: str
     prompt_version: str
+    compile_task_name: str
+    compile_task_hash: str
+    compile_task_summary: str
     discovered_tools: list[ToolSpec]
     allowed_tools: list[str]
     disallowed_tools: list[str]
@@ -162,6 +115,9 @@ class ToolProfileRecord(BaseModel):
     provider_type: str
     llm_endpoint_name: str
     prompt_version: str
+    compile_task_name: str
+    compile_task_hash: str
+    compile_task_summary: str
     is_active: bool
     created_at: str
     selection_policy: str
