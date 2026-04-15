@@ -211,6 +211,7 @@ class ToolProfileCompiler:
             "capability_tags": list(tool.capability_tags),
             "side_effect_level": tool.side_effect_level,
             "data_domains": list(tool.data_domains),
+            "example_uses": list(tool.example_uses),
         }
 
     @staticmethod

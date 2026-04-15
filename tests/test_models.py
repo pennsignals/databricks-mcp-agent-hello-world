@@ -22,6 +22,7 @@ def test_tool_spec_metadata_defaults_are_applied() -> None:
     assert tool.capability_tags == []
     assert tool.side_effect_level == "read_only"
     assert tool.data_domains == []
+    assert tool.example_uses == []
 
 
 def test_tool_spec_metadata_is_normalized_deduplicated_and_sorted() -> None:
@@ -36,6 +37,23 @@ def test_tool_spec_metadata_is_normalized_deduplicated_and_sorted() -> None:
     assert tool.data_domains == ["docs", "workspace_config"]
 
 
+def test_tool_spec_example_uses_preserves_order_and_deduplicates() -> None:
+    tool = ToolSpec(
+        **_base_tool_spec(
+            example_uses=[
+                "Retrieve the runtime target",
+                "Retrieve the runtime target",
+                "Look up the workspace region",
+            ]
+        )
+    )
+
+    assert tool.example_uses == [
+        "Retrieve the runtime target",
+        "Look up the workspace region",
+    ]
+
+
 @pytest.mark.parametrize(
     "field_name,bad_values",
     [
@@ -44,6 +62,7 @@ def test_tool_spec_metadata_is_normalized_deduplicated_and_sorted() -> None:
         ("capability_tags", ["bad-tag"]),
         ("data_domains", [""]),
         ("data_domains", ["Bad Domain"]),
+        ("example_uses", [""]),
     ],
 )
 def test_tool_spec_rejects_invalid_metadata_values(field_name: str, bad_values: list[str]) -> None:

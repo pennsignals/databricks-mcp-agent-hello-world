@@ -27,6 +27,7 @@ class ToolSpec(BaseModel):
     capability_tags: list[str] = Field(default_factory=list)
     side_effect_level: Literal["read_only", "write"] = "read_only"
     data_domains: list[str] = Field(default_factory=list)
+    example_uses: list[str] = Field(default_factory=list)
 
     @staticmethod
     def _normalize_metadata_values(values: list[str], field_name: str) -> list[str]:
@@ -57,9 +58,18 @@ class ToolSpec(BaseModel):
             raise ValueError("input_schema must be a JSON schema object with type=object")
         return value
 
-    @field_validator("capability_tags", "data_domains")
+    @field_validator("capability_tags", "data_domains", "example_uses")
     @classmethod
     def validate_metadata_list(cls, value: list[str], info) -> list[str]:
+        if info.field_name == "example_uses":
+            normalized_values: list[str] = []
+            for raw_value in value:
+                candidate = raw_value.strip()
+                if not candidate:
+                    raise ValueError("example_uses entries must not be empty")
+                if candidate not in normalized_values:
+                    normalized_values.append(candidate)
+            return normalized_values
         return cls._normalize_metadata_values(value, info.field_name)
 
     def to_openai_tool(self) -> dict[str, Any]:

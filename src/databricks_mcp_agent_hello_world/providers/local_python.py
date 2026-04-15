@@ -33,6 +33,7 @@ class LocalPythonToolProvider(ToolProvider):
                     "capability_tags": tool.capability_tags,
                     "side_effect_level": tool.side_effect_level,
                     "data_domains": tool.data_domains,
+                    "example_uses": tool.example_uses,
                 }
                 for tool in sorted(self.list_tools(), key=lambda item: item.tool_name)
             ],
