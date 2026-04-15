@@ -12,6 +12,8 @@ class LocalToolDefinition:
         self.fn = fn
 
 
+# TEMPLATE_CUSTOMIZE_HERE
+# Replace these demo registry entries with your real tool metadata and keep the ToolSpec fields populated.
 # Keep registry metadata neutral and capability-based so the compiler model can
 # reason over the full tool inventory without task-specific routing hints.
 TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {

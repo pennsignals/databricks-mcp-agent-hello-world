@@ -1,5 +1,6 @@
 [
   {
+    "TEMPLATE_CUSTOMIZE_HERE": "Replace this demo eval scenario with coverage for your own task family and expected outputs.",
     "scenario_id": "onboarding_happy_path",
     "description": "Compiles and runs the standard read-only onboarding brief for Ada Lovelace.",
     "compile_task_input": {
@@ -45,6 +46,7 @@
     "expect_blocked_tool_calls": false
   },
   {
+    "TEMPLATE_CUSTOMIZE_HERE": "Replace this demo eval scenario with a second real scenario from your own domain.",
     "scenario_id": "onboarding_with_operational_note",
     "description": "Runs the onboarding brief for Grace Hopper and requires the operational jobs tool in both the allowlist and execution trace.",
     "compile_task_input": {
@@ -86,6 +88,7 @@
     "expect_blocked_tool_calls": false
   },
   {
+    "TEMPLATE_CUSTOMIZE_HERE": "Replace this demo eval scenario with a forbidden-tool scenario for your own task family.",
     "scenario_id": "read_only_task_never_selects_write_tool",
     "description": "Verifies the read-only onboarding task never allows or executes the write tool.",
     "compile_task_input": {

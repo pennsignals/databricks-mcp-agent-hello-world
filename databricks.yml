@@ -2,6 +2,8 @@
 # See the official Databricks bundle + Python wheel docs for the patterns this starter follows.
 
 bundle:
+  # TEMPLATE_CUSTOMIZE_HERE
+  # Rename the bundle for your downstream app and keep it aligned with your deployment naming.
   name: databricks-mcp-agent-hello-world
 
 include:
@@ -14,6 +16,8 @@ artifacts:
 
 variables:
   task_input_json:
+    # TEMPLATE_CUSTOMIZE_HERE
+    # Replace this demo runtime payload with a representative runtime payload for your own task family.
     description: JSON string containing task-specific input.
     default: '{"task_name":"workspace_onboarding_brief","instructions":"Write a concise onboarding brief for the specified user. Include exactly four factual items: (1) the user''s display name, (2) one local-development setup recommendation from the onboarding docs, (3) the current runtime target, and (4) one recent operational note from recent job runs. Use tools for all factual content. Do not modify external state. Return markdown.","payload":{"user_id":"usr_grace_01","onboarding_topic":"local development","required_fields":["display_name","setup_recommendation","runtime_target","recent_operational_note"],"allow_mutations":false,"output_format":"markdown"}}'
 

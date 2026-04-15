@@ -4,15 +4,15 @@
 
 # Required for local runs and Databricks Jobs.
 tool_provider_type: local_python
-llm_endpoint_name: your-llm-endpoint-name
-active_profile_name: default
-default_compile_task_file: examples/demo_compile_task.json
+llm_endpoint_name: your-llm-endpoint-name # Use the same model family for compile and run unless you have an explicit reason to split them.
+active_profile_name: default # Identifies the persisted profile used at runtime.
+default_compile_task_file: examples/demo_compile_task.json # Defines the representative compile-time task for the task family, is used by the LLM-driven profile compiler, and changing it can change the selected tool subset.
 
 storage:
-  tool_profile_table: main.agent_demo.tool_profiles
-  agent_runs_table: main.agent_demo.agent_runs
-  agent_output_table: main.agent_demo.agent_outputs
-  local_data_dir: ./.local_state
+  tool_profile_table: main.agent_demo.tool_profiles # Persisted ToolProfile table for Databricks runs.
+  agent_runs_table: main.agent_demo.agent_runs # Persisted AgentRunRecord table for run traces.
+  agent_output_table: main.agent_demo.agent_outputs # Persisted AgentOutputRecord table for final outputs.
+  local_data_dir: ./.local_state # Local fallback path used when Spark-backed storage is unavailable.
 
 # Optional future SQL-backed tool configuration.
 # Not required for the current local Python template flow.
