@@ -198,6 +198,16 @@ def test_compile_task_hash_changes_with_task_content() -> None:
     assert compiler._compile_task_hash(task_a) != compiler._compile_task_hash(task_c)
 
 
+def test_compile_task_hash_ignores_run_metadata() -> None:
+    compiler = ToolProfileCompiler.__new__(ToolProfileCompiler)
+    task_with_run_id_a = _task(run_id="run-1")
+    task_with_run_id_b = _task(run_id="run-2")
+
+    assert compiler._compile_task_hash(task_with_run_id_a) == compiler._compile_task_hash(
+        task_with_run_id_b
+    )
+
+
 def test_compile_task_summary_truncates_to_240_chars() -> None:
     compiler = ToolProfileCompiler.__new__(ToolProfileCompiler)
     task = _task(instructions="x" * 300)

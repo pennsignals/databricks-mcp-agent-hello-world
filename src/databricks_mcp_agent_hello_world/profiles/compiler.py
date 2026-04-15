@@ -197,8 +197,13 @@ class ToolProfileCompiler:
 
     @staticmethod
     def _compile_task_hash(task: AgentTaskRequest) -> str:
+        semantic_task = {
+            "task_name": task.task_name,
+            "instructions": task.instructions,
+            "payload": task.payload,
+        }
         canonical_json = json.dumps(
-            task.model_dump(mode="json"),
+            semantic_task,
             sort_keys=True,
             separators=(",", ":"),
         )
