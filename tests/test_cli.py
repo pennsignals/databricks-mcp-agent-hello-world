@@ -149,7 +149,10 @@ def test_compile_tool_profile_uses_cli_file_source(
     StubCompiler.instances.clear()
     config_path = _write_config(tmp_path)
     task_file = tmp_path / "compile-task.json"
-    task_file.write_text('{"task_name":"file-task","instructions":"From file"}', encoding="utf-8")
+    task_file.write_text(
+        '{"task_name":"file-task","instructions":"From file","payload":{"source":"file"}}',
+        encoding="utf-8",
+    )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.cli.load_settings",
         lambda config_path: _compile_settings(),
@@ -190,7 +193,10 @@ def test_compile_tool_profile_uses_default_compile_task_file(
 ) -> None:
     StubCompiler.instances.clear()
     task_file = tmp_path / "default-compile-task.json"
-    task_file.write_text('{"task_name":"default-task","instructions":"From default"}', encoding="utf-8")
+    task_file.write_text(
+        '{"task_name":"default-task","instructions":"From default","payload":{"source":"default"}}',
+        encoding="utf-8",
+    )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.cli.load_settings",
         lambda config_path: _compile_settings(default_compile_task_file=str(task_file)),
@@ -236,6 +242,30 @@ def test_compile_tool_profile_fails_when_no_source_exists(
     assert "--task-input-json" in output
     assert "--task-input-file" in output
     assert "default_compile_task_file" in output
+
+
+def test_compile_tool_profile_fails_when_required_task_fields_are_missing(
+    monkeypatch, capsys
+) -> None:
+    StubCompiler.instances.clear()
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.load_settings",
+        lambda config_path: _compile_settings(),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.set_runtime_settings",
+        lambda settings: None,
+    )
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.cli.ToolProfileCompiler", StubCompiler)
+
+    exit_code = run_named_command(
+        "compile-tool-profile",
+        ["--task-input-json", '{"task_name":"compile-task","payload":{"source":"json"}}'],
+    )
+    output = capsys.readouterr().err
+
+    assert exit_code == 1
+    assert "compile-tool-profile requires task fields: instructions." in output
 
 
 def test_print_compilation_summary_includes_compile_task_metadata(capsys) -> None:
@@ -288,12 +318,40 @@ def test_run_agent_task_surfaces_missing_active_profile_error(
 
     monkeypatch.setattr("databricks_mcp_agent_hello_world.cli.AgentRunner", StubRunner)
 
-    exit_code = run_named_command("run-agent-task", ["--task-input-json", "{}"])
+    exit_code = run_named_command(
+        "run-agent-task",
+        [
+            "--task-input-json",
+            '{"task_name":"run-task","instructions":"Do the thing.","payload":{"source":"json"}}',
+        ],
+    )
     output = capsys.readouterr().err
 
     assert exit_code == 1
     assert "No active tool profile exists" in output
     assert "compile_tool_profile_job" in output
+
+
+def test_run_agent_task_fails_when_required_task_fields_are_missing(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.load_settings",
+        lambda config_path: SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.set_runtime_settings",
+        lambda settings: None,
+    )
+
+    exit_code = run_named_command(
+        "run-agent-task",
+        ["--task-input-json", '{"task_name":"run-task","payload":{"source":"json"}}'],
+    )
+    output = capsys.readouterr().err
+
+    assert exit_code == 1
+    assert "run-agent-task requires task fields: instructions." in output
 
 
 def test_preflight_json_output_returns_expected_shape(

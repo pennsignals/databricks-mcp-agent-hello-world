@@ -11,55 +11,19 @@ from .config import (
     parse_task_input,
     parse_task_input_file,
 )
+from .evals.harness import EvalSetupError, load_eval_scenarios, prepare_run_evals, run_eval_scenarios
 from .logging_utils import configure_logging
 from .models import AgentTaskRequest
+from .ops import (
+    discover_tools,
+    print_discovery_report,
+    print_json_report,
+    print_preflight_summary,
+    run_preflight,
+)
 from .profiles.compiler import ToolProfileCompiler
 from .runner.agent_runner import AgentRunner
 from .tooling.runtime import set_runtime_settings
-
-try:
-    from .ops import (
-        discover_tools,
-        print_discovery_report,
-        print_json_report,
-        print_preflight_summary,
-        run_preflight,
-    )
-except ImportError:  # pragma: no cover - compatibility shim for in-flight model changes
-    def discover_tools(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise ImportError("ops module is unavailable")
-
-    def print_discovery_report(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise ImportError("ops module is unavailable")
-
-    def print_json_report(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise ImportError("ops module is unavailable")
-
-    def print_preflight_summary(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise ImportError("ops module is unavailable")
-
-    def run_preflight(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise ImportError("ops module is unavailable")
-
-try:
-    from .evals.harness import (
-        EvalSetupError,
-        load_eval_scenarios,
-        prepare_run_evals,
-        run_eval_scenarios,
-    )
-except ImportError:  # pragma: no cover - compatibility shim for in-flight model changes
-    class EvalSetupError(RuntimeError):
-        pass
-
-    def load_eval_scenarios(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise ImportError("evals.harness is unavailable")
-
-    def prepare_run_evals(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise ImportError("evals.harness is unavailable")
-
-    def run_eval_scenarios(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise ImportError("evals.harness is unavailable")
 
 OUTPUT_CHOICES = ("text", "json")
 COMMAND_NAMES = (
@@ -178,7 +142,10 @@ def _run_compile_tool_profile(args: argparse.Namespace) -> int:
     )
     set_runtime_settings(settings)
     compiler = ToolProfileCompiler(settings)
-    request = _build_agent_task_request(_load_compile_task_payload(args, settings))
+    request = _build_agent_task_request(
+        _load_compile_task_payload(args, settings),
+        command_name="compile-tool-profile",
+    )
     result = compiler.compile(request, force_refresh=args.force_refresh)
     _render_output(result, output_format=args.output, text_renderer=_print_compilation_summary)
     return 0
@@ -191,7 +158,10 @@ def _run_agent_task(args: argparse.Namespace) -> int:
         next_step="run_agent_task_job",
     )
     set_runtime_settings(settings)
-    request = _build_agent_task_request(_load_task_payload(args))
+    request = _build_agent_task_request(
+        _load_task_payload(args),
+        command_name="run-agent-task",
+    )
     runner = AgentRunner(settings)
     record = runner.run(request)
     _render_output(record, output_format=args.output, text_renderer=_print_run_summary)
@@ -248,11 +218,24 @@ def _load_compile_task_payload(args: argparse.Namespace, settings) -> dict[str, 
     )
 
 
-def _build_agent_task_request(payload: dict[str, Any]) -> AgentTaskRequest:
+def _build_agent_task_request(
+    payload: dict[str, Any],
+    *,
+    command_name: str,
+) -> AgentTaskRequest:
+    missing_fields = [
+        field_name
+        for field_name in ("task_name", "instructions", "payload")
+        if field_name not in payload
+    ]
+    if missing_fields:
+        formatted = ", ".join(missing_fields)
+        raise RuntimeError(f"{command_name} requires task fields: {formatted}.")
+
     request_kwargs = {
-        "task_name": payload.get("task_name", "demo-task"),
-        "instructions": payload.get("instructions", "Complete the requested task."),
-        "payload": payload.get("payload", payload),
+        "task_name": payload["task_name"],
+        "instructions": payload["instructions"],
+        "payload": payload["payload"],
     }
     if payload.get("run_id"):
         request_kwargs["run_id"] = payload["run_id"]
