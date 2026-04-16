@@ -21,7 +21,6 @@ dev = [
 preflight = "databricks_mcp_agent_hello_world.cli:preflight_entrypoint"
 discover-tools = "databricks_mcp_agent_hello_world.cli:discover_tools_entrypoint"
 run-agent-task = "databricks_mcp_agent_hello_world.cli:run_agent_task_entrypoint"
-run-agent-task-job = "databricks_mcp_agent_hello_world.job_entrypoints:run_agent_task"
 run-evals = "databricks_mcp_agent_hello_world.cli:run_evals_entrypoint"
 
 [build-system]
