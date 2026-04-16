@@ -28,7 +28,7 @@ The runtime flow is intentionally small:
 3. run the real task with the full discovered tool inventory exposed
 4. persist run traces and final outputs locally or to Delta
 
-Tool selection is **LLM-driven**. The runtime provides the full discovered tool set, and the model chooses which tools to call for each input using normal tool-calling behavior.
+Tool selection is **LLM-driven**. At runtime, the application discovers the full tool inventory for the configured provider and passes that full discovered tool set to the model. The LLM decides which tools to call for each input based on the task instructions and the tool definitions.
 
 This template intentionally does **not** implement precompiled profiles, `allowed_tools`, or blocked tool-call policy layers. Those are advanced patterns for larger tool inventories, governance-heavy deployments, or token-optimization work, and are intentionally out of scope for this starter.
 
@@ -40,7 +40,7 @@ For the built-in demo, the current inventory contains **five** tools:
 - `list_recent_job_runs`
 - `create_support_ticket`
 
-The built-in demo task is a **read-only onboarding brief**. The model sees the full discovered inventory at runtime and should choose the relevant read-only tools to complete the task.
+The built-in demo task is a **read-only onboarding brief**. The model is expected to choose the relevant tools for the task, but the template does not pre-filter the inventory or enforce a profile-based allowlist.
 
 ## Prerequisites
 
@@ -369,7 +369,7 @@ Inspect `storage.agent_runs_table` and `storage.agent_output_table`, then confir
 
 ## Advanced concepts and additional resources
 
-This starter intentionally does not implement the following patterns:
+These are not part of the supported default flow for this template. This starter intentionally does not implement the following patterns:
 
 - precompiled tool profiles
 - `allowed_tools`
