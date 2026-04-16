@@ -88,6 +88,8 @@ The `workspace_onboarding_brief` flow is the starter contract this template must
 - Update eval expectations in `tests/test_evals.py` and related runtime tests when tool behavior changes.
 
 Keep the tool contract simple: the runner should expose the discovered tool inventory to the model and only reject tool calls whose names are not present in that inventory.
+Contributor rule: keep the default template flow as runtime tool discovery plus model-driven tool selection. Do not reintroduce precompiled profiles, manual allowlists, or deterministic Python-side tool routing into the default path.
+The runtime provides the discovered tool set to the model, and the LLM chooses which tools to call for each input.
 
 ## Deployment model
 

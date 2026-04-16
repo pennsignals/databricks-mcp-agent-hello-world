@@ -2,13 +2,16 @@
 # Local CLI commands read workspace-config.yml from the repo root.
 # Databricks Jobs read the deployed copy at ${workspace.file_path}/workspace-config.yml.
 
-# Required for local runs and Databricks Jobs.
+# `tool_provider_type` controls which provider the runtime uses to discover tools for the agent.
+# `llm_endpoint_name` is the model endpoint used during runtime execution.
 tool_provider_type: local_python
 llm_endpoint_name: your-llm-endpoint-name
 
 storage:
+  # Databricks runs persist traces and final outputs to these Delta tables.
   agent_runs_table: main.agent_demo.agent_runs
   agent_output_table: main.agent_demo.agent_outputs
+  # Local runs fall back to files here when Spark is unavailable.
   local_data_dir: ./.local_state
 
 # Optional future SQL-backed tool configuration.
