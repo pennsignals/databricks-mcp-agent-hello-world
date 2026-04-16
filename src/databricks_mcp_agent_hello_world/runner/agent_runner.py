@@ -8,7 +8,6 @@ from ..config import Settings
 from ..executors import get_tool_executor
 from ..llm_client import DatabricksLLM
 from ..models import (
-    AgentOutputRecord,
     AgentRunRecord,
     AgentTaskRequest,
     ToolCall,
@@ -16,6 +15,7 @@ from ..models import (
     ToolSpec,
 )
 from ..providers.factory import get_tool_provider
+from ..storage.persistence_schema import safe_jsonable, serialize_event_row
 from ..storage.result_writer import ResultWriter
 from ..tooling.runtime import set_runtime_settings
 
@@ -47,6 +47,8 @@ class AgentRunner:
         discovered_tools: list[ToolSpec],
         inventory_hash: str | None,
     ) -> AgentRunRecord:
+        conversation_id = task.run_id
+        run_key = task.run_id
         discovered_tools_by_name = {tool.tool_name: tool for tool in discovered_tools}
         # The runtime exposes the full discovered inventory to the model. Tool
         # selection is performed by the LLM at runtime; Python does not
@@ -68,17 +70,87 @@ class AgentRunner:
         openai_tools = self._build_openai_tools(discovered_tools)
         tool_call_trace: list[dict[str, Any]] = []
         llm_turn_count = 0
+        event_index = 0
+
+        def emit_event(
+            *,
+            event_type: str,
+            payload: Any,
+            turn_index: int | None,
+            status: str | None = None,
+            tool_name: str | None = None,
+            tool_call_id: str | None = None,
+            model_name: str | None = None,
+            final_response_excerpt: str | None = None,
+            error_message: str | None = None,
+            event_inventory_hash: str | None = None,
+        ) -> None:
+            nonlocal event_index
+            row = serialize_event_row(
+                conversation_id=conversation_id,
+                run_key=run_key,
+                task_name=task.task_name,
+                turn_index=turn_index,
+                event_index=event_index,
+                event_type=event_type,
+                status=status,
+                tool_name=tool_name,
+                tool_call_id=tool_call_id,
+                model_name=model_name,
+                inventory_hash=event_inventory_hash,
+                final_response_excerpt=final_response_excerpt,
+                error_message=error_message,
+                payload=payload,
+            )
+            self.result_writer.write_event_rows([row])
+            event_index += 1
+
+        emit_event(
+            event_type="run_started",
+            turn_index=None,
+            status="started",
+            payload={
+                "task_name": task.task_name,
+                "instructions": task.instructions,
+                "payload": task.payload,
+                "available_tools": [tool.tool_name for tool in discovered_tools],
+                "available_tools_count": len(discovered_tools),
+            },
+        )
 
         for _ in range(self.settings.max_agent_steps):
+            turn_index = llm_turn_count
+            emit_event(
+                event_type="llm_request",
+                turn_index=turn_index,
+                model_name=self.settings.llm_endpoint_name,
+                payload={
+                    "model": self.settings.llm_endpoint_name,
+                    "messages": messages,
+                    "tools": openai_tools,
+                    "tool_choice": "auto",
+                },
+            )
             llm_turn_count += 1
             response = self.llm.tool_step(messages, openai_tools, tool_choice="auto")
             message = response.choices[0].message
+            tool_calls = getattr(message, "tool_calls", None)
+            terminal_excerpt = None
+            if not tool_calls and (message.content or ""):
+                terminal_excerpt = self._truncate_excerpt(message.content or "")
+
+            emit_event(
+                event_type="llm_response",
+                turn_index=turn_index,
+                final_response_excerpt=terminal_excerpt,
+                payload=safe_jsonable(response),
+            )
 
             assistant_message: dict[str, Any] = {
                 "role": "assistant",
                 "content": message.content or "",
             }
-            if getattr(message, "tool_calls", None):
+            if tool_calls:
                 assistant_message["tool_calls"] = [
                     {
                         "id": call.id,
@@ -88,11 +160,11 @@ class AgentRunner:
                             "arguments": call.function.arguments,
                         },
                     }
-                    for call in message.tool_calls
+                    for call in tool_calls
                 ]
             messages.append(assistant_message)
 
-            if not getattr(message, "tool_calls", None):
+            if not tool_calls:
                 record = AgentRunRecord(
                     run_id=task.run_id,
                     task_name=task.task_name,
@@ -106,11 +178,30 @@ class AgentRunner:
                     ),
                     inventory_hash=inventory_hash,
                 )
-                self._persist(record)
+                emit_event(
+                    event_type="run_completed",
+                    turn_index=None,
+                    status="success",
+                    event_inventory_hash=inventory_hash,
+                    final_response_excerpt=self._truncate_excerpt(message.content or ""),
+                    payload=record.result,
+                )
                 return record
 
-            for index, call in enumerate(message.tool_calls, start=1):
+            for index, call in enumerate(tool_calls, start=1):
                 tool_args, parse_error = self._parse_tool_arguments(call.function.arguments)
+                emit_event(
+                    event_type="tool_call",
+                    turn_index=turn_index,
+                    status="requested",
+                    tool_name=call.function.name,
+                    tool_call_id=call.id,
+                    payload={
+                        "arguments_raw": call.function.arguments,
+                        "arguments_parsed": tool_args if parse_error is None else None,
+                        "parse_error": parse_error,
+                    },
+                )
                 if parse_error is not None:
                     tool_result = ToolResult(
                         tool_name=call.function.name,
@@ -125,6 +216,15 @@ class AgentRunner:
                         tool_name=call.function.name,
                         arguments=tool_args,
                     )
+                emit_event(
+                    event_type="tool_result",
+                    turn_index=turn_index,
+                    status=tool_result.status,
+                    tool_name=call.function.name,
+                    tool_call_id=call.id,
+                    error_message=tool_result.error,
+                    payload=tool_result.model_dump(mode="json"),
+                )
                 tool_call_trace.append(
                     {
                         "tool_name": call.function.name,
@@ -155,7 +255,14 @@ class AgentRunner:
             error_message="Maximum agent steps exceeded.",
             inventory_hash=inventory_hash,
         )
-        self._persist(record)
+        emit_event(
+            event_type="run_max_steps_exceeded",
+            turn_index=None,
+            status="max_steps_exceeded",
+            event_inventory_hash=inventory_hash,
+            error_message="Maximum agent steps exceeded.",
+            payload=record.result,
+        )
         return record
 
     @staticmethod
@@ -221,14 +328,6 @@ class AgentRunner:
             "tool_calls": tool_calls,
         }
 
-    def _persist(self, record: AgentRunRecord) -> None:
-        self.result_writer.write_run_record(record)
-        self.result_writer.write_output_record(
-            AgentOutputRecord(
-                run_id=record.run_id,
-                task_name=record.task_name,
-                status=record.status,
-                output_payload=record.result,
-                error_message=record.error_message,
-            )
-        )
+    @staticmethod
+    def _truncate_excerpt(content: str) -> str:
+        return content[:500]

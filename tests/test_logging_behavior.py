@@ -42,10 +42,7 @@ class StubExecutor:
 
 
 class StubWriter:
-    def write_run_record(self, record) -> None:
-        return None
-
-    def write_output_record(self, record) -> None:
+    def write_event_rows(self, rows) -> None:
         return None
 
 
@@ -92,6 +89,7 @@ def _runner(tmp_path: Path, llm, *, tools: list[ToolSpec] | None = None) -> Agen
     runner.settings = SimpleNamespace(
         prompts=SimpleNamespace(agent_system_prompt="system"),
         max_agent_steps=2,
+        llm_endpoint_name="databricks-meta-llama",
         storage=SimpleNamespace(local_data_dir=str(tmp_path)),
     )
     runner.provider = StubProvider(tools or [_tool("get_user_profile")])
