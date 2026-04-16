@@ -118,152 +118,171 @@ class AgentRunner:
             },
         )
 
-        for _ in range(self.settings.max_agent_steps):
-            turn_index = llm_turn_count
-            emit_event(
-                event_type="llm_request",
-                turn_index=turn_index,
-                model_name=self.settings.llm_endpoint_name,
-                payload={
-                    "model": self.settings.llm_endpoint_name,
-                    "messages": messages,
-                    "tools": openai_tools,
-                    "tool_choice": "auto",
-                },
-            )
-            llm_turn_count += 1
-            response = self.llm.tool_step(messages, openai_tools, tool_choice="auto")
-            message = response.choices[0].message
-            tool_calls = getattr(message, "tool_calls", None)
-            terminal_excerpt = None
-            if not tool_calls and (message.content or ""):
-                terminal_excerpt = self._truncate_excerpt(message.content or "")
+        try:
+            for _ in range(self.settings.max_agent_steps):
+                turn_index = llm_turn_count
+                emit_event(
+                    event_type="llm_request",
+                    turn_index=turn_index,
+                    model_name=self.settings.llm_endpoint_name,
+                    payload={
+                        "model": self.settings.llm_endpoint_name,
+                        "messages": messages,
+                        "tools": openai_tools,
+                        "tool_choice": "auto",
+                    },
+                )
+                llm_turn_count += 1
+                response = self.llm.tool_step(messages, openai_tools, tool_choice="auto")
+                message = response.choices[0].message
+                tool_calls = getattr(message, "tool_calls", None)
+                terminal_excerpt = None
+                if not tool_calls and (message.content or ""):
+                    terminal_excerpt = self._truncate_excerpt(message.content or "")
 
-            emit_event(
-                event_type="llm_response",
-                turn_index=turn_index,
-                final_response_excerpt=terminal_excerpt,
-                payload=safe_jsonable(response),
-            )
+                emit_event(
+                    event_type="llm_response",
+                    turn_index=turn_index,
+                    final_response_excerpt=terminal_excerpt,
+                    payload=safe_jsonable(response),
+                )
 
-            assistant_message: dict[str, Any] = {
-                "role": "assistant",
-                "content": message.content or "",
-            }
-            if tool_calls:
-                assistant_message["tool_calls"] = [
-                    {
-                        "id": call.id,
-                        "type": "function",
-                        "function": {
-                            "name": call.function.name,
-                            "arguments": call.function.arguments,
+                assistant_message: dict[str, Any] = {
+                    "role": "assistant",
+                    "content": message.content or "",
+                }
+                if tool_calls:
+                    assistant_message["tool_calls"] = [
+                        {
+                            "id": call.id,
+                            "type": "function",
+                            "function": {
+                                "name": call.function.name,
+                                "arguments": call.function.arguments,
+                            },
+                        }
+                        for call in tool_calls
+                    ]
+                messages.append(assistant_message)
+
+                if not tool_calls:
+                    record = AgentRunRecord(
+                        run_id=task.run_id,
+                        task_name=task.task_name,
+                        status="success",
+                        tools_called=tool_call_trace,
+                        llm_turn_count=llm_turn_count,
+                        result=self._build_result_payload(
+                            final_response=message.content or "",
+                            discovered_tools=discovered_tools,
+                            tool_calls=tool_call_trace,
+                        ),
+                        inventory_hash=inventory_hash,
+                    )
+                    emit_event(
+                        event_type="run_completed",
+                        turn_index=None,
+                        status="success",
+                        event_inventory_hash=inventory_hash,
+                        final_response_excerpt=self._truncate_excerpt(message.content or ""),
+                        payload=record.result,
+                    )
+                    return record
+
+                for index, call in enumerate(tool_calls, start=1):
+                    tool_args, parse_error = self._parse_tool_arguments(call.function.arguments)
+                    emit_event(
+                        event_type="tool_call",
+                        turn_index=turn_index,
+                        status="requested",
+                        tool_name=call.function.name,
+                        tool_call_id=call.id,
+                        payload={
+                            "arguments_raw": call.function.arguments,
+                            "arguments_parsed": tool_args if parse_error is None else None,
+                            "parse_error": parse_error,
                         },
-                    }
-                    for call in tool_calls
-                ]
-            messages.append(assistant_message)
+                    )
+                    if parse_error is not None:
+                        tool_result = ToolResult(
+                            tool_name=call.function.name,
+                            status="error",
+                            content={},
+                            error=parse_error,
+                        )
+                    else:
+                        tool_result = self._execute_tool_call(
+                            discovered_tools_by_name=discovered_tools_by_name,
+                            request_id=f"{task.run_id}:{llm_turn_count}:{index}",
+                            tool_name=call.function.name,
+                            arguments=tool_args,
+                        )
+                    emit_event(
+                        event_type="tool_result",
+                        turn_index=turn_index,
+                        status=tool_result.status,
+                        tool_name=call.function.name,
+                        tool_call_id=call.id,
+                        error_message=tool_result.error,
+                        payload=tool_result.model_dump(mode="json"),
+                    )
+                    tool_call_trace.append(
+                        {
+                            "tool_name": call.function.name,
+                            "arguments": tool_args if parse_error is None else {},
+                            "status": tool_result.status,
+                            "error": tool_result.error,
+                        }
+                    )
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": call.id,
+                            "content": json.dumps(tool_result.model_dump(), ensure_ascii=False),
+                        }
+                    )
 
-            if not tool_calls:
-                record = AgentRunRecord(
-                    run_id=task.run_id,
-                    task_name=task.task_name,
-                    status="success",
-                    tools_called=tool_call_trace,
-                    llm_turn_count=llm_turn_count,
-                    result=self._build_result_payload(
-                        final_response=message.content or "",
+            record = AgentRunRecord(
+                run_id=task.run_id,
+                task_name=task.task_name,
+                status="max_steps_exceeded",
+                tools_called=tool_call_trace,
+                llm_turn_count=llm_turn_count,
+                result=self._build_result_payload(
+                    final_response="",
+                    discovered_tools=discovered_tools,
+                    tool_calls=tool_call_trace,
+                ),
+                error_message="Maximum agent steps exceeded.",
+                inventory_hash=inventory_hash,
+            )
+            emit_event(
+                event_type="run_max_steps_exceeded",
+                turn_index=None,
+                status="max_steps_exceeded",
+                event_inventory_hash=inventory_hash,
+                error_message="Maximum agent steps exceeded.",
+                payload=record.result,
+            )
+            return record
+        except Exception as exc:
+            emit_event(
+                event_type="run_failed",
+                turn_index=None,
+                status="error",
+                event_inventory_hash=inventory_hash,
+                error_message=str(exc),
+                payload={
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc),
+                    "result": self._build_result_payload(
+                        final_response="",
                         discovered_tools=discovered_tools,
                         tool_calls=tool_call_trace,
                     ),
-                    inventory_hash=inventory_hash,
-                )
-                emit_event(
-                    event_type="run_completed",
-                    turn_index=None,
-                    status="success",
-                    event_inventory_hash=inventory_hash,
-                    final_response_excerpt=self._truncate_excerpt(message.content or ""),
-                    payload=record.result,
-                )
-                return record
-
-            for index, call in enumerate(tool_calls, start=1):
-                tool_args, parse_error = self._parse_tool_arguments(call.function.arguments)
-                emit_event(
-                    event_type="tool_call",
-                    turn_index=turn_index,
-                    status="requested",
-                    tool_name=call.function.name,
-                    tool_call_id=call.id,
-                    payload={
-                        "arguments_raw": call.function.arguments,
-                        "arguments_parsed": tool_args if parse_error is None else None,
-                        "parse_error": parse_error,
-                    },
-                )
-                if parse_error is not None:
-                    tool_result = ToolResult(
-                        tool_name=call.function.name,
-                        status="error",
-                        content={},
-                        error=parse_error,
-                    )
-                else:
-                    tool_result = self._execute_tool_call(
-                        discovered_tools_by_name=discovered_tools_by_name,
-                        request_id=f"{task.run_id}:{llm_turn_count}:{index}",
-                        tool_name=call.function.name,
-                        arguments=tool_args,
-                    )
-                emit_event(
-                    event_type="tool_result",
-                    turn_index=turn_index,
-                    status=tool_result.status,
-                    tool_name=call.function.name,
-                    tool_call_id=call.id,
-                    error_message=tool_result.error,
-                    payload=tool_result.model_dump(mode="json"),
-                )
-                tool_call_trace.append(
-                    {
-                        "tool_name": call.function.name,
-                        "arguments": tool_args if parse_error is None else {},
-                        "status": tool_result.status,
-                        "error": tool_result.error,
-                    }
-                )
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": call.id,
-                        "content": json.dumps(tool_result.model_dump(), ensure_ascii=False),
-                    }
-                )
-
-        record = AgentRunRecord(
-            run_id=task.run_id,
-            task_name=task.task_name,
-            status="max_steps_exceeded",
-            tools_called=tool_call_trace,
-            llm_turn_count=llm_turn_count,
-            result=self._build_result_payload(
-                final_response="",
-                discovered_tools=discovered_tools,
-                tool_calls=tool_call_trace,
-            ),
-            error_message="Maximum agent steps exceeded.",
-            inventory_hash=inventory_hash,
-        )
-        emit_event(
-            event_type="run_max_steps_exceeded",
-            turn_index=None,
-            status="max_steps_exceeded",
-            event_inventory_hash=inventory_hash,
-            error_message="Maximum agent steps exceeded.",
-            payload=record.result,
-        )
-        return record
+                },
+            )
+            raise
 
     @staticmethod
     def _build_openai_tools(discovered_tools: list[ToolSpec]) -> list[dict[str, Any]]:

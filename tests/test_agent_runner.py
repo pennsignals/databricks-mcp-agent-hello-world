@@ -506,6 +506,7 @@ def test_agent_runner_leaves_partial_events_when_llm_raises_mid_run(tmp_path: Pa
         "tool_call",
         "tool_result",
         "llm_request",
+        "run_failed",
     ]
     assert [row["event_id"] for row in runner.result_writer.event_rows] == [
         "run-partial:0",
@@ -514,7 +515,12 @@ def test_agent_runner_leaves_partial_events_when_llm_raises_mid_run(tmp_path: Pa
         "run-partial:3",
         "run-partial:4",
         "run-partial:5",
+        "run-partial:6",
     ]
+    failed_event = runner.result_writer.event_rows[-1]
+    assert failed_event["status"] == "error"
+    assert failed_event["error_message"] == "llm boom"
+    assert _payload(failed_event)["error_type"] == "RuntimeError"
 
 
 def test_agent_runner_leaves_partial_events_when_tool_execution_raises(tmp_path: Path) -> None:
@@ -538,4 +544,9 @@ def test_agent_runner_leaves_partial_events_when_tool_execution_raises(tmp_path:
         "llm_request",
         "llm_response",
         "tool_call",
+        "run_failed",
     ]
+    failed_event = runner.result_writer.event_rows[-1]
+    assert failed_event["status"] == "error"
+    assert failed_event["error_message"] == "tool boom: get_user_profile"
+    assert _payload(failed_event)["result"]["tool_calls"] == []
