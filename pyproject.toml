@@ -8,6 +8,7 @@ dependencies = [
   "databricks-sdk>=0.60.0",
   "databricks-openai>=0.4.0",
   "pydantic>=2.8.2",
+  "pyarrow>=18.0.0",
   "PyYAML>=6.0.2",
 ]
 

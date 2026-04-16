@@ -1,39 +1,38 @@
 from __future__ import annotations
 
-import json
-from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any
+
+from .persistence_schema import json_dumps_compact, validate_event_rows
+
+EVENTS_JSONL_FILE_NAME = "agent_events.jsonl"
 
 
-def normalize_record(record: Any) -> dict[str, Any]:
-    if hasattr(record, "model_dump"):
-        return record.model_dump()
-    if is_dataclass(record):
-        return asdict(record)
-    if isinstance(record, dict):
-        return record
-    raise TypeError(f"Unsupported record type: {type(record)!r}")
+def append_local_jsonl_event_rows(base_dir: str, rows: list[dict[str, object]]) -> None:
+    if not rows:
+        return
 
-
-def append_local_jsonl_record(base_dir: str, name: str, record: Any) -> None:
-    path = Path(base_dir) / f"{name}.jsonl"
+    table = validate_event_rows(rows)
+    path = Path(base_dir) / EVENTS_JSONL_FILE_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(normalize_record(record), ensure_ascii=False) + "\n")
+        for row in table.to_pylist():
+            handle.write(json_dumps_compact(row) + "\n")
 
 
-def _serialize_nested_values(record: dict[str, Any]) -> dict[str, Any]:
-    serialized: dict[str, Any] = {}
-    for key, value in record.items():
-        if isinstance(value, (dict, list)):
-            serialized[key] = json.dumps(value, ensure_ascii=False)
-            continue
-        serialized[key] = value
-    return serialized
+def append_delta_table_event_rows(
+    spark, table_name: str, rows: list[dict[str, object]]
+) -> None:
+    if not rows:
+        return
+
+    arrow_table = validate_event_rows(rows)
+    spark.createDataFrame(arrow_table).write.mode("append").saveAsTable(table_name)
 
 
-def append_delta_table_record(spark, table_name: str, record: Any) -> None:
-    normalized = normalize_record(record)
-    delta_record = _serialize_nested_values(normalized)
-    spark.createDataFrame([delta_record]).write.mode("append").saveAsTable(table_name)
+def append_local_jsonl_record(base_dir: str, name: str, record: dict[str, object]) -> None:
+    del name
+    append_local_jsonl_event_rows(base_dir, [record])
+
+
+def append_delta_table_record(spark, table_name: str, record: dict[str, object]) -> None:
+    append_delta_table_event_rows(spark, table_name, [record])
