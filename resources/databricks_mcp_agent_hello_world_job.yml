@@ -1,39 +1,11 @@
 resources:
   jobs:
-    # Databricks Jobs is the intended orchestration layer for this async workflow template.
-    compile_tool_profile_job:
-      # TEMPLATE_CUSTOMIZE_HERE
-      # Rename this compile job name for your downstream app, but keep its wheel entry point aligned.
-      name: compile_tool_profile_job
-      tasks:
-        - task_key: compile_tool_profile
-          # TEMPLATE_CUSTOMIZE_HERE
-          # Rename this compile task key if you rename the job, but keep it as the compile step.
-          environment_key: default
-          python_wheel_task:
-            # This Python wheel task is the compile entry point and should stay aligned with the package entry point.
-            package_name: databricks_mcp_agent_hello_world
-            entry_point: compile_tool_profile
-            named_parameters:
-              config_path: ${workspace.file_path}/workspace-config.yml
-      environments:
-        - environment_key: default
-          spec:
-            environment_version: "2"
-            dependencies:
-              - ${workspace.file_path}/dist/*.whl
-
     run_agent_task_job:
-      # TEMPLATE_CUSTOMIZE_HERE
-      # Rename this runtime job name for your downstream app, but keep its wheel entry point aligned.
       name: run_agent_task_job
       tasks:
         - task_key: run_agent_task
-          # TEMPLATE_CUSTOMIZE_HERE
-          # Rename this runtime task key if you rename the job, but keep it as the run step.
           environment_key: default
           python_wheel_task:
-            # This Python wheel task is the runtime entry point and must stay aligned with the packaged wheel.
             package_name: databricks_mcp_agent_hello_world
             entry_point: run_agent_task
             named_parameters:

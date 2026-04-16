@@ -65,7 +65,6 @@ def run_preflight(config_path: str) -> PreflightReport:
     )
     set_runtime_settings(settings)
 
-    checks.append(_check_databricks_profile(settings))
     checks.append(_check_databricks_client(settings))
     checks.append(_check_llm_endpoint_name(settings))
     provider_check, provider = _check_provider_factory(settings)
@@ -126,23 +125,6 @@ def print_discovery_report(report: DiscoveryReport) -> None:
         print(f"  Side effect level: {tool.side_effect_level}")
         print(f"  Tags: {capability_tags}")
         print(f"  Domains: {data_domains}")
-
-
-def _check_databricks_profile(settings: Settings) -> PreflightCheck:
-    profile = (settings.databricks_cli_profile or "").strip()
-    if profile:
-        return PreflightCheck(
-            name="databricks_profile",
-            status="pass",
-            message="DATABRICKS_CONFIG_PROFILE resolved successfully.",
-            details={"profile": profile},
-        )
-    return PreflightCheck(
-        name="databricks_profile",
-        status="fail",
-        message="DATABRICKS_CONFIG_PROFILE must be set in workspace-config.yml or .env.",
-        details={"profile": settings.databricks_cli_profile},
-    )
 
 
 def _check_databricks_client(settings: Settings) -> PreflightCheck:
@@ -344,7 +326,6 @@ def _finalize_preflight_report(
         settings_summary = {
             "tool_provider_type": settings.tool_provider_type,
             "llm_endpoint_name": settings.llm_endpoint_name,
-            "databricks_config_profile": settings.databricks_cli_profile,
             "dotenv_path": settings.dotenv_path,
         }
     return PreflightReport(

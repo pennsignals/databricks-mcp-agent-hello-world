@@ -20,7 +20,6 @@ dev = [
 [project.scripts]
 preflight = "databricks_mcp_agent_hello_world.cli:preflight_entrypoint"
 discover-tools = "databricks_mcp_agent_hello_world.cli:discover_tools_entrypoint"
-compile-tool-profile = "databricks_mcp_agent_hello_world.cli:compile_tool_profile_entrypoint"
 run-agent-task = "databricks_mcp_agent_hello_world.cli:run_agent_task_entrypoint"
 run-evals = "databricks_mcp_agent_hello_world.cli:run_evals_entrypoint"
 
