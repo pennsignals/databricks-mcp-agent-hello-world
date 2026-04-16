@@ -39,8 +39,8 @@ def test_readme_contains_required_headings_and_llm_driven_rule() -> None:
 def test_architecture_doc_mentions_filter_tools_and_no_hard_coded_allowlist() -> None:
     content = _read(ARCHITECTURE_PATH)
 
-    assert "_filter_tools" in content
-    assert "There is no task-specific hard-coded allowlist." in content
+    assert "There is no compile step." in content
+    assert "There is no deterministic prefilter layer." in content
 
 
 def test_conversion_guide_contains_all_steps_and_manual_allowlist_warning() -> None:
@@ -49,12 +49,11 @@ def test_conversion_guide_contains_all_steps_and_manual_allowlist_warning() -> N
     required_headings = [
         "## Step 1 — Rename the demo task family",
         "## Step 2 — Replace the demo tools",
-        "## Step 3 — Replace the compile task file",
-        "## Step 4 — Replace the runtime task file",
-        "## Step 5 — Update prompts only if needed",
-        "## Step 6 — Replace eval scenarios",
-        "## Step 7 — Rename deployment resources",
-        "## Step 8 — Verify the full workflow",
+        "## Step 3 — Replace the runtime task file",
+        "## Step 4 — Update prompts only if needed",
+        "## Step 5 — Replace eval scenarios",
+        "## Step 6 — Rename deployment resources",
+        "## Step 7 — Verify the full workflow",
     ]
 
     for heading in required_headings:
@@ -67,7 +66,6 @@ def test_docs_reference_existing_project_paths() -> None:
     expected_paths = [
         "docs/ARCHITECTURE.md",
         "docs/CONVERT_TEMPLATE_TO_REAL_APP.md",
-        "examples/demo_compile_task.json",
         "examples/demo_run_task.json",
         "evals/sample_scenarios.json",
         "databricks.yml",
@@ -108,6 +106,7 @@ def test_docs_do_not_present_removed_manual_allowlist_pattern_as_supported() -> 
 
     assert "hello-world allowlist" not in combined_docs
     assert "manual allowlist is the supported pattern" not in combined_docs
+    assert "compile-tool-profile" not in combined_docs
 
 
 def test_docs_do_not_use_machine_specific_absolute_paths() -> None:

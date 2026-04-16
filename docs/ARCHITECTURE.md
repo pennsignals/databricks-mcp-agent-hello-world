@@ -9,74 +9,58 @@
 - async non-interactive execution
 - minimal framework complexity
 - LLM-driven tool selection
-- persisted profiles and traces
+- persisted run traces and outputs
 - demo assets separated from reusable framework assets
 
 ## End-to-end flow
 
 ```text
-task file -> compile-tool-profile -> persisted ToolProfile
-run task file -> run-agent-task -> generic runner -> persisted AgentRunRecord / AgentOutputRecord
+task file -> run-agent-task -> generic runner -> persisted AgentRunRecord / AgentOutputRecord
 ```
 
 Expanded flow:
 
 ```text
-examples/demo_compile_task.json
-  -> ToolProfileCompiler.compile(...)
-  -> _filter_tools(...)
-  -> ToolProfileRepository.save(...)
-  -> persisted ToolProfile
-
 examples/demo_run_task.json
   -> AgentRunner.run(...)
+  -> provider.list_tools(...)
+  -> model receives the full discovered tool inventory
   -> generic runner loop
   -> ResultWriter.write_run_record(...)
   -> ResultWriter.write_output_record(...)
-  -> persisted AgentRunRecord / AgentOutputRecord
 ```
 
-## Compile-time tool selection
+## Runtime tool selection
 
-`_filter_tools(...)` in [`src/databricks_mcp_agent_hello_world/profiles/compiler.py`](../src/databricks_mcp_agent_hello_world/profiles/compiler.py) is the selection mechanism. The LLM receives the task plus tool metadata, then returns a profile decision with `allowed_tools` and `disallowed_tools`. The compiler validates the structure, persists the resulting `ToolProfile`, and reuses that profile when the compile task and inventory hash still match.
+The runtime loop in [`src/databricks_mcp_agent_hello_world/runner/agent_runner.py`](../src/databricks_mcp_agent_hello_world/runner/agent_runner.py) exposes the full discovered tool inventory to the model for each run.
 
-There is no task-name-based branching. There is no task-specific hard-coded allowlist. There is no deterministic rule engine choosing tools. Metadata quality and prompt design influence the LLM’s selection quality, so the descriptive fields in each `ToolSpec` matter.
+There is no compile step. There is no task-specific hard-coded allowlist. There is no deterministic prefilter layer. The model decides which tools to call, and the application only validates that a requested tool actually exists before executing it.
 
-## Runtime execution loop
-
-The runtime loop in [`src/databricks_mcp_agent_hello_world/runner/agent_runner.py`](../src/databricks_mcp_agent_hello_world/runner/agent_runner.py) works like this:
-
-- system prompt + task message
-- tools exposed = allowed tools only
-- LLM may return a tool call
-- application executes tool
-- tool result is appended
-- loop continues until final response or stop condition
-
-This matches the standard tool-calling pattern where the model is given tools and can decide whether to call them. Runtime allowlist enforcement still remains in place as a safety boundary, so a tool name outside `allowed_tools` is blocked even if the model tries to call it.
+This matches the standard tool-calling pattern where the model is given tools and can decide whether to call them.
 
 ## Persistence model
 
-- `ToolProfile` — persisted compile output used at runtime. Key fields: `profile_name`, `profile_version`, `compile_task_name`, `compile_task_hash`, `discovered_tools`, `allowed_tools`, `disallowed_tools`, and `inventory_hash`.
-- `AgentRunRecord` — persisted execution trace for a specific run. Key fields: `run_id`, `task_name`, `status`, `tools_called`, `blocked_calls`, `llm_turn_count`, `result`, and `profile_version`.
-- `AgentOutputRecord` — persisted output payload for downstream consumption. Key fields: `run_id`, `task_name`, `status`, `profile_name`, `profile_version`, and `output_payload`.
+- `AgentRunRecord` captures the execution trace for a run, including status, tool calls, LLM turn count, and result payload.
+- `AgentOutputRecord` stores the final output payload for downstream consumption.
 
-Locally, persistence falls back to JSON and JSONL under `storage.local_data_dir`. On Databricks compute, the same logical artifacts are written to the configured Delta tables.
+Locally, persistence falls back to JSONL under `storage.local_data_dir`. On Databricks compute, the same logical artifacts are written to the configured Delta tables.
 
 ## Demo assets vs framework assets
 
-- Framework assets: `src/databricks_mcp_agent_hello_world/profiles/compiler.py`, `src/databricks_mcp_agent_hello_world/profiles/repository.py`, `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`, `src/databricks_mcp_agent_hello_world/storage/result_writer.py`, `src/databricks_mcp_agent_hello_world/storage/result_repository.py`, `src/databricks_mcp_agent_hello_world/evals/harness.py`, `src/databricks_mcp_agent_hello_world/models.py`, `src/databricks_mcp_agent_hello_world/config.py`.
-- Demo assets: `src/databricks_mcp_agent_hello_world/demo/`, `src/databricks_mcp_agent_hello_world/tools/registry.py`, `examples/demo_compile_task.json`, `examples/demo_run_task.json`, `evals/sample_scenarios.json`, `databricks.yml`, `resources/databricks_mcp_agent_hello_world_job.yml`.
+- Framework assets: `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`, `src/databricks_mcp_agent_hello_world/storage/result_writer.py`, `src/databricks_mcp_agent_hello_world/storage/result_repository.py`, `src/databricks_mcp_agent_hello_world/evals/harness.py`, `src/databricks_mcp_agent_hello_world/models.py`, `src/databricks_mcp_agent_hello_world/config.py`
+- Demo assets: `src/databricks_mcp_agent_hello_world/demo/tools.py`, `src/databricks_mcp_agent_hello_world/tools/registry.py`, `examples/demo_run_task.json`, `evals/sample_scenarios.json`, `databricks.yml`, `workspace-config.example.yml`, `resources/databricks_mcp_agent_hello_world_job.yml`
 
 ## What downstream teams should customize
 
-- demo tools in [`src/databricks_mcp_agent_hello_world/demo/tools.py`](../src/databricks_mcp_agent_hello_world/demo/tools.py)
-- task files in [`examples/demo_compile_task.json`](../examples/demo_compile_task.json) and [`examples/demo_run_task.json`](../examples/demo_run_task.json)
-- prompts where applicable in [`src/databricks_mcp_agent_hello_world/prompts/tool_filter_prompt.txt`](../src/databricks_mcp_agent_hello_world/prompts/tool_filter_prompt.txt), [`src/databricks_mcp_agent_hello_world/prompts/tool_audit_prompt.txt`](../src/databricks_mcp_agent_hello_world/prompts/tool_audit_prompt.txt), and [`src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt`](../src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt)
-- eval scenarios in [`evals/sample_scenarios.json`](../evals/sample_scenarios.json)
-- bundle/job names in [`databricks.yml`](../databricks.yml) and [`resources/databricks_mcp_agent_hello_world_job.yml`](../resources/databricks_mcp_agent_hello_world_job.yml)
-- environment-specific config in [`workspace-config.example.yml`](../workspace-config.example.yml)
+- `src/databricks_mcp_agent_hello_world/demo/tools.py`
+- `src/databricks_mcp_agent_hello_world/tools/registry.py`
+- `examples/demo_run_task.json`
+- `evals/sample_scenarios.json`
+- `databricks.yml`
+- `workspace-config.example.yml`
+- `resources/databricks_mcp_agent_hello_world_job.yml`
+- `src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt` only if the domain genuinely needs it
 
-## What downstream teams should not fork
+## Advanced concepts
 
-Do not fork the generic runner loop, the profile compiler architecture, or the result persistence model unless you have a genuine platform-level need. The stable extension seams are the demo assets, task files, prompts, eval scenarios, and deployment names, not the framework core.
+Precompiled profiles, `allowed_tools`, and blocked tool-call policy layers are intentionally out of scope for this template. They may be useful later for larger inventories, governance, or token optimization, but they are not implemented here.
