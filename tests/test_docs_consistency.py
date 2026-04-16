@@ -34,6 +34,8 @@ def test_readme_contains_required_headings_and_llm_driven_rule() -> None:
         assert heading in content
 
     assert "Tool selection is **LLM-driven**" in content
+    assert "the full discovered tool set" in content
+    assert "The LLM decides which tools to call" in content
 
 
 def test_architecture_doc_mentions_filter_tools_and_no_hard_coded_allowlist() -> None:
@@ -102,11 +104,13 @@ def test_docs_do_not_present_removed_manual_allowlist_pattern_as_supported() -> 
             _read(ARCHITECTURE_PATH),
             _read(CONVERSION_PATH),
         ]
-    ).lower()
+    )
+    combined_docs_lower = combined_docs.lower()
 
-    assert "hello-world allowlist" not in combined_docs
-    assert "manual allowlist is the supported pattern" not in combined_docs
-    assert "compile-tool-profile" not in combined_docs
+    assert "out of scope for this template" in combined_docs
+    assert "hello-world allowlist" not in combined_docs_lower
+    assert "manual allowlist is the supported pattern" not in combined_docs_lower
+    assert "compile-tool-profile" not in combined_docs_lower
 
 
 def test_docs_do_not_use_machine_specific_absolute_paths() -> None:
