@@ -24,9 +24,6 @@
       "get_workspace_setting",
       "list_recent_job_runs"
     ],
-    "forbidden_available_tools": [
-      "create_support_ticket"
-    ],
     "required_executed_tools": [
       "get_user_profile",
       "search_onboarding_docs",
@@ -68,9 +65,6 @@
       "get_workspace_setting",
       "list_recent_job_runs"
     ],
-    "forbidden_available_tools": [
-      "create_support_ticket"
-    ],
     "required_executed_tools": [
       "list_recent_job_runs"
     ],
@@ -102,9 +96,6 @@
         "output_format": "markdown"
       }
     },
-    "forbidden_available_tools": [
-      "create_support_ticket"
-    ],
     "forbidden_executed_tools": [
       "create_support_ticket"
     ],

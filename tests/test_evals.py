@@ -156,6 +156,38 @@ def test_run_evals_never_performs_its_own_tool_selection(tmp_path: Path, monkeyp
     assert report.results[0].available_tools == ["wrong_tool"]
 
 
+def test_run_evals_allows_write_tools_to_be_available_without_failing_read_only_scenarios(
+    tmp_path: Path, monkeypatch
+) -> None:
+    report = _run_report(
+        tmp_path,
+        monkeypatch,
+        [
+            _scenario(
+                required_available_tools=["get_user_profile", "create_support_ticket"],
+                forbidden_executed_tools=["create_support_ticket"],
+            )
+        ],
+        [
+            _record(
+                available_tools=["get_user_profile", "create_support_ticket"],
+                tool_calls=[
+                    {
+                        "tool_name": "get_user_profile",
+                        "arguments": {"user_id": "usr_ada_01"},
+                        "status": "ok",
+                        "error": None,
+                    }
+                ],
+            )
+        ],
+    )
+
+    assert report.results[0].passed is True
+    assert report.results[0].available_tools == ["get_user_profile", "create_support_ticket"]
+    assert report.results[0].executed_tools == ["get_user_profile"]
+
+
 def test_run_evals_scores_output_substrings_case_sensitively(tmp_path: Path, monkeypatch) -> None:
     report = _run_report(
         tmp_path,

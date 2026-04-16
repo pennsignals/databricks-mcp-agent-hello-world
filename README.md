@@ -12,7 +12,7 @@ This repo is for **autonomous batch-style agent workflows**, not chat apps, Data
 
 For the current MVP, **`local_python` is the only working tool runtime**. `managed_mcp` is reserved for a future extension path and is not part of the first-run flow.
 
-On a successful first pass, you should be able to authenticate locally to Databricks, configure a Databricks-hosted LLM endpoint, inspect the discovered tool inventory, run the demo locally, verify that the model can choose tools from the full runtime inventory, and deploy the same workflow as a Python wheel Job.
+On a successful first pass, you should be able to authenticate locally to Databricks, configure a Databricks-hosted LLM endpoint, discover the demo tools, run the demo locally, verify that the model can choose and call tools at runtime, and deploy the same workflow as a Python wheel Job.
 
 See the deeper docs when you are ready to customize the template:
 
@@ -28,9 +28,9 @@ The runtime flow is intentionally small:
 3. run the real task with the full discovered tool inventory exposed
 4. persist run traces and final outputs locally or to Delta
 
-Tool selection is **LLM-driven**. The runtime provides the full discovered tool set, and the model chooses which tools to call for each input.
+Tool selection is **LLM-driven**. The runtime provides the full discovered tool set, and the model chooses which tools to call for each input using normal tool-calling behavior.
 
-The template does **not** implement precompiled profiles, `allowed_tools`, or blocked tool calls as a narrowing layer. Those are advanced patterns for larger inventories, governance-heavy deployments, or token optimization, and they are intentionally out of scope for this starter.
+This template intentionally does **not** implement precompiled profiles, `allowed_tools`, or blocked tool-call policy layers. Those are advanced patterns for larger tool inventories, governance-heavy deployments, or token-optimization work, and are intentionally out of scope for this starter.
 
 For the built-in demo, the current inventory contains **five** tools:
 
@@ -39,6 +39,8 @@ For the built-in demo, the current inventory contains **five** tools:
 - `get_workspace_setting`
 - `list_recent_job_runs`
 - `create_support_ticket`
+
+The built-in demo task is a **read-only onboarding brief**. The model sees the full discovered inventory at runtime and should choose the relevant read-only tools to complete the task.
 
 ## Prerequisites
 
@@ -107,10 +109,6 @@ At minimum, update these fields:
 ```yaml
 tool_provider_type: local_python
 llm_endpoint_name: <your-serving-endpoint-name>
-storage:
-  agent_runs_table: main.agent_demo.agent_runs
-  agent_output_table: main.agent_demo.agent_outputs
-  local_data_dir: ./.local_state
 ```
 
 You can also override `llm_endpoint_name` from `.env` with `LLM_ENDPOINT_NAME`, but keeping the main value in `workspace-config.yml` is the clearest beginner path.
@@ -170,6 +168,7 @@ This checks that:
 
 - `workspace-config.yml` loads
 - `.env` parses
+- the Databricks CLI profile resolves
 - the Databricks client initializes
 - `llm_endpoint_name` is present
 - the tool provider can be created
@@ -182,7 +181,7 @@ This checks that:
 uv run discover-tools --config-path workspace-config.yml
 ```
 
-For the built-in demo, you should see **5 tools**. The discovery output also shows side-effect level, tags, and domains for each tool.
+For the built-in demo, you should see **5 tools**. The discovery output may also show metadata such as side-effect level, tags, and domains for each tool.
 
 ### Step 4: run the demo task
 
@@ -196,8 +195,9 @@ uv run run-agent-task \
 
 A successful run shows that the project can:
 
-- expose the discovered tool inventory to the model
-- call the necessary tools
+- discover the runtime tool inventory
+- expose the discovered tools to the model
+- let the model choose and call the needed tools
 - generate a final answer grounded in tool results
 - persist run artifacts
 
@@ -235,7 +235,6 @@ A healthy first pass looks like this:
 - `preflight` passes
 - `discover-tools` shows **5** tools
 - `run-agent-task` completes successfully
-- the result includes the runtime-discovered tool inventory and tool call trace
 - local artifacts appear in `./.local_state`
 
 ## Deploying to Databricks
@@ -258,7 +257,7 @@ The deployed job reads the workspace copy of `workspace-config.yml` from `${work
 
 `databricks.yml` also defines a default bundle variable named `task_input_json` for the runtime job. Downstream teams commonly replace that default payload with their own task family.
 
-The bundled job uses **serverless** as the default deployed path. If your workspace does not support that pattern, edit [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/databricks_mcp_agent_hello_world_job.yml) and replace the default job environment configuration with the compute model your workspace allows.
+The bundled job uses **serverless** as the default deployed path. If your workspace does not support that pattern, edit [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/databricks_mcp_agent_hello_world_job.yml) and replace the default job environment configuration with the compute model your environment allows.
 
 This starter is intentionally **not scheduled by default**. Get the on-demand flow working first, then add a schedule in a downstream project.
 
@@ -302,6 +301,7 @@ Usually keep these framework files intact unless you are intentionally changing 
 - [`src/databricks_mcp_agent_hello_world/storage/result_writer.py`](src/databricks_mcp_agent_hello_world/storage/result_writer.py)
 - [`src/databricks_mcp_agent_hello_world/evals/harness.py`](src/databricks_mcp_agent_hello_world/evals/harness.py)
 - [`src/databricks_mcp_agent_hello_world/models.py`](src/databricks_mcp_agent_hello_world/models.py)
+- [`src/databricks_mcp_agent_hello_world/config.py`](src/databricks_mcp_agent_hello_world/config.py)
 
 ## Troubleshooting
 
@@ -311,11 +311,11 @@ You still have `https://your-workspace.cloud.databricks.com` in `databricks.yml`
 
 Fix: replace it for every target you validate or deploy.
 
-### `preflight` says the Databricks client cannot initialize
+### `preflight` says `DATABRICKS_CONFIG_PROFILE` is missing
 
-Your CLI auth is missing, expired, or pointing at the wrong workspace.
+Your CLI profile name is not set in `.env` or `workspace-config.yml`.
 
-Fix: rerun `databricks auth login` and confirm the profile in `.env`.
+Fix: set `DATABRICKS_CONFIG_PROFILE=<your-profile>` in `.env`.
 
 ### `preflight` or runtime cannot find `workspace-config.yml`
 
@@ -341,9 +341,9 @@ Fix: update `workspace-config.yml` and rerun `preflight`.
 
 Also make sure the serving endpoint supports the tool/function-calling pattern this template expects.
 
-### the model chooses the wrong tools
+### selected tools are wrong
 
-Check the wording in [`examples/demo_run_task.json`](examples/demo_run_task.json) and the metadata in [`src/databricks_mcp_agent_hello_world/tools/registry.py`](src/databricks_mcp_agent_hello_world/tools/registry.py). Task clarity and metadata quality directly affect runtime tool choice.
+Check the wording in [`examples/demo_run_task.json`](examples/demo_run_task.json) and the metadata in [`src/databricks_mcp_agent_hello_world/tools/registry.py`](src/databricks_mcp_agent_hello_world/tools/registry.py). Task clarity and metadata quality directly affect runtime tool selection.
 
 ### Local logs say Spark is unavailable
 
@@ -362,3 +362,24 @@ Fix: update [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/dat
 Your `storage.*` table names point to a catalog or schema your deployed identity cannot access.
 
 Fix: update the table names in `workspace-config.yml` to a writable location and redeploy.
+
+### Databricks job runs but output is empty
+
+Inspect `storage.agent_runs_table` and `storage.agent_output_table`, then confirm the runtime task JSON is valid.
+
+## Advanced concepts and additional resources
+
+This starter intentionally does not implement the following patterns:
+
+- precompiled tool profiles
+- `allowed_tools`
+- blocked tool-call policy layers
+- MCP-based runtime tooling
+
+Those can be useful later for larger tool inventories, governance-heavy deployments, and token-optimization work. If you outgrow the starter, these are good places to learn more:
+
+- [OpenAI function calling guide](https://developers.openai.com/api/docs/guides/function-calling)
+- [OpenAI tools guide](https://developers.openai.com/api/docs/guides/tools)
+- [OpenAI practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)
+- [Anthropic tool use overview](https://docs.anthropic.com/en/docs/build-with-claude/tool-use/overview)
+- [Databricks Python wheel task for Jobs](https://docs.databricks.com/aws/en/jobs/python-wheel)
