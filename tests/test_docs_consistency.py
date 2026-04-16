@@ -23,17 +23,17 @@ def test_readme_contains_required_headings_and_llm_driven_rule() -> None:
     content = _read(README_PATH)
 
     required_headings = [
-        "## What this template is",
-        "## How the agent works",
-        "## Files you will customize first",
-        "## Files you should usually leave alone",
-        "## Convert this template into a real app",
+        "## How it works",
+        "## Prerequisites",
+        "## Required edits before your first run",
+        "## What you should customize vs keep",
+        "## Deploying to Databricks",
     ]
 
     for heading in required_headings:
         assert heading in content
 
-    assert "Tool selection is LLM-driven" in content
+    assert "Tool selection is **LLM-driven**" in content
 
 
 def test_architecture_doc_mentions_filter_tools_and_no_hard_coded_allowlist() -> None:
