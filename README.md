@@ -30,7 +30,7 @@ The runtime flow is intentionally small:
 
 Tool selection is **LLM-driven**. At runtime, the application discovers the full tool inventory for the configured provider and passes that full discovered tool set to the model. The LLM decides which tools to call for each input based on the task instructions and the tool definitions.
 
-This template intentionally does **not** implement precompiled tool-governance layers, manual tool allowlists, or policy-based tool blocking. Those are advanced patterns for larger inventories, governance-heavy deployments, or token-optimization work, and are intentionally out of scope for this starter.
+This template intentionally does **not** implement precompiled tool-governance layers, manual tool allowlists such as `allowed_tools`, or policy-based tool blocking. Those are advanced patterns for larger inventories, governance-heavy deployments, or token-optimization work, and are intentionally out of scope for this starter.
 
 For the built-in demo, the current inventory contains **five** tools:
 
@@ -372,7 +372,7 @@ Inspect `storage.agent_runs_table` and `storage.agent_output_table`, then confir
 These are not part of the supported default flow for this template. This starter intentionally does not implement the following patterns:
 
 - precompiled tool-governance layers
-- manual tool allowlists
+- manual tool allowlists such as `allowed_tools`
 - policy-based tool-call blocking
 - MCP-based runtime tooling
 
