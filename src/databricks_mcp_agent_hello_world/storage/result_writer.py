@@ -15,7 +15,9 @@ class ResultWriter:
         if self.spark is not None:
             table_name = (self.settings.storage.agent_runs_table or "").strip()
             if not table_name:
-                raise ValueError("storage.agent_runs_table must be configured when Spark is available.")
+                raise ValueError(
+                    "storage.agent_runs_table must be configured when Spark is available."
+                )
             append_delta_table_record(self.spark, table_name, record)
             return
         append_local_jsonl_record(self.settings.storage.local_data_dir, "agent_runs", record)
@@ -29,4 +31,6 @@ class ResultWriter:
                 )
             append_delta_table_record(self.spark, table_name, output_record)
             return
-        append_local_jsonl_record(self.settings.storage.local_data_dir, "agent_outputs", output_record)
+        append_local_jsonl_record(
+            self.settings.storage.local_data_dir, "agent_outputs", output_record
+        )

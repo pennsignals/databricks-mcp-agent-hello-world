@@ -28,17 +28,24 @@ def _write_complete_config(
         "  agent_output_table: main.agent.agent_outputs",
     ]
     if include_sql:
+        service_dependencies_table = sql_values.get(
+            "service_dependencies_table",
+            "service_dependencies_placeholder",
+        )
         lines.extend(
             [
                 "sql:",
                 f"  warehouse_id: {sql_values.get('warehouse_id', 'warehouse-placeholder')}",
                 f"  catalog: {sql_values.get('catalog', 'catalog-placeholder')}",
                 f"  schema: {sql_values.get('schema', 'schema-placeholder')}",
-                f"  incident_kb_table: {sql_values.get('incident_kb_table', 'incident_kb_placeholder')}",
+                "  incident_kb_table: "
+                f"{sql_values.get('incident_kb_table', 'incident_kb_placeholder')}",
                 f"  runbook_table: {sql_values.get('runbook_table', 'runbook_placeholder')}",
-                f"  customer_summary_table: {sql_values.get('customer_summary_table', 'customer_summary_placeholder')}",
-                f"  service_incidents_table: {sql_values.get('service_incidents_table', 'service_incidents_placeholder')}",
-                f"  service_dependencies_table: {sql_values.get('service_dependencies_table', 'service_dependencies_placeholder')}",
+                "  customer_summary_table: "
+                f"{sql_values.get('customer_summary_table', 'customer_summary_placeholder')}",
+                "  service_incidents_table: "
+                f"{sql_values.get('service_incidents_table', 'service_incidents_placeholder')}",
+                f"  service_dependencies_table: {service_dependencies_table}",
             ]
         )
     config_path.write_text("\n".join(lines), encoding="utf-8")

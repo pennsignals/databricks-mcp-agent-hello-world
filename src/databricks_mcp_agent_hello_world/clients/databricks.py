@@ -98,8 +98,7 @@ class DatabricksSqlGateway:
     ) -> list[dict[str, Any]]:
         if not self.settings.sql.warehouse_id:
             raise ValueError(
-                "DATABRICKS_SQL_WAREHOUSE_ID must be configured "
-                "for Databricks SQL tools."
+                "DATABRICKS_SQL_WAREHOUSE_ID must be configured for Databricks SQL tools."
             )
 
         sdk_parameters = [

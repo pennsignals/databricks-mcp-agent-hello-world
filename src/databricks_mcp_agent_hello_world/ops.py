@@ -4,7 +4,13 @@ from pathlib import Path
 from typing import Any
 
 from .clients.databricks import get_workspace_client
-from .config import Settings, build_settings, load_dotenv_values, load_yaml_config, parse_task_input_file
+from .config import (
+    Settings,
+    build_settings,
+    load_dotenv_values,
+    load_yaml_config,
+    parse_task_input_file,
+)
 from .models import AgentTaskRequest, DiscoveryReport, PreflightCheck, PreflightReport
 from .providers.factory import get_tool_provider
 from .runner.agent_runner import AgentRunner
@@ -42,7 +48,9 @@ def run_preflight(config_path: str) -> PreflightReport:
             PreflightCheck(
                 name="dotenv",
                 status="pass",
-                message="Optional .env parsed successfully." if dotenv_path else "No .env file present.",
+                message="Optional .env parsed successfully."
+                if dotenv_path
+                else "No .env file present.",
                 details={"dotenv_path": dotenv_path},
             )
         )

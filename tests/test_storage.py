@@ -5,9 +5,7 @@ from types import SimpleNamespace
 from databricks_mcp_agent_hello_world.storage.result_writer import ResultWriter
 
 
-def test_result_writer_appends_run_and_output_rows_locally(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_result_writer_appends_run_and_output_rows_locally(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.storage.result_writer.get_spark_session",
         lambda: None,
@@ -42,7 +40,9 @@ def test_result_writer_appends_run_and_output_rows_locally(
     )
 
     run_rows = (tmp_path / "agent_runs.jsonl").read_text(encoding="utf-8").strip().splitlines()
-    output_rows = (tmp_path / "agent_outputs.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    output_rows = (
+        (tmp_path / "agent_outputs.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    )
 
     assert len(run_rows) == 1
     assert len(output_rows) == 1

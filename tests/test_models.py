@@ -2,7 +2,12 @@ import pytest
 from pydantic import ValidationError
 
 from databricks_mcp_agent_hello_world import models
-from databricks_mcp_agent_hello_world.models import AgentRunRecord, EvalScenario, ToolResult, ToolSpec
+from databricks_mcp_agent_hello_world.models import (
+    AgentRunRecord,
+    EvalScenario,
+    ToolResult,
+    ToolSpec,
+)
 
 
 def _base_tool_spec(**overrides) -> dict:

@@ -4,7 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from databricks_mcp_agent_hello_world.evals.harness import EvalSetupError, load_eval_scenarios, run_evals
+from databricks_mcp_agent_hello_world.evals.harness import (
+    EvalSetupError,
+    load_eval_scenarios,
+    run_evals,
+)
 from databricks_mcp_agent_hello_world.models import AgentRunRecord, EvalRunReport
 
 
@@ -276,7 +280,14 @@ def test_run_evals_reports_execution_errors(tmp_path: Path, monkeypatch) -> None
             ["forbidden_executed_tools_present"],
         ),
         (
-            _scenario(required_result_keys=["final_response", "available_tools", "tool_calls", "missing"]),
+            _scenario(
+                required_result_keys=[
+                    "final_response",
+                    "available_tools",
+                    "tool_calls",
+                    "missing",
+                ]
+            ),
             _record(),
             ["missing_required_result_keys"],
         ),

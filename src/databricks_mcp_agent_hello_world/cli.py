@@ -48,8 +48,7 @@ def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
         print(
-            "Usage: python -m databricks_mcp_agent_hello_world.cli "
-            "<command> [options]",
+            "Usage: python -m databricks_mcp_agent_hello_world.cli <command> [options]",
             file=sys.stderr,
         )
         return 2
@@ -200,7 +199,9 @@ def _load_settings_for_command(
                 f"Missing config file at {location} while running {command_name}. "
                 f"Create workspace-config.yml and rerun {next_step}."
             ) from exc
-        raise RuntimeError(f"Missing config file at {location} while running {command_name}.") from exc
+        raise RuntimeError(
+            f"Missing config file at {location} while running {command_name}."
+        ) from exc
 
 
 def _render_output(

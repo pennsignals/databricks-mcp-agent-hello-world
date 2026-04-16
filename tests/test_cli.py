@@ -42,14 +42,14 @@ def test_parsers_accept_documented_flags() -> None:
     assert run_evals_args.scenario_file == "evals/custom.json"
 
 
-def test_main_rejects_removed_compile_command(capsys) -> None:
+def test_main_rejects_unknown_command(capsys) -> None:
     from databricks_mcp_agent_hello_world.cli import main
 
-    exit_code = main(["compile-tool-profile"])
+    exit_code = main(["not-a-real-command"])
     output = capsys.readouterr().err
 
     assert exit_code == 2
-    assert "compile-tool-profile" in output
+    assert "not-a-real-command" in output
     assert "Expected one of" in output
 
 
@@ -87,9 +87,13 @@ def test_run_agent_task_uses_cli_json_source(monkeypatch, capsys) -> None:
             )
 
     monkeypatch.setattr("databricks_mcp_agent_hello_world.cli.load_settings", _load_settings)
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.cli.parse_task_input", _parse_task_input)
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.parse_task_input", _parse_task_input
+    )
     monkeypatch.setattr("databricks_mcp_agent_hello_world.cli.AgentRunner", StubRunner)
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.cli.set_runtime_settings", lambda settings: None)
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.set_runtime_settings", lambda settings: None
+    )
 
     exit_code = run_named_command(
         "run-agent-task",
@@ -120,7 +124,10 @@ def test_run_agent_task_uses_cli_file_source(tmp_path: Path, monkeypatch) -> Non
     )
     parse_calls: list[str] = []
 
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.cli.load_settings", lambda config_path: SimpleNamespace())
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.load_settings",
+        lambda config_path: SimpleNamespace(),
+    )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.cli.parse_task_input_file",
         lambda path: (
@@ -148,7 +155,9 @@ def test_run_agent_task_uses_cli_file_source(tmp_path: Path, monkeypatch) -> Non
             )
 
     monkeypatch.setattr("databricks_mcp_agent_hello_world.cli.AgentRunner", StubRunner)
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.cli.set_runtime_settings", lambda settings: None)
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.set_runtime_settings", lambda settings: None
+    )
 
     exit_code = run_named_command(
         "run-agent-task",
@@ -159,9 +168,7 @@ def test_run_agent_task_uses_cli_file_source(tmp_path: Path, monkeypatch) -> Non
     assert parse_calls == [str(task_file)]
 
 
-def test_run_agent_task_fails_when_required_task_fields_are_missing(
-    monkeypatch, capsys
-) -> None:
+def test_run_agent_task_fails_when_required_task_fields_are_missing(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.cli.load_settings",
         lambda config_path: SimpleNamespace(),
@@ -199,9 +206,7 @@ def test_print_run_summary_includes_final_response_without_profile_vocabulary(ca
     assert "Tools called: 1" in output
 
 
-def test_preflight_json_output_returns_expected_shape(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
+def test_preflight_json_output_returns_expected_shape(tmp_path: Path, monkeypatch, capsys) -> None:
     config_path = _write_config(tmp_path)
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.cli.run_preflight",
@@ -323,9 +328,7 @@ def test_run_evals_reports_missing_scenario_file_concisely(
     assert "Scenario file not found: evals/missing.json" in output
 
 
-def test_run_evals_reports_invalid_json_concisely(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
+def test_run_evals_reports_invalid_json_concisely(tmp_path: Path, monkeypatch, capsys) -> None:
     config_path = _write_config(tmp_path)
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.cli.run_evals",
