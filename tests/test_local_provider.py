@@ -66,9 +66,11 @@ def test_local_python_executor_does_not_touch_sql_config(monkeypatch) -> None:
     )
 
     assert result.status == "ok"
-    assert result.metadata["backend_mode"] == "auto"
-    assert "profile_name" not in result.metadata
-    assert "profile_version" not in result.metadata
+    assert result.metadata == {
+        "provider_type": "local_python",
+        "backend_mode": "auto",
+        "request_id": "req-1",
+    }
 
 
 def test_factories_reject_managed_mcp() -> None:

@@ -1,7 +1,7 @@
 [
   {
-    "scenario_id": "blocked_tool_expected_but_missing",
-    "description": "Fails when a blocked tool was expected but did not happen.",
+    "scenario_id": "runtime_error_missing",
+    "description": "Fails when an expected runtime error does not happen.",
     "task_input": {
       "task_name": "workspace_onboarding_brief",
       "instructions": "Write the onboarding brief.",

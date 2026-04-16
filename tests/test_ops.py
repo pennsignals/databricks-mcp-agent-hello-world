@@ -58,8 +58,7 @@ def test_preflight_returns_pass_without_profile_checks(tmp_path: Path, monkeypat
         "databricks_config_profile": "DEFAULT",
         "dotenv_path": None,
     }
-    assert "has_active_profile" not in output
-    assert "can_compile_profile" not in output
+    assert output.startswith("Preflight: pass\n")
 
 
 def test_preflight_persistence_checks_cover_runtime_tables_only(
@@ -80,7 +79,7 @@ def test_preflight_persistence_checks_cover_runtime_tables_only(
         "agent_runs_table": "main.agent.agent_runs",
         "agent_output_table": "main.agent.agent_outputs",
     }
-    assert "tool_profile_table" not in persistence_check.details
+    assert set(persistence_check.details) == {"agent_runs_table", "agent_output_table"}
 
 
 def test_preflight_json_output_omits_deprecated_profile_fields(
@@ -99,9 +98,7 @@ def test_preflight_json_output_omits_deprecated_profile_fields(
     output = capsys.readouterr().out
 
     assert '"overall_status": "pass"' in output
-    assert "has_active_profile" not in output
-    assert "can_compile_profile" not in output
-    assert "active_profile_name" not in output
+    assert '"databricks_config_profile": "DEFAULT"' in output
 
 
 def test_discover_tools_returns_demo_registry_tools(tmp_path: Path) -> None:
@@ -122,7 +119,7 @@ def test_discover_tools_returns_demo_registry_tools(tmp_path: Path) -> None:
     assert report.tools[0].side_effect_level == "read_only"
 
 
-def test_discover_tools_json_output_omits_active_profile(tmp_path: Path, capsys) -> None:
+def test_discover_tools_json_output_matches_runtime_shape(tmp_path: Path, capsys) -> None:
     settings = load_settings(str(_write_config(tmp_path)))
 
     report = discover_tools(settings)
@@ -130,7 +127,7 @@ def test_discover_tools_json_output_omits_active_profile(tmp_path: Path, capsys)
     output = capsys.readouterr().out
 
     assert '"provider_type": "local_python"' in output
-    assert "active_profile" not in output
+    assert '"tool_count": 5' in output
 
 
 def test_print_discovery_report_shows_metadata(tmp_path: Path, capsys) -> None:

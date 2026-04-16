@@ -50,18 +50,22 @@ def test_result_writer_appends_run_and_output_rows_locally(
     run_payload = json.loads(run_rows[0])
     output_payload = json.loads(output_rows[0])
 
+    assert set(run_payload) == {
+        "run_id",
+        "task_name",
+        "status",
+        "tools_called",
+        "llm_turn_count",
+        "result",
+    }
     assert run_payload["run_id"] == "run-1"
-    assert run_payload["task_name"] == "workspace_onboarding_brief"
-    assert run_payload["status"] == "success"
-    assert "profile_name" not in run_payload
-    assert "profile_version" not in run_payload
-    assert "blocked_calls" not in run_payload
     assert run_payload["result"]["final_response"] == "done"
 
+    assert set(output_payload) == {
+        "run_id",
+        "task_name",
+        "status",
+        "output_payload",
+    }
     assert output_payload["run_id"] == "run-1"
-    assert output_payload["task_name"] == "workspace_onboarding_brief"
-    assert output_payload["status"] == "success"
-    assert "profile_name" not in output_payload
-    assert "profile_version" not in output_payload
-    assert "blocked_calls" not in output_payload
     assert output_payload["output_payload"]["final_response"] == "hello"

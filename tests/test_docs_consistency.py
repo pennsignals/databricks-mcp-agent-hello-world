@@ -73,8 +73,6 @@ def test_docs_reference_existing_project_paths() -> None:
         "databricks.yml",
         "workspace-config.example.yml",
         "resources/databricks_mcp_agent_hello_world_job.yml",
-        "src/databricks_mcp_agent_hello_world/profiles/compiler.py",
-        "src/databricks_mcp_agent_hello_world/profiles/repository.py",
         "src/databricks_mcp_agent_hello_world/runner/agent_runner.py",
         "src/databricks_mcp_agent_hello_world/storage/result_writer.py",
         "src/databricks_mcp_agent_hello_world/storage/result_repository.py",
@@ -83,8 +81,6 @@ def test_docs_reference_existing_project_paths() -> None:
         "src/databricks_mcp_agent_hello_world/config.py",
         "src/databricks_mcp_agent_hello_world/demo/tools.py",
         "src/databricks_mcp_agent_hello_world/tools/registry.py",
-        "src/databricks_mcp_agent_hello_world/prompts/tool_filter_prompt.txt",
-        "src/databricks_mcp_agent_hello_world/prompts/tool_audit_prompt.txt",
         "src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt",
     ]
 

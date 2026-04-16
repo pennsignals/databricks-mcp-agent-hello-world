@@ -1,8 +1,0 @@
-Write a plain-language audit artifact for a Databricks agent tool profile.
-
-Use exactly two sections:
-1. Allowed
-2. Not Allowed
-
-For each tool, explain why it belongs in that section.
-Mention the profile name, profile version, and LLM endpoint if provided.

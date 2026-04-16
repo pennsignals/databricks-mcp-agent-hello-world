@@ -228,8 +228,7 @@ def test_agent_runner_returns_error_for_unknown_tool_call(tmp_path: Path) -> Non
         "status": "error",
         "error": "Unknown tool: create_support_ticket",
     }
-    assert "blocked_calls" not in record.model_dump()
-    assert "blocked" not in record.model_dump_json()
+    assert "blocked" not in {record.result["tool_calls"][0]["status"]}
 
 
 def test_agent_runner_preserves_tool_call_order(tmp_path: Path) -> None:

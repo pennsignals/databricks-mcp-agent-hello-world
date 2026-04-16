@@ -1,7 +1,7 @@
 [
   {
-    "scenario_id": "blocked_tool_unexpected",
-    "description": "Fails when a blocked tool happened but was not expected.",
+    "scenario_id": "runtime_error_unexpected",
+    "description": "Fails when a runtime error happened but was not expected.",
     "task_input": {
       "task_name": "workspace_onboarding_brief",
       "instructions": "Write the onboarding brief.",

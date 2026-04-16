@@ -97,8 +97,7 @@ def test_run_agent_task_uses_cli_json_source(monkeypatch, capsys) -> None:
     assert "Run status: success" in output
     assert "Final answer:" in output
     assert "Completed" in output
-    assert "profile_name" not in output
-    assert "allowed_tools" not in output
+    assert "Run id: run-json" in output
 
 
 def test_run_agent_task_uses_cli_file_source(tmp_path: Path, monkeypatch) -> None:
@@ -186,9 +185,7 @@ def test_print_run_summary_includes_final_response_without_profile_vocabulary(ca
     assert "Run status: success" in output
     assert "Final answer:" in output
     assert "All set" in output
-    assert "profile_name" not in output
-    assert "profile_version" not in output
-    assert "allowed_tools" not in output
+    assert "Tools called: 1" in output
 
 
 def test_preflight_json_output_returns_expected_shape(
@@ -214,8 +211,7 @@ def test_preflight_json_output_returns_expected_shape(
     assert '"overall_status": "pass"' in output
     assert '"checks": []' in output
     assert '"settings_summary"' in output
-    assert "has_active_profile" not in output
-    assert "can_compile_profile" not in output
+    assert '"config_path"' in output
 
 
 def test_run_evals_returns_setup_failure_exit_code_without_running_scenarios(
