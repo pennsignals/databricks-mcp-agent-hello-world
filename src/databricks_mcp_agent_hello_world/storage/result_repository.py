@@ -23,6 +23,17 @@ def append_local_jsonl_record(base_dir: str, name: str, record: Any) -> None:
         handle.write(json.dumps(normalize_record(record), ensure_ascii=False) + "\n")
 
 
+def _serialize_nested_values(record: dict[str, Any]) -> dict[str, Any]:
+    serialized: dict[str, Any] = {}
+    for key, value in record.items():
+        if isinstance(value, (dict, list)):
+            serialized[key] = json.dumps(value, ensure_ascii=False)
+            continue
+        serialized[key] = value
+    return serialized
+
+
 def append_delta_table_record(spark, table_name: str, record: Any) -> None:
     normalized = normalize_record(record)
-    spark.createDataFrame([normalized]).write.mode("append").saveAsTable(table_name)
+    delta_record = _serialize_nested_values(normalized)
+    spark.createDataFrame([delta_record]).write.mode("append").saveAsTable(table_name)
