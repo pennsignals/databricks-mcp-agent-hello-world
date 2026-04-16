@@ -258,9 +258,10 @@ The deployed job reads the workspace copy of `workspace-config.yml` from `${work
 The deployed wheel task intentionally uses a **separate Databricks job entry point** from the local CLI command:
 
 - local development keeps using `uv run run-agent-task ...`, which is a console-script wrapper around `argparse`
-- the bundled Databricks job uses `run-agent-task-job`, which accepts Databricks `python_wheel_task.named_parameters` as function keyword arguments and translates them into the existing CLI argv shape
+- the bundled Databricks job uses the package `run_agent_task` wrapper, which Databricks can invoke as `run_agent_task()` with zero Python arguments
+- the bundle passes the actual `--config-path`, `--task-input-json`, and `--output` flags through `python_wheel_task.parameters`, and the wrapper forwards `sys.argv[1:]` into the existing `argparse` command handler
 
-This split is important because Databricks wheel-task `named_parameters` are delivered to the entry-point callable as kwargs, not as raw flags on `sys.argv`. Keeping the Databricks wrapper thin lets the local CLI workflow stay unchanged while making the deployed wheel task compatible with serverless job execution.
+This split is important because the observed serverless runtime behavior matches a zero-argument entry point plus command-line arguments more closely than a Python-kwargs invocation. Keeping the Databricks wrapper thin lets the local CLI workflow stay unchanged while making the deployed wheel task compatible with serverless job execution.
 
 The serverless environment dependency should reference the **built bundle artifact wheel**, not a wildcard path under synced workspace files. In this template, that means the job resource points at the concrete wheel under `${workspace.root_path}/artifacts/.internal/...whl` instead of `${workspace.file_path}/dist/*.whl`.
 
