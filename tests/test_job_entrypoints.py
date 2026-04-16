@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from databricks_mcp_agent_hello_world import run_agent_task as package_run_agent_task
 from databricks_mcp_agent_hello_world.job_entrypoints import run_agent_task
 
 
@@ -78,3 +79,7 @@ def test_run_agent_task_raises_system_exit_when_command_fails(monkeypatch) -> No
         run_agent_task(task_input_json="{}")
 
     assert excinfo.value.code == 2
+
+
+def test_package_root_exports_run_agent_task() -> None:
+    assert package_run_agent_task is run_agent_task

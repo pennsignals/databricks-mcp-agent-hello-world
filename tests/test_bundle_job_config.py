@@ -15,8 +15,8 @@ def test_job_uses_databricks_specific_wheel_entry_point() -> None:
     job = _load_job_resource()["resources"]["jobs"]["run_agent_task_job"]
     wheel_task = job["tasks"][0]["python_wheel_task"]
 
-    assert wheel_task["package_name"] == "databricks-mcp-agent-hello-world"
-    assert wheel_task["entry_point"] == "run-agent-task-job"
+    assert wheel_task["package_name"] == "databricks_mcp_agent_hello_world"
+    assert wheel_task["entry_point"] == "run_agent_task"
     assert wheel_task["named_parameters"] == {
         "config_path": "${workspace.file_path}/workspace-config.yml",
         "task_input_json": "${var.task_input_json}",
