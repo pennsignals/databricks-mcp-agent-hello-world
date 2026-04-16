@@ -17,8 +17,8 @@ def _write_config(tmp_path: Path) -> Path:
         "tool_provider_type: local_python",
         "databricks_config_profile: DEFAULT",
         "storage:",
-        "  agent_runs_table: main.agent.agent_runs",
-        "  agent_output_table: main.agent.agent_outputs",
+        "  agent_events_table: main.agent.agent_events",
+        "  local_data_dir: ./.local_state",
     ]
     config_path.write_text("\n".join(lines), encoding="utf-8")
     return config_path

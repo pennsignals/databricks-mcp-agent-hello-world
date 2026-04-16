@@ -24,8 +24,8 @@ def _write_complete_config(
         "tool_provider_type: local_python",
         "databricks_config_profile: DEFAULT",
         "storage:",
-        "  agent_runs_table: main.agent.agent_runs",
-        "  agent_output_table: main.agent.agent_outputs",
+        "  agent_events_table: main.agent.agent_events",
+        "  local_data_dir: ./.local_state",
     ]
     if include_sql:
         service_dependencies_table = sql_values.get(
@@ -152,6 +152,7 @@ def test_load_settings_accepts_missing_sql_section_for_local_python(tmp_path: Pa
     assert settings.sql.catalog is None
     assert settings.sql.schema is None
     assert settings.local_tool_backend_mode == "auto"
+    assert settings.storage.agent_events_table == "main.agent.agent_events"
 
 
 def test_load_settings_accepts_placeholder_sql_section_for_local_python(tmp_path: Path) -> None:
@@ -172,3 +173,44 @@ def test_load_settings_accepts_placeholder_sql_section_for_local_python(tmp_path
     assert settings.sql.warehouse_id == "warehouse-placeholder"
     assert settings.sql.catalog == "catalog-placeholder"
     assert settings.sql.schema == "schema-placeholder"
+
+
+def test_load_settings_does_not_accept_legacy_storage_keys(tmp_path: Path) -> None:
+    config_path = tmp_path / "workspace-config.yml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "llm_endpoint_name: endpoint-a",
+                "tool_provider_type: local_python",
+                "storage:",
+                "  agent_runs_table: main.agent.agent_runs",
+                "  agent_output_table: main.agent.agent_outputs",
+                "  local_data_dir: ./.local_state",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(str(config_path))
+
+    assert settings.storage.agent_events_table is None
+
+
+def test_load_settings_defaults_local_data_dir_when_blank(tmp_path: Path) -> None:
+    config_path = tmp_path / "workspace-config.yml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "llm_endpoint_name: endpoint-a",
+                "tool_provider_type: local_python",
+                "storage:",
+                "  agent_events_table: main.agent.agent_events",
+                "  local_data_dir: ''",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(str(config_path))
+
+    assert settings.storage.local_data_dir == "./.local_state"

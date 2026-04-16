@@ -8,10 +8,10 @@ tool_provider_type: local_python
 llm_endpoint_name: your-llm-endpoint-name
 
 storage:
-  # Databricks runs persist traces and final outputs to these Delta tables.
-  agent_runs_table: main.agent_demo.agent_runs
-  agent_output_table: main.agent_demo.agent_outputs
-  # Local runs fall back to files here when Spark is unavailable.
+  # One canonical event store backs both local JSONL and Databricks Delta persistence.
+  # On Databricks compute, the runtime appends event rows to this Delta table.
+  agent_events_table: main.agent_demo.agent_events
+  # Local runs fall back to JSONL event logs here when Spark is unavailable.
   local_data_dir: ./.local_state
 
 # Optional future SQL-backed tool configuration.

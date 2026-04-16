@@ -18,8 +18,8 @@ def _write_config(tmp_path: Path, *, include_databricks_profile: bool = True) ->
         "tool_provider_type: local_python",
         "databricks_config_profile: DEFAULT" if include_databricks_profile else None,
         "storage:",
-        "  agent_runs_table: main.agent.agent_runs",
-        "  agent_output_table: main.agent.agent_outputs",
+        "  agent_events_table: main.agent.agent_events",
+        "  local_data_dir: ./.local_state",
     ]
     config_path = tmp_path / "workspace-config.yml"
     config_path.write_text("\n".join(line for line in lines if line is not None), encoding="utf-8")
@@ -59,7 +59,7 @@ def test_preflight_returns_pass_without_profile_checks(tmp_path: Path, monkeypat
     assert output.startswith("Preflight: pass\n")
 
 
-def test_preflight_persistence_checks_cover_runtime_tables_only(
+def test_preflight_persistence_checks_cover_event_store_runtime_shape(
     tmp_path: Path, monkeypatch
 ) -> None:
     config_path = _write_config(tmp_path)
@@ -76,10 +76,90 @@ def test_preflight_persistence_checks_cover_runtime_tables_only(
     )
 
     assert persistence_check.details == {
-        "agent_runs_table": "main.agent.agent_runs",
-        "agent_output_table": "main.agent.agent_outputs",
+        "agent_events_table": "main.agent.agent_events",
+        "local_data_dir": "./.local_state",
+        "spark_available": False,
     }
-    assert set(persistence_check.details) == {"agent_runs_table", "agent_output_table"}
+    assert set(persistence_check.details) == {
+        "agent_events_table",
+        "local_data_dir",
+        "spark_available",
+    }
+
+
+def test_preflight_requires_agent_events_table_when_spark_is_available(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = tmp_path / "workspace-config.yml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "llm_endpoint_name: endpoint-a",
+                "tool_provider_type: local_python",
+                "storage:",
+                "  local_data_dir: ./.local_state",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.get_spark_session",
+        lambda: SimpleNamespace(),
+    )
+
+    report = run_preflight(str(config_path))
+    persistence_check = next(
+        check for check in report.checks if check.name == "persistence_targets"
+    )
+
+    assert report.overall_status == "fail"
+    assert persistence_check.status == "fail"
+    assert persistence_check.message == "agent_events_table is required when Spark is available."
+    assert persistence_check.details == {
+        "missing": ["agent_events_table"],
+        "local_data_dir": "./.local_state",
+    }
+
+
+def test_preflight_checks_event_store_reachability_with_spark(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_config(tmp_path)
+    spark_calls = []
+
+    class StubSpark:
+        def table(self, table_name):
+            spark_calls.append(table_name)
+
+            class StubTable:
+                def limit(self, value):
+                    assert value == 0
+                    return self
+
+                def collect(self):
+                    return []
+
+            return StubTable()
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.get_spark_session", lambda: StubSpark())
+
+    report = run_preflight(str(config_path))
+    reachability_check = next(
+        check for check in report.checks if check.name == "persistence_reachability"
+    )
+
+    assert reachability_check.status == "pass"
+    assert reachability_check.details == {"agent_events_table": "main.agent.agent_events"}
+    assert spark_calls == ["main.agent.agent_events"]
 
 
 def test_preflight_json_output_omits_deprecated_profile_fields(

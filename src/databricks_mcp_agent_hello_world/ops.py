@@ -274,25 +274,33 @@ def _check_sql_config(settings: Settings) -> PreflightCheck:
 
 
 def _check_persistence_target_names(settings: Settings) -> PreflightCheck:
-    missing = []
-    if not (settings.storage.agent_runs_table or "").strip():
-        missing.append("agent_runs_table")
-    if not (settings.storage.agent_output_table or "").strip():
-        missing.append("agent_output_table")
-    if missing:
+    local_data_dir = (settings.storage.local_data_dir or "").strip()
+    if not local_data_dir:
         return PreflightCheck(
             name="persistence_targets",
             status="fail",
-            message="Persistence target names are missing.",
-            details={"missing": missing},
+            message="Local persistence configuration is missing.",
+            details={"missing": ["local_data_dir"]},
         )
+
+    spark = get_spark_session()
+    agent_events_table = (settings.storage.agent_events_table or "").strip()
+    if spark is not None and not agent_events_table:
+        return PreflightCheck(
+            name="persistence_targets",
+            status="fail",
+            message="agent_events_table is required when Spark is available.",
+            details={"missing": ["agent_events_table"], "local_data_dir": local_data_dir},
+        )
+
     return PreflightCheck(
         name="persistence_targets",
         status="pass",
-        message="Persistence target names are present.",
+        message="Persistence targets are configured for the active runtime.",
         details={
-            "agent_runs_table": settings.storage.agent_runs_table,
-            "agent_output_table": settings.storage.agent_output_table,
+            "agent_events_table": agent_events_table or None,
+            "local_data_dir": local_data_dir,
+            "spark_available": spark is not None,
         },
     )
 
@@ -300,31 +308,31 @@ def _check_persistence_target_names(settings: Settings) -> PreflightCheck:
 def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
     spark = get_spark_session()
     if spark is None:
+        local_data_dir = Path(settings.storage.local_data_dir).expanduser()
         return PreflightCheck(
             name="persistence_reachability",
             status="pass",
-            message="Spark is unavailable, so local fallback storage would be used.",
+            message="Spark is unavailable, so local JSONL event-log storage would be used.",
+            details={"local_data_dir": str(local_data_dir)},
         )
     try:
-        for table_name in (
-            settings.storage.agent_runs_table,
-            settings.storage.agent_output_table,
-        ):
-            if not table_name:
-                continue
-            spark.table(table_name).limit(0).collect()
+        table_name = (settings.storage.agent_events_table or "").strip()
+        if not table_name:
+            raise ValueError("agent_events_table is missing.")
+        spark.table(table_name).limit(0).collect()
         return PreflightCheck(
             name="persistence_reachability",
             status="pass",
-            message="Configured Delta persistence targets are reachable in read-only mode.",
+            message="Configured Delta event store is reachable in read-only mode.",
+            details={"agent_events_table": table_name},
         )
     except Exception as exc:  # noqa: BLE001
         return PreflightCheck(
             name="persistence_reachability",
             status="fail",
             message=(
-                "Unable to read one of the configured Delta persistence targets. "
-                f"Check the table names and schema: {exc}"
+                "Unable to read the configured Delta event store. "
+                f"Check storage.agent_events_table and schema access: {exc}"
             ),
         )
 

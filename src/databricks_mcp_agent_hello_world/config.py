@@ -21,13 +21,8 @@ SQL_OPTIONAL_PROVIDER_TYPES = {"local_python"}
 
 @dataclass(slots=True)
 class StorageConfig:
-    agent_runs_table: str | None
-    agent_output_table: str | None
+    agent_events_table: str | None
     local_data_dir: str = "./.local_state"
-
-    @property
-    def agent_outputs_table(self) -> str | None:
-        return self.agent_output_table
 
 
 @dataclass(slots=True)
@@ -151,16 +146,10 @@ def build_settings(
             name="max_agent_steps",
         ),
         storage=StorageConfig(
-            agent_runs_table=_resolve_value(
-                yaml_value=_deep_get(raw, "storage", "agent_runs_table"),
+            agent_events_table=_resolve_value(
+                yaml_value=_deep_get(raw, "storage", "agent_events_table"),
                 dotenv_values=dotenv_values,
-                dotenv_key="AGENT_RUNS_TABLE",
-            ),
-            agent_output_table=_resolve_value(
-                yaml_value=_deep_get(raw, "storage", "agent_output_table")
-                or _deep_get(raw, "storage", "agent_outputs_table"),
-                dotenv_values=dotenv_values,
-                dotenv_key="AGENT_OUTPUT_TABLE",
+                dotenv_key="AGENT_EVENTS_TABLE",
             ),
             local_data_dir=(
                 _resolve_value(
@@ -272,10 +261,8 @@ def validate_settings(settings: Settings) -> None:
     missing_required: list[str] = []
     if not settings.llm_endpoint_name.strip():
         missing_required.append("llm_endpoint_name")
-    if not (settings.storage.agent_runs_table or "").strip():
-        missing_required.append("storage.agent_runs_table")
-    if not (settings.storage.agent_output_table or "").strip():
-        missing_required.append("storage.agent_output_table")
+    if not (settings.storage.local_data_dir or "").strip():
+        missing_required.append("storage.local_data_dir")
     if missing_required:
         formatted = ", ".join(missing_required)
         raise ValueError(f"Missing required settings: {formatted}")

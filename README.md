@@ -26,7 +26,7 @@ The runtime flow is intentionally small:
 1. load config from `workspace-config.yml`
 2. discover tools from the active provider
 3. run the real task with the full discovered tool inventory exposed
-4. persist run traces and final outputs locally or to Delta
+4. persist an append-only event log locally or to Delta
 
 Tool selection is **LLM-driven**. At runtime, the application discovers the full tool inventory for the configured provider and passes that full discovered tool set to the model. The LLM decides which tools to call for each input based on the task instructions and the tool definitions.
 
@@ -115,16 +115,17 @@ You can also override `llm_endpoint_name` from `.env` with `LLM_ENDPOINT_NAME`, 
 
 ### 4) Decide where Databricks runs should persist state
 
-The example config ships with placeholder Unity Catalog tables:
+The example config ships with one event-store target and one local fallback directory:
 
 ```yaml
 storage:
-  agent_runs_table: main.agent_demo.agent_runs
-  agent_output_table: main.agent_demo.agent_outputs
+  agent_events_table: main.agent_demo.agent_events
   local_data_dir: ./.local_state
 ```
 
-For real Databricks runs, change those table names to a **catalog and schema you can create and write to**.
+The template now uses one authored PyArrow schema for persistence across both runtimes. Local runs validate and append JSONL event rows, and Databricks runs validate the same row shape before appending to Delta.
+
+For real Databricks runs, change `agent_events_table` to a **catalog and schema you can create and write to**.
 
 For local runs, Spark is usually unavailable, so the project automatically falls back to local files under `./.local_state`.
 
@@ -173,7 +174,7 @@ This checks that:
 - `llm_endpoint_name` is present
 - the tool provider can be created
 - the tool registry is non-empty
-- persistence targets are configured
+- persistence is configured for the active runtime
 
 ### Step 3: discover tools
 
@@ -199,7 +200,7 @@ A successful run shows that the project can:
 - expose the discovered tools to the model
 - let the model choose and call the needed tools
 - generate a final answer grounded in tool results
-- persist run artifacts
+- persist incremental execution events
 
 If you want machine-readable output:
 
@@ -281,20 +282,33 @@ When Spark is unavailable, the project falls back to local persistence under:
 
 ```text
 .local_state/
-├── agent_runs.jsonl
-└── agent_outputs.jsonl
+└── agent_events.jsonl
 ```
 
-This is expected and normal for local development.
+Each line is one execution event validated against the canonical PyArrow schema before it is appended. The event log captures partial runs as they happen, not only final summaries.
 
 ### Databricks runs
 
-When Spark is available, the project uses the Delta targets configured in `workspace-config.yml`:
+When Spark is available, the project uses the Delta event store configured in `workspace-config.yml`:
 
-- `storage.agent_runs_table`
-- `storage.agent_output_table`
+- `storage.agent_events_table`
 
-Before you rely on deployed runs, make sure those table names point to a writable location.
+The same logical row shape is used for local JSONL and Databricks Delta. The runtime validates rows with a canonical PyArrow schema and writes one row per execution event, with raw event details stored in `payload_json`.
+
+Before you rely on deployed runs, make sure `storage.agent_events_table` points to a writable location.
+
+## Persistence model
+
+The template persistence layer is intentionally designed around a single event-store contract:
+
+- one authored PyArrow schema
+- one append-only event log
+- one row per execution event
+- one rich JSON payload column for event-specific detail
+
+Top-level columns hold stable identifiers and queryable metadata such as `conversation_id`, `run_key`, `event_index`, `event_type`, `status`, `tool_name`, `tool_call_id`, `model_name`, `inventory_hash`, and timestamps. Event-specific detail stays in `payload_json` so the storage contract stays flat and stable.
+
+This design keeps local JSONL and Databricks Delta in parity, avoids Spark schema inference for nested runtime objects, preserves partial progress, and makes later Delta SQL analysis much easier.
 
 ## What you should customize vs keep
 
@@ -371,13 +385,13 @@ Fix: update [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/dat
 
 ### Deployed runtime cannot read or write the configured Delta tables
 
-Your `storage.*` table names point to a catalog or schema your deployed identity cannot access.
+Your `storage.agent_events_table` points to a catalog or schema your deployed identity cannot access.
 
-Fix: update the table names in `workspace-config.yml` to a writable location and redeploy.
+Fix: update `storage.agent_events_table` in `workspace-config.yml` to a writable location and redeploy.
 
 ### Databricks job runs but output is empty
 
-Inspect `storage.agent_runs_table` and `storage.agent_output_table`, then confirm the runtime task JSON is valid.
+Inspect `storage.agent_events_table`, then confirm the runtime task JSON is valid. The persisted rows are event records, so query by `conversation_id`, `run_key`, `event_type`, or `event_index` instead of expecting separate summary tables.
 
 ## Advanced concepts and additional resources
 
