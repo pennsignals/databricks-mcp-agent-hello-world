@@ -21,14 +21,9 @@ SQL_OPTIONAL_PROVIDER_TYPES = {"local_python"}
 
 @dataclass(slots=True)
 class StorageConfig:
-    tool_profile_table: str | None
     agent_runs_table: str | None
     agent_output_table: str | None
     local_data_dir: str = "./.local_state"
-
-    @property
-    def tool_profiles_table(self) -> str | None:
-        return self.tool_profile_table
 
     @property
     def agent_outputs_table(self) -> str | None:
@@ -49,11 +44,7 @@ class SqlToolConfig:
 
 @dataclass(slots=True)
 class PromptConfig:
-    filter_prompt_path: str
-    audit_prompt_path: str
     agent_system_prompt_path: str
-    filter_prompt: str
-    audit_prompt: str
     agent_system_prompt: str
 
 
@@ -61,12 +52,9 @@ class PromptConfig:
 class Settings:
     tool_provider_type: str
     llm_endpoint_name: str
-    active_profile_name: str
-    max_allowed_tools: int
     max_agent_steps: int
     storage: StorageConfig
     prompts: PromptConfig
-    default_compile_task_file: str | None = None
     databricks_cli_profile: str | None = None
     workspace_host: str | None = None
     local_tool_backend_mode: str = "auto"
@@ -128,18 +116,6 @@ def build_settings(
     dotenv_values: dict[str, str] | None = None,
 ) -> Settings:
     dotenv_values = dotenv_values or {}
-    filter_prompt_path = _resolve_value(
-        yaml_value=raw.get("tool_filter_prompt_path"),
-        dotenv_values=dotenv_values,
-        dotenv_key="TOOL_FILTER_PROMPT_PATH",
-        default=str(DEFAULT_PROMPT_DIR / "tool_filter_prompt.txt"),
-    )
-    audit_prompt_path = _resolve_value(
-        yaml_value=raw.get("tool_audit_prompt_path"),
-        dotenv_values=dotenv_values,
-        dotenv_key="TOOL_AUDIT_PROMPT_PATH",
-        default=str(DEFAULT_PROMPT_DIR / "tool_audit_prompt.txt"),
-    )
     agent_prompt_path = _resolve_value(
         yaml_value=raw.get("agent_system_prompt_path"),
         dotenv_values=dotenv_values,
@@ -147,7 +123,7 @@ def build_settings(
         default=str(DEFAULT_PROMPT_DIR / "agent_system_prompt.txt"),
     )
 
-    settings = Settings(
+    return Settings(
         tool_provider_type=(
             _resolve_value(
                 yaml_value=raw.get("tool_provider_type", raw.get("provider_type")),
@@ -165,24 +141,6 @@ def build_settings(
             )
             or ""
         ),
-        active_profile_name=(
-            _resolve_value(
-                yaml_value=raw.get("active_profile_name", raw.get("profile_name")),
-                dotenv_values=dotenv_values,
-                dotenv_key="ACTIVE_PROFILE_NAME",
-                default="default",
-            )
-            or "default"
-        ),
-        max_allowed_tools=_coerce_int(
-            _resolve_value(
-                yaml_value=raw.get("max_allowed_tools"),
-                dotenv_values=dotenv_values,
-                dotenv_key="MAX_ALLOWED_TOOLS",
-                default="4",
-            ),
-            name="max_allowed_tools",
-        ),
         max_agent_steps=_coerce_int(
             _resolve_value(
                 yaml_value=raw.get("max_agent_steps"),
@@ -193,12 +151,6 @@ def build_settings(
             name="max_agent_steps",
         ),
         storage=StorageConfig(
-            tool_profile_table=_resolve_value(
-                yaml_value=_deep_get(raw, "storage", "tool_profile_table")
-                or _deep_get(raw, "storage", "tool_profiles_table"),
-                dotenv_values=dotenv_values,
-                dotenv_key="TOOL_PROFILE_TABLE",
-            ),
             agent_runs_table=_resolve_value(
                 yaml_value=_deep_get(raw, "storage", "agent_runs_table"),
                 dotenv_values=dotenv_values,
@@ -221,34 +173,16 @@ def build_settings(
             ),
         ),
         prompts=PromptConfig(
-            filter_prompt_path=filter_prompt_path,
-            audit_prompt_path=audit_prompt_path,
             agent_system_prompt_path=agent_prompt_path,
-            filter_prompt=_read_prompt(
-                filter_prompt_path,
-                _deep_get(raw, "prompts", "filter_prompt", default="Return JSON only."),
-            ),
-            audit_prompt=_read_prompt(
-                audit_prompt_path,
-                _deep_get(raw, "prompts", "audit_prompt", default="Explain the grouped tools."),
-            ),
             agent_system_prompt=_read_prompt(
                 agent_prompt_path,
                 _deep_get(
                     raw,
                     "prompts",
                     "agent_system_prompt",
-                    default="Use tools when helpful.",
+                    default="Use the provided tools when helpful.",
                 ),
             ),
-        ),
-        default_compile_task_file=(
-            _resolve_value(
-                yaml_value=raw.get("default_compile_task_file"),
-                dotenv_values=dotenv_values,
-                dotenv_key="DEFAULT_COMPILE_TASK_FILE",
-            )
-            or None
         ),
         databricks_cli_profile=_resolve_value(
             yaml_value=raw.get("databricks_config_profile") or raw.get("databricks_cli_profile"),
@@ -332,17 +266,12 @@ def build_settings(
             ),
         ),
     )
-    return settings
 
 
 def validate_settings(settings: Settings) -> None:
     missing_required: list[str] = []
     if not settings.llm_endpoint_name.strip():
         missing_required.append("llm_endpoint_name")
-    if not settings.active_profile_name.strip():
-        missing_required.append("active_profile_name")
-    if not (settings.storage.tool_profile_table or "").strip():
-        missing_required.append("storage.tool_profile_table")
     if not (settings.storage.agent_runs_table or "").strip():
         missing_required.append("storage.agent_runs_table")
     if not (settings.storage.agent_output_table or "").strip():
@@ -357,17 +286,8 @@ def validate_settings(settings: Settings) -> None:
             "Unsupported tool_provider_type "
             f"{settings.tool_provider_type!r}. Supported values: {supported}"
         )
-    if settings.max_allowed_tools < 1:
-        raise ValueError("max_allowed_tools must be at least 1.")
     if settings.max_agent_steps < 1:
         raise ValueError("max_agent_steps must be at least 1.")
-    if settings.default_compile_task_file and settings.default_compile_task_file.strip():
-        compile_task_path = Path(settings.default_compile_task_file)
-        if not compile_task_path.exists():
-            raise ValueError(
-                "default_compile_task_file does not exist: "
-                f"{settings.default_compile_task_file}"
-            )
 
 
 def load_settings(config_path: str | None = None, *, validate: bool = True) -> Settings:

@@ -16,22 +16,17 @@ def _write_complete_config(
     llm_endpoint_name: str = "endpoint-a",
     include_sql: bool = False,
     sql_values: dict[str, str] | None = None,
-    default_compile_task_file: str | None = None,
 ) -> Path:
     config_path = tmp_path / "workspace-config.yml"
     sql_values = sql_values or {}
     lines = [
         f"llm_endpoint_name: {llm_endpoint_name}",
         "tool_provider_type: local_python",
-        "active_profile_name: prod-profile",
         "databricks_config_profile: DEFAULT",
         "storage:",
-        "  tool_profile_table: main.agent.tool_profiles",
         "  agent_runs_table: main.agent.agent_runs",
         "  agent_output_table: main.agent.agent_outputs",
     ]
-    if default_compile_task_file is not None:
-        lines.append(f"default_compile_task_file: {default_compile_task_file}")
     if include_sql:
         lines.extend(
             [
@@ -46,53 +41,24 @@ def _write_complete_config(
                 f"  service_dependencies_table: {sql_values.get('service_dependencies_table', 'service_dependencies_placeholder')}",
             ]
         )
-    config_path.write_text(
-        "\n".join(lines),
-        encoding="utf-8",
-    )
+    config_path.write_text("\n".join(lines), encoding="utf-8")
     return config_path
 
 
-def test_load_settings_reads_prompt_files(tmp_path: Path) -> None:
+def test_load_settings_reads_agent_prompt_file(tmp_path: Path) -> None:
     config_path = _write_complete_config(tmp_path)
-    filter_prompt = tmp_path / "filter.txt"
-    audit_prompt = tmp_path / "audit.txt"
     agent_prompt = tmp_path / "agent.txt"
-    filter_prompt.write_text("filter prompt", encoding="utf-8")
-    audit_prompt.write_text("audit prompt", encoding="utf-8")
     agent_prompt.write_text("agent prompt", encoding="utf-8")
     config_path.write_text(
         config_path.read_text(encoding="utf-8")
         + "\n"
-        + "\n".join(
-            [
-                f"tool_filter_prompt_path: {filter_prompt}",
-                f"tool_audit_prompt_path: {audit_prompt}",
-                f"agent_system_prompt_path: {agent_prompt}",
-            ]
-        ),
+        + f"agent_system_prompt_path: {agent_prompt}\n",
         encoding="utf-8",
     )
 
     settings = load_settings(str(config_path))
 
-    assert settings.active_profile_name == "prod-profile"
-    assert settings.prompts.filter_prompt == "filter prompt"
-    assert settings.prompts.audit_prompt == "audit prompt"
     assert settings.prompts.agent_system_prompt == "agent prompt"
-
-
-def test_load_settings_reads_default_compile_task_file(tmp_path: Path) -> None:
-    compile_task_file = tmp_path / "compile-task.json"
-    compile_task_file.write_text('{"task_name":"compile","instructions":"do it"}', encoding="utf-8")
-    config_path = _write_complete_config(
-        tmp_path,
-        default_compile_task_file=str(compile_task_file),
-    )
-
-    settings = load_settings(str(config_path))
-
-    assert settings.default_compile_task_file == str(compile_task_file)
 
 
 def test_load_settings_requires_llm_endpoint_name(tmp_path: Path) -> None:
@@ -108,7 +74,6 @@ def test_load_settings_prefers_yaml_over_dotenv(tmp_path: Path) -> None:
         "\n".join(
             [
                 "LLM_ENDPOINT_NAME=dotenv-endpoint",
-                "ACTIVE_PROFILE_NAME=dotenv-profile",
                 "DATABRICKS_CONFIG_PROFILE=DOTENV",
             ]
         ),
@@ -118,7 +83,6 @@ def test_load_settings_prefers_yaml_over_dotenv(tmp_path: Path) -> None:
     settings = load_settings(str(config_path))
 
     assert settings.llm_endpoint_name == "yaml-endpoint"
-    assert settings.active_profile_name == "prod-profile"
     assert settings.databricks_cli_profile == "DEFAULT"
 
 
@@ -154,8 +118,7 @@ def test_build_settings_uses_dotenv_when_yaml_omits_optional_values(tmp_path: Pa
     raw = load_yaml_config(str(config_path))
     del raw["databricks_config_profile"]
     (tmp_path / ".env").write_text(
-        "DATABRICKS_CONFIG_PROFILE=FROM_DOTENV\nLOG_LEVEL=DEBUG\n"
-        "DEFAULT_COMPILE_TASK_FILE=/tmp/compile-task.json\n",
+        "DATABRICKS_CONFIG_PROFILE=FROM_DOTENV\nLOG_LEVEL=DEBUG\n",
         encoding="utf-8",
     )
     dotenv_path, dotenv_values = load_dotenv_values(str(config_path))
@@ -169,17 +132,6 @@ def test_build_settings_uses_dotenv_when_yaml_omits_optional_values(tmp_path: Pa
 
     assert settings.databricks_cli_profile == "FROM_DOTENV"
     assert settings.log_level == "DEBUG"
-    assert settings.default_compile_task_file == "/tmp/compile-task.json"
-
-
-def test_load_settings_rejects_missing_default_compile_task_file(tmp_path: Path) -> None:
-    config_path = _write_complete_config(
-        tmp_path,
-        default_compile_task_file=str(tmp_path / "missing-compile-task.json"),
-    )
-
-    with pytest.raises(ValueError, match="default_compile_task_file does not exist"):
-        load_settings(str(config_path))
 
 
 def test_load_settings_accepts_missing_sql_section_for_local_python(tmp_path: Path) -> None:

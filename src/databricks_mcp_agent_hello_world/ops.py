@@ -6,8 +6,6 @@ from typing import Any
 from .clients.databricks import get_workspace_client
 from .config import Settings, build_settings, load_dotenv_values, load_yaml_config, parse_task_input_file
 from .models import AgentTaskRequest, DiscoveryReport, PreflightCheck, PreflightReport
-from .profiles.compiler import ToolProfileCompiler
-from .profiles.repository import ToolProfileRepository
 from .providers.factory import get_tool_provider
 from .runner.agent_runner import AgentRunner
 from .storage.spark_utils import get_spark_session
@@ -16,12 +14,6 @@ from .tooling.runtime import set_runtime_settings
 
 def run_preflight(config_path: str) -> PreflightReport:
     checks: list[PreflightCheck] = []
-    raw_config: dict[str, Any] | None = None
-    dotenv_values: dict[str, str] = {}
-    dotenv_path: str | None = None
-    settings: Settings | None = None
-    has_active_profile = False
-    can_compile_profile = False
 
     try:
         raw_config = load_yaml_config(config_path)
@@ -50,11 +42,7 @@ def run_preflight(config_path: str) -> PreflightReport:
             PreflightCheck(
                 name="dotenv",
                 status="pass",
-                message=(
-                    "Optional .env parsed successfully."
-                    if dotenv_path
-                    else "No .env file present."
-                ),
+                message="Optional .env parsed successfully." if dotenv_path else "No .env file present.",
                 details={"dotenv_path": dotenv_path},
             )
         )
@@ -82,44 +70,13 @@ def run_preflight(config_path: str) -> PreflightReport:
     checks.append(_check_llm_endpoint_name(settings))
     provider_check, provider = _check_provider_factory(settings)
     checks.append(provider_check)
-    tool_check, tool_count = _check_tool_registry_nonempty(provider)
+    tool_check, _ = _check_tool_registry_nonempty(provider)
     checks.append(tool_check)
     checks.append(_check_sql_config(settings))
     checks.append(_check_persistence_target_names(settings))
     checks.append(_check_persistence_reachability(settings))
 
-    repo = ToolProfileRepository(settings)
-    active_profile_check, has_active_profile = _check_active_profile(repo, settings)
-    checks.append(active_profile_check)
-
-    can_compile_profile = (
-        provider is not None
-        and tool_count > 0
-        and not any(
-            check.name in {"llm_endpoint_name", "provider_factory", "persistence_targets", "persistence_reachability"}
-            and check.status == "fail"
-            for check in checks
-        )
-    )
-    checks.append(
-        PreflightCheck(
-            name="compile_capability",
-            status="pass" if can_compile_profile else "warn",
-            message=(
-                "Profile compilation is available."
-                if can_compile_profile
-                else "Profile compilation is not currently available."
-            ),
-            details={"can_compile_profile": can_compile_profile},
-        )
-    )
-
-    return _finalize_preflight_report(
-        checks,
-        settings,
-        has_active_profile=has_active_profile,
-        can_compile_profile=can_compile_profile,
-    )
+    return _finalize_preflight_report(checks, settings)
 
 
 def discover_tools(settings: Settings) -> DiscoveryReport:
@@ -131,13 +88,11 @@ def discover_tools(settings: Settings) -> DiscoveryReport:
         provider_id=provider.provider_id,
         inventory_hash=provider.inventory_hash(),
         tools=tools,
-        active_profile=None,
     )
 
 
 def run_example_task(settings: Settings, task_input_file: str) -> Any:
     set_runtime_settings(settings)
-    discover_tools(settings)
     runner = AgentRunner(settings)
     task_input = parse_task_input_file(task_input_file)
     return runner.run(
@@ -155,8 +110,6 @@ def print_json_report(payload: Any) -> None:
 
 def print_preflight_summary(report: PreflightReport) -> None:
     print(f"Preflight: {report.overall_status}")
-    print(f"has_active_profile: {report.has_active_profile}")
-    print(f"can_compile_profile: {report.can_compile_profile}")
     for check in report.checks:
         print(f"- {check.name}: {check.status} - {check.message}")
 
@@ -250,10 +203,6 @@ def _check_provider_factory(settings: Settings):
         )
 
 
-def _resolve_tool_provider(settings: Settings):
-    return get_tool_provider(settings)
-
-
 def _check_tool_registry_nonempty(provider) -> tuple[PreflightCheck, int]:
     if provider is None:
         return (
@@ -293,9 +242,7 @@ def _check_sql_config(settings: Settings) -> PreflightCheck:
         return PreflightCheck(
             name="sql_config",
             status="pass",
-            message=(
-                "Skipped - SQL config is not required for local_python hello-world flow."
-            ),
+            message="Skipped - SQL config is not required for local_python runtime.",
             details={
                 "sql_config_required": False,
                 "tool_provider_type": settings.tool_provider_type,
@@ -333,8 +280,6 @@ def _check_sql_config(settings: Settings) -> PreflightCheck:
 
 def _check_persistence_target_names(settings: Settings) -> PreflightCheck:
     missing = []
-    if not (settings.storage.tool_profile_table or "").strip():
-        missing.append("tool_profile_table")
     if not (settings.storage.agent_runs_table or "").strip():
         missing.append("agent_runs_table")
     if not (settings.storage.agent_output_table or "").strip():
@@ -351,7 +296,6 @@ def _check_persistence_target_names(settings: Settings) -> PreflightCheck:
         status="pass",
         message="Persistence target names are present.",
         details={
-            "tool_profile_table": settings.storage.tool_profile_table,
             "agent_runs_table": settings.storage.agent_runs_table,
             "agent_output_table": settings.storage.agent_output_table,
         },
@@ -368,7 +312,6 @@ def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
         )
     try:
         for table_name in (
-            settings.storage.tool_profile_table,
             settings.storage.agent_runs_table,
             settings.storage.agent_output_table,
         ):
@@ -391,43 +334,9 @@ def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
         )
 
 
-def _check_active_profile(
-    repo: ToolProfileRepository,
-    settings: Settings,
-) -> tuple[PreflightCheck, bool]:
-    try:
-        active_profile = repo.load_active(settings.active_profile_name)
-        has_active_profile = active_profile is not None
-        return (
-            PreflightCheck(
-                name="active_profile",
-                status="pass",
-                message=(
-                    "An active profile is available."
-                    if has_active_profile
-                    else "No active profile exists yet. Run compile_tool_profile_job first."
-                ),
-                details={"has_active_profile": has_active_profile},
-            ),
-            has_active_profile,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return (
-            PreflightCheck(
-                name="active_profile",
-                status="fail",
-                message=str(exc),
-            ),
-            False,
-        )
-
-
 def _finalize_preflight_report(
     checks: list[PreflightCheck],
     settings: Settings | None = None,
-    *,
-    has_active_profile: bool = False,
-    can_compile_profile: bool = False,
 ) -> PreflightReport:
     overall = "fail" if any(check.status == "fail" for check in checks) else "pass"
     settings_summary = {}
@@ -435,15 +344,12 @@ def _finalize_preflight_report(
         settings_summary = {
             "tool_provider_type": settings.tool_provider_type,
             "llm_endpoint_name": settings.llm_endpoint_name,
-            "active_profile_name": settings.active_profile_name,
             "databricks_config_profile": settings.databricks_cli_profile,
             "dotenv_path": settings.dotenv_path,
         }
     return PreflightReport(
         overall_status=overall,
         checks=checks,
-        has_active_profile=has_active_profile,
-        can_compile_profile=can_compile_profile,
         settings_summary=settings_summary,
     )
 

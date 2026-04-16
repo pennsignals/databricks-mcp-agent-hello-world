@@ -5,12 +5,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-from .config import (
-    DEFAULT_CONFIG_PATH,
-    load_settings,
-    parse_task_input,
-    parse_task_input_file,
-)
+from .config import DEFAULT_CONFIG_PATH, load_settings, parse_task_input, parse_task_input_file
 from .evals.harness import EvalSetupError, run_evals
 from .logging_utils import configure_logging
 from .models import AgentTaskRequest
@@ -21,7 +16,6 @@ from .ops import (
     print_preflight_summary,
     run_preflight,
 )
-from .profiles.compiler import ToolProfileCompiler
 from .runner.agent_runner import AgentRunner
 from .tooling.runtime import set_runtime_settings
 
@@ -29,7 +23,6 @@ OUTPUT_CHOICES = ("text", "json")
 COMMAND_NAMES = (
     "preflight",
     "discover-tools",
-    "compile-tool-profile",
     "run-agent-task",
     "run-evals",
 )
@@ -41,10 +34,6 @@ def preflight_entrypoint() -> None:
 
 def discover_tools_entrypoint() -> None:
     raise SystemExit(run_named_command("discover-tools"))
-
-
-def compile_tool_profile_entrypoint() -> None:
-    raise SystemExit(run_named_command("compile-tool-profile"))
 
 
 def run_agent_task_entrypoint() -> None:
@@ -105,12 +94,7 @@ def build_parser(command_name: str, *, prog: str) -> argparse.ArgumentParser:
     parser.add_argument("--config-path", default=DEFAULT_CONFIG_PATH)
     parser.add_argument("--output", choices=OUTPUT_CHOICES, default="text")
 
-    if command_name == "compile-tool-profile":
-        group = parser.add_mutually_exclusive_group()
-        group.add_argument("--task-input-json")
-        group.add_argument("--task-input-file")
-        parser.add_argument("--force-refresh", action="store_true")
-    elif command_name == "run-agent-task":
+    if command_name == "run-agent-task":
         group = parser.add_mutually_exclusive_group(required=True)
         group.add_argument("--task-input-json")
         group.add_argument("--task-input-file")
@@ -131,23 +115,6 @@ def _run_discover_tools(args: argparse.Namespace) -> int:
     set_runtime_settings(settings)
     report = discover_tools(settings)
     _render_output(report, output_format=args.output, text_renderer=print_discovery_report)
-    return 0
-
-
-def _run_compile_tool_profile(args: argparse.Namespace) -> int:
-    settings = _load_settings_for_command(
-        args.config_path,
-        "compile-tool-profile",
-        next_step="compile_tool_profile_job",
-    )
-    set_runtime_settings(settings)
-    compiler = ToolProfileCompiler(settings)
-    request = _build_agent_task_request(
-        _load_compile_task_payload(args, settings),
-        command_name="compile-tool-profile",
-    )
-    result = compiler.compile(request, force_refresh=args.force_refresh)
-    _render_output(result, output_format=args.output, text_renderer=_print_compilation_summary)
     return 0
 
 
@@ -192,20 +159,6 @@ def _load_task_payload(args: argparse.Namespace) -> dict[str, Any]:
     if args.task_input_json:
         return parse_task_input(args.task_input_json)
     return parse_task_input_file(args.task_input_file)
-
-
-def _load_compile_task_payload(args: argparse.Namespace, settings) -> dict[str, Any]:
-    if args.task_input_json:
-        return parse_task_input(args.task_input_json)
-    if args.task_input_file:
-        return parse_task_input_file(args.task_input_file)
-    default_compile_task_file = getattr(settings, "default_compile_task_file", None)
-    if default_compile_task_file and str(default_compile_task_file).strip():
-        return parse_task_input_file(default_compile_task_file)
-    raise RuntimeError(
-        "compile-tool-profile requires a compile task. Provide --task-input-json, "
-        "--task-input-file, or configure default_compile_task_file."
-    )
 
 
 def _build_agent_task_request(
@@ -262,17 +215,6 @@ def _render_output(
     text_renderer(payload)
 
 
-def _print_compilation_summary(profile) -> None:
-    status = "Reused" if profile.reused_existing else "Compiled"
-    compiled_profile = profile.profile
-    print(f"{status} tool profile: {compiled_profile.profile_name}")
-    print(f"Profile version: {compiled_profile.profile_version}")
-    print(f"Compile task name: {getattr(compiled_profile, 'compile_task_name', '<unknown>')}")
-    print(f"Allowed tools: {len(compiled_profile.allowed_tools)}")
-    print(f"Inventory hash: {compiled_profile.inventory_hash}")
-    print(f"Compile task hash: {getattr(compiled_profile, 'compile_task_hash', '<unknown>')}")
-
-
 def _print_run_summary(record) -> None:
     print(f"Run status: {record.status}")
     print(f"Run id: {record.run_id}")
@@ -296,7 +238,6 @@ def _print_eval_summary(summary) -> None:
 COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], int]] = {
     "preflight": _run_preflight,
     "discover-tools": _run_discover_tools,
-    "compile-tool-profile": _run_compile_tool_profile,
     "run-agent-task": _run_agent_task,
     "run-evals": _run_evals,
 }

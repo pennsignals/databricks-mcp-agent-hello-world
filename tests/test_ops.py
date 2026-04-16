@@ -5,53 +5,41 @@ from databricks_mcp_agent_hello_world.config import load_settings
 from databricks_mcp_agent_hello_world.ops import (
     discover_tools,
     print_discovery_report,
+    print_json_report,
+    print_preflight_summary,
     run_example_task,
     run_preflight,
 )
 
 
-def _write_config(tmp_path: Path, *, include_profile: bool = True) -> Path:
+def _write_config(tmp_path: Path, *, include_databricks_profile: bool = True) -> Path:
     lines = [
         "llm_endpoint_name: endpoint-a",
         "tool_provider_type: local_python",
-        "active_profile_name: default",
+        "databricks_config_profile: DEFAULT" if include_databricks_profile else None,
         "storage:",
-        "  tool_profile_table: main.agent.tool_profiles",
         "  agent_runs_table: main.agent.agent_runs",
         "  agent_output_table: main.agent.agent_outputs",
     ]
-    if include_profile:
-        lines.insert(3, "databricks_config_profile: DEFAULT")
     config_path = tmp_path / "workspace-config.yml"
-    config_path.write_text("\n".join(lines), encoding="utf-8")
+    config_path.write_text("\n".join(line for line in lines if line is not None), encoding="utf-8")
     return config_path
 
 
-def test_preflight_returns_pass_with_stubbed_client(tmp_path: Path, monkeypatch) -> None:
+def test_preflight_returns_pass_without_profile_checks(tmp_path: Path, monkeypatch, capsys) -> None:
     config_path = _write_config(tmp_path)
-
-    class StubRepo:
-        def __init__(self, settings):
-            self.settings = settings
-
-        def load_active(self, profile_name):
-            return None
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.ops.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.ops.get_spark_session",
-        lambda: None,
-    )
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.ToolProfileRepository", StubRepo)
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.get_spark_session", lambda: None)
 
     report = run_preflight(str(config_path))
+    print_preflight_summary(report)
+    output = capsys.readouterr().out
 
     assert report.overall_status == "pass"
-    assert report.has_active_profile is False
-    assert report.can_compile_profile is True
     assert [check.name for check in report.checks] == [
         "config_file",
         "dotenv",
@@ -63,89 +51,57 @@ def test_preflight_returns_pass_with_stubbed_client(tmp_path: Path, monkeypatch)
         "sql_config",
         "persistence_targets",
         "persistence_reachability",
-        "active_profile",
-        "compile_capability",
     ]
+    assert report.settings_summary == {
+        "tool_provider_type": "local_python",
+        "llm_endpoint_name": "endpoint-a",
+        "databricks_config_profile": "DEFAULT",
+        "dotenv_path": None,
+    }
+    assert "has_active_profile" not in output
+    assert "can_compile_profile" not in output
 
 
-def test_preflight_does_not_fail_solely_for_missing_active_profile(
+def test_preflight_persistence_checks_cover_runtime_tables_only(
     tmp_path: Path, monkeypatch
 ) -> None:
     config_path = _write_config(tmp_path)
-
-    class StubRepo:
-        def __init__(self, settings):
-            self.settings = settings
-
-        def load_active(self, profile_name):
-            return None
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.ops.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.ops.get_spark_session",
-        lambda: None,
-    )
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.ToolProfileRepository", StubRepo)
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.get_spark_session", lambda: None)
 
     report = run_preflight(str(config_path))
+    persistence_check = next(check for check in report.checks if check.name == "persistence_targets")
 
-    assert report.overall_status == "pass"
-    assert any(
-        check.name == "active_profile"
-        and check.details.get("has_active_profile") is False
-        for check in report.checks
-    )
+    assert persistence_check.details == {
+        "agent_runs_table": "main.agent.agent_runs",
+        "agent_output_table": "main.agent.agent_outputs",
+    }
+    assert "tool_profile_table" not in persistence_check.details
 
 
-def test_preflight_skips_sql_config_validation_for_local_python(
-    tmp_path: Path, monkeypatch
+def test_preflight_json_output_omits_deprecated_profile_fields(
+    tmp_path: Path, monkeypatch, capsys
 ) -> None:
     config_path = _write_config(tmp_path)
-
-    class StubRepo:
-        def __init__(self, settings):
-            self.settings = settings
-
-        def load_active(self, profile_name):
-            return None
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.ops.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.ops.get_spark_session",
-        lambda: None,
-    )
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.ToolProfileRepository", StubRepo)
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.get_spark_session", lambda: None)
 
     report = run_preflight(str(config_path))
+    print_json_report(report)
+    output = capsys.readouterr().out
 
-    sql_check = next(check for check in report.checks if check.name == "sql_config")
-    assert sql_check.status == "pass"
-    assert "Skipped" in sql_check.message
-
-
-def test_preflight_fails_when_profile_is_invalid(tmp_path: Path, monkeypatch) -> None:
-    config_path = _write_config(tmp_path)
-
-    def _raise_invalid_profile(settings):
-        raise ValueError("profile DEFAULT is not configured")
-
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.ops.get_workspace_client",
-        _raise_invalid_profile,
-    )
-
-    report = run_preflight(str(config_path))
-
-    assert report.overall_status == "fail"
-    assert any(
-        check.name == "databricks_client" and check.status == "fail" for check in report.checks
-    )
+    assert '"overall_status": "pass"' in output
+    assert "has_active_profile" not in output
+    assert "can_compile_profile" not in output
+    assert "active_profile_name" not in output
 
 
 def test_discover_tools_returns_demo_registry_tools(tmp_path: Path) -> None:
@@ -166,17 +122,15 @@ def test_discover_tools_returns_demo_registry_tools(tmp_path: Path) -> None:
     assert report.tools[0].side_effect_level == "read_only"
 
 
-def test_discover_tools_json_includes_metadata_fields(tmp_path: Path) -> None:
+def test_discover_tools_json_output_omits_active_profile(tmp_path: Path, capsys) -> None:
     settings = load_settings(str(_write_config(tmp_path)))
 
     report = discover_tools(settings)
-    payload = report.model_dump(mode="json")
+    print_json_report(report)
+    output = capsys.readouterr().out
 
-    first_tool = payload["tools"][0]
-    assert "capability_tags" in first_tool
-    assert "side_effect_level" in first_tool
-    assert "data_domains" in first_tool
-    assert "example_uses" in first_tool
+    assert '"provider_type": "local_python"' in output
+    assert "active_profile" not in output
 
 
 def test_print_discovery_report_shows_metadata(tmp_path: Path, capsys) -> None:
@@ -203,11 +157,6 @@ def test_run_example_task_orchestrates_discover_and_run(tmp_path: Path, monkeypa
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.ops.discover_tools",
-        lambda passed_settings: calls.append(("discover", passed_settings)) or SimpleNamespace(),
-    )
-
     class StubRunner:
         def __init__(self, passed_settings):
             assert passed_settings == settings
@@ -226,7 +175,6 @@ def test_run_example_task_orchestrates_discover_and_run(tmp_path: Path, monkeypa
         "onboarding_topic": "local development",
     }
     assert calls == [
-        ("discover", settings),
         (
             "run",
             "workspace_onboarding_brief",
@@ -257,8 +205,6 @@ def test_run_example_task_keeps_sql_fields_optional(tmp_path: Path, monkeypatch)
         )
         return SimpleNamespace()
 
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.discover_tools", _discover)
-
     class StubRunner:
         def __init__(self, passed_settings):
             assert passed_settings.sql.warehouse_id is None
@@ -273,8 +219,4 @@ def test_run_example_task_keeps_sql_fields_optional(tmp_path: Path, monkeypatch)
     result = run_example_task(settings, str(task_file))
 
     assert result["task_name"] == "workspace_onboarding_brief"
-    assert observed_sql_fields == {
-        "warehouse_id": None,
-        "catalog": None,
-        "schema": None,
-    }
+    assert observed_sql_fields == {}
