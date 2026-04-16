@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 from databricks_mcp_agent_hello_world import run_agent_task as package_run_agent_task
 from databricks_mcp_agent_hello_world.job_entrypoints import run_agent_task
 
 
-def test_run_agent_task_translates_databricks_kwargs_to_cli_argv(monkeypatch) -> None:
+def test_run_agent_task_uses_zero_argument_wrapper_signature() -> None:
+    assert inspect.signature(run_agent_task).parameters == {}
+
+
+def test_run_agent_task_forwards_sys_argv_to_cli_command(monkeypatch) -> None:
     recorded: dict[str, object] = {}
 
     def _run_named_command(command_name, argv=None, *, prog=None):
@@ -19,12 +25,20 @@ def test_run_agent_task_translates_databricks_kwargs_to_cli_argv(monkeypatch) ->
         "databricks_mcp_agent_hello_world.job_entrypoints.run_named_command",
         _run_named_command,
     )
-
-    run_agent_task(
-        task_input_json='{"task_name":"workspace_onboarding_brief"}',
-        config_path="/Workspace/Repos/user/project/workspace-config.yml",
-        output="json",
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.job_entrypoints.sys.argv",
+        [
+            "databricks_mcp_agent_hello_world.run_agent_task",
+            "--config-path",
+            "/Workspace/Repos/user/project/workspace-config.yml",
+            "--task-input-json",
+            '{"task_name":"workspace_onboarding_brief"}',
+            "--output",
+            "json",
+        ],
     )
+
+    run_agent_task()
 
     assert recorded == {
         "command_name": "run-agent-task",
@@ -40,7 +54,7 @@ def test_run_agent_task_translates_databricks_kwargs_to_cli_argv(monkeypatch) ->
     }
 
 
-def test_run_agent_task_uses_documented_defaults(monkeypatch) -> None:
+def test_run_agent_task_passes_empty_argv_when_no_cli_args_are_present(monkeypatch) -> None:
     recorded: dict[str, object] = {}
 
     monkeypatch.setattr(
@@ -56,17 +70,18 @@ def test_run_agent_task_uses_documented_defaults(monkeypatch) -> None:
             or 0
         ),
     )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.job_entrypoints.sys.argv",
+        ["databricks_mcp_agent_hello_world.run_agent_task"],
+    )
 
-    run_agent_task(task_input_json="{}")
+    run_agent_task()
 
-    assert recorded["argv"] == [
-        "--config-path",
-        "workspace-config.yml",
-        "--task-input-json",
-        "{}",
-        "--output",
-        "text",
-    ]
+    assert recorded == {
+        "command_name": "run-agent-task",
+        "argv": [],
+        "prog": "run-agent-task",
+    }
 
 
 def test_run_agent_task_raises_system_exit_when_command_fails(monkeypatch) -> None:
@@ -74,9 +89,13 @@ def test_run_agent_task_raises_system_exit_when_command_fails(monkeypatch) -> No
         "databricks_mcp_agent_hello_world.job_entrypoints.run_named_command",
         lambda command_name, argv=None, *, prog=None: 2,
     )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.job_entrypoints.sys.argv",
+        ["databricks_mcp_agent_hello_world.run_agent_task", "--task-input-json", "{}"],
+    )
 
     with pytest.raises(SystemExit) as excinfo:
-        run_agent_task(task_input_json="{}")
+        run_agent_task()
 
     assert excinfo.value.code == 2
 
