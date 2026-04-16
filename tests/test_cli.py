@@ -42,6 +42,17 @@ def test_parsers_accept_documented_flags() -> None:
     assert run_evals_args.scenario_file == "evals/custom.json"
 
 
+def test_main_rejects_removed_compile_command(capsys) -> None:
+    from databricks_mcp_agent_hello_world.cli import main
+
+    exit_code = main(["compile-tool-profile"])
+    output = capsys.readouterr().err
+
+    assert exit_code == 2
+    assert "compile-tool-profile" in output
+    assert "Expected one of" in output
+
+
 def test_run_agent_task_uses_cli_json_source(monkeypatch, capsys) -> None:
     load_calls = []
     parse_calls = []

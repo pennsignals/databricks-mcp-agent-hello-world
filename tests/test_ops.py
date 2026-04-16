@@ -43,7 +43,6 @@ def test_preflight_returns_pass_without_profile_checks(tmp_path: Path, monkeypat
     assert [check.name for check in report.checks] == [
         "config_file",
         "dotenv",
-        "databricks_profile",
         "databricks_client",
         "llm_endpoint_name",
         "provider_factory",
@@ -55,7 +54,6 @@ def test_preflight_returns_pass_without_profile_checks(tmp_path: Path, monkeypat
     assert report.settings_summary == {
         "tool_provider_type": "local_python",
         "llm_endpoint_name": "endpoint-a",
-        "databricks_config_profile": "DEFAULT",
         "dotenv_path": None,
     }
     assert output.startswith("Preflight: pass\n")
@@ -98,7 +96,7 @@ def test_preflight_json_output_omits_deprecated_profile_fields(
     output = capsys.readouterr().out
 
     assert '"overall_status": "pass"' in output
-    assert '"databricks_config_profile": "DEFAULT"' in output
+    assert '"databricks_config_profile"' not in output
 
 
 def test_discover_tools_returns_demo_registry_tools(tmp_path: Path) -> None:
