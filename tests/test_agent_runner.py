@@ -198,7 +198,14 @@ def test_agent_runner_marks_max_steps_exceeded_with_runtime_result_payload(
     assert record.error_message == "Maximum agent steps exceeded."
     assert record.result["available_tools"] == [tool.tool_name for tool in tools]
     assert record.result["available_tools_count"] == len(tools)
-    assert record.result["tool_calls"][0]["status"] == "ok"
+    assert record.result["tool_calls"] == [
+        {
+            "tool_name": "get_user_profile",
+            "arguments": {"user_id": "usr_ada_01"},
+            "status": "ok",
+            "error": None,
+        }
+    ]
 
 
 def test_agent_runner_returns_error_for_unknown_tool_call(tmp_path: Path) -> None:
@@ -261,3 +268,55 @@ def test_agent_runner_preserves_tool_call_order(tmp_path: Path) -> None:
         "get_user_profile",
         "search_onboarding_docs",
     ]
+
+
+def test_agent_runner_exposes_full_inventory_while_llm_selects_relevant_tools(
+    tmp_path: Path,
+) -> None:
+    tools = _discovered_tools()
+    runner = _runner(
+        tmp_path,
+        StubLLM(
+            [
+                _response(
+                    tool_calls=[
+                        _tool_call("get_user_profile", '{"user_id":"usr_ada_01"}', call_id="call-1"),
+                        _tool_call("search_onboarding_docs", '{"query":"uv sync"}', call_id="call-2"),
+                        _tool_call("get_workspace_setting", '{"setting_name":"runtime_target"}', call_id="call-3"),
+                        _tool_call("list_recent_job_runs", '{"limit":1}', call_id="call-4"),
+                    ]
+                ),
+                _response(
+                    content=(
+                        "Ada Lovelace should run uv sync locally and the runtime target is "
+                        "Databricks Serverless Jobs."
+                    )
+                ),
+            ]
+        ),
+        tools=tools,
+    )
+
+    record = runner.run(
+        AgentTaskRequest(
+            task_name="workspace_onboarding_brief",
+            instructions="Write the report.",
+            payload={"user_id": "usr_ada_01", "allow_mutations": False},
+        )
+    )
+
+    # The runtime exposes the full discovered inventory, the LLM decides which tools to call,
+    # and Python does not perform manual allowlisting.
+    assert record.status == "success"
+    assert record.result["available_tools"] == [tool.tool_name for tool in tools]
+    executed_tools = [entry["tool_name"] for entry in record.result["tool_calls"]]
+    assert "create_support_ticket" not in executed_tools
+    assert executed_tools == [
+        "get_user_profile",
+        "search_onboarding_docs",
+        "get_workspace_setting",
+        "list_recent_job_runs",
+    ]
+    assert "Ada Lovelace" in record.result["final_response"]
+    assert "uv sync" in record.result["final_response"]
+    assert "Databricks Serverless Jobs" in record.result["final_response"]
