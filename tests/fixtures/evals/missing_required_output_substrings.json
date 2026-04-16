@@ -1,0 +1,16 @@
+[
+  {
+    "scenario_id": "missing_required_output_substrings",
+    "description": "Fails when the final response is missing a required substring.",
+    "task_input": {
+      "task_name": "workspace_onboarding_brief",
+      "instructions": "Write the onboarding brief.",
+      "payload": {
+        "user_id": "usr_ada_01"
+      }
+    },
+    "required_output_substrings": [
+      "Grace Hopper"
+    ]
+  }
+]

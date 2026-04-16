@@ -29,10 +29,7 @@ def _settings(tmp_path: Path):
     return SimpleNamespace(storage=SimpleNamespace(local_data_dir=str(tmp_path)))
 
 
-def _scenario(
-    scenario_id: str = "scenario-1",
-    **overrides,
-):
+def _scenario(scenario_id: str = "scenario-1", **overrides) -> dict:
     payload = {
         "scenario_id": scenario_id,
         "description": "Demo scenario",
@@ -52,6 +49,7 @@ def _record(
     final_response: str = "Ada Lovelace uses uv sync on Databricks Serverless Jobs.",
     available_tools: list[str] | None = None,
     tool_calls: list[dict] | None = None,
+    result_overrides: dict | None = None,
     run_id: str = "run-123",
 ) -> AgentRunRecord:
     available_tools = available_tools or ["get_user_profile", "search_onboarding_docs"]
@@ -63,15 +61,18 @@ def _record(
             "error": None,
         }
     ]
+    result = {
+        "final_response": final_response,
+        "available_tools": available_tools,
+        "tool_calls": tool_calls,
+    }
+    if result_overrides:
+        result.update(result_overrides)
     return AgentRunRecord(
         run_id=run_id,
         task_name="run-task",
         status=status,
-        result={
-            "final_response": final_response,
-            "available_tools": available_tools,
-            "tool_calls": tool_calls,
-        },
+        result=result,
     )
 
 
@@ -81,9 +82,14 @@ def _write_scenarios(tmp_path: Path, scenarios: list[dict]) -> str:
     return str(path)
 
 
-def _run_report(tmp_path: Path, monkeypatch, scenarios: list[dict], records: list[AgentRunRecord]) -> EvalRunReport:
+def _run_report(
+    tmp_path: Path,
+    monkeypatch,
+    scenarios: list[dict],
+    outcomes: list[AgentRunRecord | Exception],
+) -> EvalRunReport:
     StubRunner.instances.clear()
-    StubRunner.queued_outcomes = list(records)
+    StubRunner.queued_outcomes = list(outcomes)
     monkeypatch.setattr("databricks_mcp_agent_hello_world.evals.harness.AgentRunner", StubRunner)
     scenario_file = _write_scenarios(tmp_path, scenarios)
     return run_evals(_settings(tmp_path), scenario_file)
@@ -225,13 +231,13 @@ def test_run_evals_writes_latest_eval_report_json(tmp_path: Path, monkeypatch) -
 
 
 def test_run_evals_reports_execution_errors(tmp_path: Path, monkeypatch) -> None:
-    StubRunner.instances.clear()
-    StubRunner.queued_outcomes = [RuntimeError("boom")]
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.evals.harness.AgentRunner", StubRunner)
-
-    report = run_evals(_settings(tmp_path), _write_scenarios(tmp_path, [_scenario()]))
+    report = _run_report(tmp_path, monkeypatch, [_scenario()], [RuntimeError("boom")])
 
     assert report.results[0].failed_checks == ["scenario_execution_error"]
+    assert report.results[0].available_tools == []
+    assert report.results[0].executed_tools == []
+    assert report.results[0].tool_call_count == 0
+    assert report.results[0].run_record_id is None
 
 
 @pytest.mark.parametrize(
@@ -258,13 +264,35 @@ def test_run_evals_reports_execution_errors(tmp_path: Path, monkeypatch) -> None
             [],
         ),
         (
+            _scenario(
+                required_executed_tools=["create_support_ticket"],
+            ),
+            _record(),
+            ["missing_required_executed_tools"],
+        ),
+        (
             _scenario(forbidden_executed_tools=["get_user_profile"]),
             _record(),
             ["forbidden_executed_tools_present"],
         ),
+        (
+            _scenario(required_result_keys=["final_response", "available_tools", "tool_calls", "missing"]),
+            _record(),
+            ["missing_required_result_keys"],
+        ),
+        (
+            _scenario(min_tool_calls=2),
+            _record(tool_calls=[]),
+            ["below_min_tool_calls"],
+        ),
+        (
+            _scenario(max_tool_calls=0),
+            _record(),
+            ["above_max_tool_calls"],
+        ),
     ],
 )
-def test_run_evals_scores_tool_expectations(
+def test_run_evals_scores_runtime_only_expectations(
     tmp_path: Path,
     monkeypatch,
     scenario: dict,
@@ -274,3 +302,26 @@ def test_run_evals_scores_tool_expectations(
     report = _run_report(tmp_path, monkeypatch, [scenario], [record])
 
     assert report.results[0].failed_checks == expected_failures
+
+
+def test_run_evals_counts_error_tool_calls_as_executed_tools(tmp_path: Path, monkeypatch) -> None:
+    report = _run_report(
+        tmp_path,
+        monkeypatch,
+        [_scenario(required_executed_tools=["unknown_tool"])],
+        [
+            _record(
+                tool_calls=[
+                    {
+                        "tool_name": "unknown_tool",
+                        "arguments": {},
+                        "status": "error",
+                        "error": "Unknown tool: unknown_tool",
+                    }
+                ]
+            )
+        ],
+    )
+
+    assert report.results[0].passed is True
+    assert report.results[0].executed_tools == ["unknown_tool"]

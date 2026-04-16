@@ -1,7 +1,7 @@
 [
   {
-    "scenario_id": "missing_required_allowed_tool",
-    "description": "Fails when a required allowlisted tool is absent.",
+    "scenario_id": "missing_required_available_tools",
+    "description": "Fails when a required available tool is absent.",
     "task_input": {
       "task_name": "workspace_onboarding_brief",
       "instructions": "Write the onboarding brief.",

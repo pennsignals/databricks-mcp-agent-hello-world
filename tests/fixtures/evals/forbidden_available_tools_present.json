@@ -1,7 +1,7 @@
 [
   {
-    "scenario_id": "forbidden_allowed_tool_present",
-    "description": "Fails when a forbidden allowlisted tool is present.",
+    "scenario_id": "forbidden_available_tools_present",
+    "description": "Fails when a forbidden available tool is present.",
     "task_input": {
       "task_name": "workspace_onboarding_brief",
       "instructions": "Write the onboarding brief.",

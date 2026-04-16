@@ -1,6 +1,6 @@
 [
   {
-    "scenario_id": "forbidden_executed_tool_present",
+    "scenario_id": "forbidden_executed_tools_present",
     "description": "Fails when a forbidden executed tool is present.",
     "task_input": {
       "task_name": "workspace_onboarding_brief",

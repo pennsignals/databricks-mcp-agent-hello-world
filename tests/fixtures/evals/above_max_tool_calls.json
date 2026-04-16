@@ -1,13 +1,14 @@
 [
   {
-    "scenario_id": "runtime_error_missing",
-    "description": "Fails when an expected runtime error does not happen.",
+    "scenario_id": "above_max_tool_calls",
+    "description": "Fails when too many tools are called.",
     "task_input": {
       "task_name": "workspace_onboarding_brief",
       "instructions": "Write the onboarding brief.",
       "payload": {
         "user_id": "usr_ada_01"
       }
-    }
+    },
+    "max_tool_calls": 0
   }
 ]

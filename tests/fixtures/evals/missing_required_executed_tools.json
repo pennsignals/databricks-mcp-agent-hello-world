@@ -1,7 +1,7 @@
 [
   {
-    "scenario_id": "missing_required_output_substring",
-    "description": "Fails when the final response is missing a required substring.",
+    "scenario_id": "missing_required_executed_tools",
+    "description": "Fails when a required executed tool is absent.",
     "task_input": {
       "task_name": "workspace_onboarding_brief",
       "instructions": "Write the onboarding brief.",
@@ -9,8 +9,8 @@
         "user_id": "usr_ada_01"
       }
     },
-    "required_output_substrings": [
-      "Grace Hopper"
+    "required_executed_tools": [
+      "search_onboarding_docs"
     ]
   }
 ]
