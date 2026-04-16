@@ -2,14 +2,14 @@
   {
     "scenario_id": "forbidden_allowed_tool_present",
     "description": "Fails when a forbidden allowlisted tool is present.",
-    "compile_task_input": {
+    "task_input": {
       "task_name": "workspace_onboarding_brief",
       "instructions": "Write the onboarding brief.",
       "payload": {
         "user_id": "usr_ada_01"
       }
     },
-    "forbidden_allowed_tools": [
+    "forbidden_available_tools": [
       "create_support_ticket"
     ]
   }

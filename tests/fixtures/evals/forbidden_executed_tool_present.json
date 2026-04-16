@@ -2,7 +2,7 @@
   {
     "scenario_id": "forbidden_executed_tool_present",
     "description": "Fails when a forbidden executed tool is present.",
-    "compile_task_input": {
+    "task_input": {
       "task_name": "workspace_onboarding_brief",
       "instructions": "Write the onboarding brief.",
       "payload": {

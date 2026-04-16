@@ -2,13 +2,12 @@
   {
     "scenario_id": "blocked_tool_expected_but_missing",
     "description": "Fails when a blocked tool was expected but did not happen.",
-    "compile_task_input": {
+    "task_input": {
       "task_name": "workspace_onboarding_brief",
       "instructions": "Write the onboarding brief.",
       "payload": {
         "user_id": "usr_ada_01"
       }
-    },
-    "expect_blocked_tool_calls": true
+    }
   }
 ]

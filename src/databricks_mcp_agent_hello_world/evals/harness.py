@@ -7,7 +7,6 @@ from pydantic import ValidationError
 
 from ..config import Settings
 from ..models import AgentRunRecord, EvalRunReport, EvalScenario, EvalScenarioResult
-from ..profiles.compiler import ToolProfileCompiler
 from ..runner.agent_runner import AgentRunner
 
 
@@ -37,15 +36,12 @@ def load_eval_scenarios(path: str) -> list[EvalScenario]:
 
 def run_evals(settings: Settings, scenario_file: str) -> EvalRunReport:
     scenarios = load_eval_scenarios(scenario_file)
-    compiler = ToolProfileCompiler(settings)
     runner = AgentRunner(settings)
     results: list[EvalScenarioResult] = []
 
     for scenario in scenarios:
-        run_task = scenario.run_task_input or scenario.compile_task_input
         try:
-            compiler.compile(task=scenario.compile_task_input, force_refresh=True)
-            run_record = runner.run(run_task)
+            run_record = runner.run(scenario.task_input)
             results.append(_score_scenario(scenario, run_record))
         except Exception:  # noqa: BLE001
             results.append(_execution_error_result(scenario))
@@ -79,23 +75,21 @@ def _ensure_unique_scenario_ids(scenarios: list[EvalScenario], scenario_path: Pa
 def _score_scenario(scenario: EvalScenario, run_record: AgentRunRecord) -> EvalScenarioResult:
     result = dict(run_record.result)
     final_response = _as_string(result.get("final_response"))
-    allowed_tools = _as_string_list(result.get("allowed_tools"))
-    tool_trace = _as_trace_list(result.get("tool_trace"))
-    tool_call_count = len(tool_trace)
-    executed_tools = _ordered_unique_tools(tool_trace, statuses={"ok", "error"})
-    blocked_tools = _ordered_unique_tools(tool_trace, statuses={"blocked"})
+    available_tools = _as_string_list(result.get("available_tools"))
+    tool_calls = _as_trace_list(result.get("tool_calls"))
+    tool_call_count = len(tool_calls)
+    executed_tools = _ordered_unique_tools(tool_calls, statuses={"ok", "error"})
     missing_result_keys = [key for key in scenario.required_result_keys if key not in result]
 
     failed_checks: list[str] = []
-
     if run_record.status != scenario.expected_status:
         failed_checks.append("status_mismatch")
     if missing_result_keys:
         failed_checks.append("missing_required_result_keys")
-    if not all(tool_name in allowed_tools for tool_name in scenario.required_allowed_tools):
-        failed_checks.append("missing_required_allowed_tools")
-    if any(tool_name in allowed_tools for tool_name in scenario.forbidden_allowed_tools):
-        failed_checks.append("forbidden_allowed_tools_present")
+    if not all(tool_name in available_tools for tool_name in scenario.required_available_tools):
+        failed_checks.append("missing_required_available_tools")
+    if any(tool_name in available_tools for tool_name in scenario.forbidden_available_tools):
+        failed_checks.append("forbidden_available_tools_present")
     if not all(tool_name in executed_tools for tool_name in scenario.required_executed_tools):
         failed_checks.append("missing_required_executed_tools")
     if any(tool_name in executed_tools for tool_name in scenario.forbidden_executed_tools):
@@ -104,13 +98,6 @@ def _score_scenario(scenario: EvalScenario, run_record: AgentRunRecord) -> EvalS
         failed_checks.append("below_min_tool_calls")
     if scenario.max_tool_calls is not None and tool_call_count > scenario.max_tool_calls:
         failed_checks.append("above_max_tool_calls")
-    if (
-        scenario.expect_blocked_tool_calls is True
-        and not blocked_tools
-        or scenario.expect_blocked_tool_calls is False
-        and bool(blocked_tools)
-    ):
-        failed_checks.append("blocked_tool_expectation_failed")
     if not all(substring in final_response for substring in scenario.required_output_substrings):
         failed_checks.append("missing_required_output_substrings")
     if any(substring in final_response for substring in scenario.forbidden_output_substrings):
@@ -122,35 +109,28 @@ def _score_scenario(scenario: EvalScenario, run_record: AgentRunRecord) -> EvalS
         failed_checks=failed_checks,
         expected_status=scenario.expected_status,
         actual_status=run_record.status,
-        allowed_tools=allowed_tools,
+        available_tools=available_tools,
         executed_tools=executed_tools,
-        blocked_tools=blocked_tools,
         tool_call_count=tool_call_count,
         final_response_excerpt=final_response[:300] if final_response else "",
-        compile_task_name=scenario.compile_task_input.task_name,
-        run_task_name=(scenario.run_task_input or scenario.compile_task_input).task_name,
+        task_name=scenario.task_input.task_name,
         run_record_id=run_record.run_id,
-        profile_version=run_record.profile_version,
     )
 
 
 def _execution_error_result(scenario: EvalScenario) -> EvalScenarioResult:
-    run_task = scenario.run_task_input or scenario.compile_task_input
     return EvalScenarioResult(
         scenario_id=scenario.scenario_id,
         passed=False,
         failed_checks=["scenario_execution_error"],
         expected_status=scenario.expected_status,
         actual_status=None,
-        allowed_tools=[],
+        available_tools=[],
         executed_tools=[],
-        blocked_tools=[],
         tool_call_count=0,
         final_response_excerpt="",
-        compile_task_name=scenario.compile_task_input.task_name,
-        run_task_name=run_task.task_name,
+        task_name=scenario.task_input.task_name,
         run_record_id=None,
-        profile_version=None,
     )
 
 
@@ -171,13 +151,13 @@ def _as_trace_list(value: object) -> list[dict[str, object]]:
 
 
 def _ordered_unique_tools(
-    tool_trace: list[dict[str, object]],
+    tool_calls: list[dict[str, object]],
     *,
     statuses: set[str],
 ) -> list[str]:
     seen: set[str] = set()
     tools: list[str] = []
-    for entry in tool_trace:
+    for entry in tool_calls:
         tool_name = entry.get("tool_name")
         status = entry.get("status")
         if not isinstance(tool_name, str) or status not in statuses or tool_name in seen:
