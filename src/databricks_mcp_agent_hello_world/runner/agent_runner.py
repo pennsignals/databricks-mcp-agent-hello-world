@@ -7,15 +7,8 @@ from typing import Any
 from ..config import Settings
 from ..executors import get_tool_executor
 from ..llm_client import DatabricksLLM
-from ..models import (
-    AgentOutputRecord,
-    AgentRunRecord,
-    AgentTaskRequest,
-    ToolCall,
-    ToolProfile,
-    ToolResult,
-)
-from ..profiles.repository import ToolProfileRepository
+from ..models import AgentOutputRecord, AgentRunRecord, AgentTaskRequest, ToolCall, ToolResult, ToolSpec
+from ..providers.factory import get_tool_provider
 from ..storage.result_writer import ResultWriter
 from ..tooling.runtime import set_runtime_settings
 
@@ -26,40 +19,28 @@ class AgentRunner:
     def __init__(self, settings: Settings):
         self.settings = settings
         set_runtime_settings(settings)
+        self.provider = get_tool_provider(settings)
         self.llm = DatabricksLLM(settings)
-        self.profile_repo = ToolProfileRepository(settings)
         self.executor = get_tool_executor(settings)
         self.result_writer = ResultWriter(settings)
 
     def run(self, task: AgentTaskRequest) -> AgentRunRecord:
-        reachability_check = getattr(self.profile_repo, "is_table_reachable", None)
-        if getattr(self.profile_repo, "spark", None) is not None and callable(reachability_check):
-            try:
-                reachability_check()
-            except Exception as exc:  # noqa: BLE001
-                storage = getattr(self.settings, "storage", None)
-                table_name = (
-                    getattr(storage, "tool_profile_table", "") if storage is not None else ""
-                ).strip() or "<unset>"
-                raise RuntimeError(
-                    "Unable to read the Delta-backed tool profile table "
-                    f"{table_name!r}. Run compile_tool_profile_job first, "
-                    "or verify that the table exists and matches the expected schema."
-                ) from exc
-        try:
-            profile = self.profile_repo.load_active(self.settings.active_profile_name)
-        except Exception as exc:  # noqa: BLE001
-            raise RuntimeError(
-                f"Unable to load active tool profile for profile {self.settings.active_profile_name!r}: {exc}"
-            ) from exc
-        if not profile:
-            raise RuntimeError(
-                "No active tool profile found for profile "
-                f"{self.settings.active_profile_name!r}. Run compile_tool_profile_job first."
-            )
-        return self._run_generic(task, profile)
+        discovered_tools = self.provider.list_tools()
+        inventory_hash = self.provider.inventory_hash()
+        return self._run_generic(
+            task=task,
+            discovered_tools=discovered_tools,
+            inventory_hash=inventory_hash,
+        )
 
-    def _run_generic(self, task: AgentTaskRequest, profile: ToolProfile) -> AgentRunRecord:
+    def _run_generic(
+        self,
+        *,
+        task: AgentTaskRequest,
+        discovered_tools: list[ToolSpec],
+        inventory_hash: str | None,
+    ) -> AgentRunRecord:
+        discovered_tools_by_name = {tool.tool_name: tool for tool in discovered_tools}
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.settings.prompts.agent_system_prompt},
             {
@@ -74,14 +55,13 @@ class AgentRunner:
                 ),
             },
         ]
-        tools = self._build_allowed_openai_tools(profile)
-        trace: list[dict[str, Any]] = []
-        blocked_calls: list[dict[str, Any]] = []
+        openai_tools = self._build_openai_tools(discovered_tools)
+        tool_call_trace: list[dict[str, Any]] = []
         llm_turn_count = 0
 
         for _ in range(self.settings.max_agent_steps):
             llm_turn_count += 1
-            response = self.llm.tool_step(messages, tools)
+            response = self.llm.tool_step(messages, openai_tools, tool_choice="auto")
             message = response.choices[0].message
 
             assistant_message: dict[str, Any] = {
@@ -105,43 +85,44 @@ class AgentRunner:
             if not getattr(message, "tool_calls", None):
                 record = AgentRunRecord(
                     run_id=task.run_id,
-                    profile_name=profile.profile_name,
-                    profile_version=profile.profile_version,
                     task_name=task.task_name,
                     status="success",
-                    tools_called=trace,
-                    blocked_calls=blocked_calls,
+                    tools_called=tool_call_trace,
                     llm_turn_count=llm_turn_count,
                     result=self._build_result_payload(
                         final_response=message.content or "",
-                        task=task,
-                        profile=profile,
-                        tool_trace=trace,
+                        discovered_tools=discovered_tools,
+                        tool_calls=tool_call_trace,
                     ),
-                    inventory_hash=profile.inventory_hash,
+                    inventory_hash=inventory_hash,
                 )
                 self._persist(record)
                 return record
 
             for index, call in enumerate(message.tool_calls, start=1):
-                tool_name = call.function.name
-                tool_args = json.loads(call.function.arguments or "{}")
-                tool_result = self._execute_with_allowlist(
-                    profile,
-                    request_id=f"{task.run_id}:{index}",
-                    tool_name=tool_name,
-                    arguments=tool_args,
-                    expected_blocked_calls=task.expected_blocked_calls,
+                tool_args, parse_error = self._parse_tool_arguments(call.function.arguments)
+                if parse_error is not None:
+                    tool_result = ToolResult(
+                        tool_name=call.function.name,
+                        status="error",
+                        content={},
+                        error=parse_error,
+                    )
+                else:
+                    tool_result = self._execute_tool_call(
+                        discovered_tools_by_name=discovered_tools_by_name,
+                        request_id=f"{task.run_id}:{llm_turn_count}:{index}",
+                        tool_name=call.function.name,
+                        arguments=tool_args,
+                    )
+                tool_call_trace.append(
+                    {
+                        "tool_name": call.function.name,
+                        "arguments": tool_args if parse_error is None else {},
+                        "status": tool_result.status,
+                        "error": tool_result.error,
+                    }
                 )
-                trace_entry = {
-                    "tool_name": tool_name,
-                    "arguments": tool_args,
-                    "status": tool_result.status,
-                    "error": tool_result.error,
-                }
-                trace.append(trace_entry)
-                if tool_result.status == "blocked":
-                    blocked_calls.append(trace_entry)
                 messages.append(
                     {
                         "role": "tool",
@@ -152,82 +133,79 @@ class AgentRunner:
 
         record = AgentRunRecord(
             run_id=task.run_id,
-            profile_name=profile.profile_name,
-            profile_version=profile.profile_version,
             task_name=task.task_name,
             status="max_steps_exceeded",
-            tools_called=trace,
-            blocked_calls=blocked_calls,
+            tools_called=tool_call_trace,
             llm_turn_count=llm_turn_count,
             result=self._build_result_payload(
                 final_response="",
-                task=task,
-                profile=profile,
-                tool_trace=trace,
+                discovered_tools=discovered_tools,
+                tool_calls=tool_call_trace,
             ),
             error_message="Maximum agent steps exceeded.",
-            inventory_hash=profile.inventory_hash,
+            inventory_hash=inventory_hash,
         )
         self._persist(record)
         return record
 
     @staticmethod
-    def _build_result_payload(
-        *,
-        final_response: str,
-        task: AgentTaskRequest,
-        profile: ToolProfile,
-        tool_trace: list[dict[str, Any]],
-    ) -> dict[str, Any]:
-        return {
-            "final_response": final_response,
-            "task_payload": task.payload,
-            "available_tools": [tool.tool_name for tool in profile.discovered_tools],
-            "allowed_tools": list(profile.allowed_tools),
-            "tool_trace": tool_trace,
-        }
+    def _build_openai_tools(discovered_tools: list[ToolSpec]) -> list[dict[str, Any]]:
+        return [tool.to_openai_tool() for tool in discovered_tools]
 
-    def _build_allowed_openai_tools(self, profile: ToolProfile) -> list[dict[str, Any]]:
-        allowed = set(profile.allowed_tools)
-        return [
-            tool.to_openai_tool() for tool in profile.discovered_tools if tool.tool_name in allowed
-        ]
-
-    def _execute_with_allowlist(
+    def _execute_tool_call(
         self,
-        profile: ToolProfile,
+        *,
+        discovered_tools_by_name: dict[str, ToolSpec],
         request_id: str,
         tool_name: str,
         arguments: dict[str, Any],
-        expected_blocked_calls: bool = False,
     ) -> ToolResult:
-        if tool_name not in set(profile.allowed_tools):
-            if expected_blocked_calls:
-                logger.info("Blocked disallowed tool call (expected): %s", tool_name)
-            else:
-                logger.warning("Blocked disallowed tool call: %s", tool_name)
+        if tool_name not in discovered_tools_by_name:
+            logger.warning("Unknown tool call: %s", tool_name)
             return ToolResult(
                 tool_name=tool_name,
-                status="blocked",
+                status="error",
                 content={},
-                metadata={
-                    "profile_name": profile.profile_name,
-                    "profile_version": profile.profile_version,
-                    "request_id": request_id,
-                },
-                error=(
-                    f"Tool '{tool_name}' is not allowlisted in profile "
-                    f"{profile.profile_version}."
-                ),
+                metadata={"request_id": request_id},
+                error=f"Unknown tool: {tool_name}",
             )
         tool_call = ToolCall(
             tool_name=tool_name,
             arguments=arguments,
-            profile_name=profile.profile_name,
-            profile_version=profile.profile_version,
             request_id=request_id,
         )
         return self.executor.call_tool(tool_call)
+
+    @staticmethod
+    def _parse_tool_arguments(raw_arguments: Any) -> tuple[dict[str, Any], str | None]:
+        if not raw_arguments:
+            return {}, None
+        if isinstance(raw_arguments, dict):
+            return raw_arguments, None
+        if not isinstance(raw_arguments, str):
+            return {}, f"Tool call arguments must be JSON text or an object, got {type(raw_arguments)!r}"
+        try:
+            parsed = json.loads(raw_arguments)
+        except json.JSONDecodeError as exc:
+            return {}, f"Tool call arguments were not valid JSON: {exc}"
+        if not isinstance(parsed, dict):
+            return {}, "Tool call arguments must decode to a JSON object."
+        return parsed, None
+
+    @staticmethod
+    def _build_result_payload(
+        *,
+        final_response: str,
+        discovered_tools: list[ToolSpec],
+        tool_calls: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        available_tools = [tool.tool_name for tool in discovered_tools]
+        return {
+            "final_response": final_response,
+            "available_tools": available_tools,
+            "available_tools_count": len(available_tools),
+            "tool_calls": tool_calls,
+        }
 
     def _persist(self, record: AgentRunRecord) -> None:
         self.result_writer.write_run_record(record)
@@ -236,8 +214,6 @@ class AgentRunner:
                 run_id=record.run_id,
                 task_name=record.task_name,
                 status=record.status,
-                profile_name=record.profile_name,
-                profile_version=record.profile_version,
                 output_payload=record.result,
                 error_message=record.error_message,
             )

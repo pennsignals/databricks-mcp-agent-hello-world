@@ -1,7 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from databricks_mcp_agent_hello_world.models import EvalScenario, ToolSpec
+from databricks_mcp_agent_hello_world import models
+from databricks_mcp_agent_hello_world.models import AgentRunRecord, EvalScenario, ToolResult, ToolSpec
 
 
 def _base_tool_spec(**overrides) -> dict:
@@ -75,12 +76,49 @@ def test_tool_spec_rejects_invalid_side_effect_level() -> None:
         ToolSpec(**_base_tool_spec(side_effect_level="mutate"))
 
 
+def test_tool_result_rejects_blocked_status() -> None:
+    with pytest.raises(ValidationError):
+        ToolResult(tool_name="sample_tool", status="blocked", content={})
+
+
+def test_agent_run_record_validates_without_profile_fields() -> None:
+    record = AgentRunRecord(
+        run_id="run-1",
+        task_name="workspace_onboarding_brief",
+        status="success",
+        tools_called=[],
+        llm_turn_count=0,
+        result={
+            "final_response": "done",
+            "available_tools": ["sample_tool"],
+            "tool_calls": [],
+        },
+    )
+
+    assert record.model_dump()["task_name"] == "workspace_onboarding_brief"
+    assert "profile_name" not in record.model_dump()
+    assert "profile_version" not in record.model_dump()
+    assert "blocked_calls" not in record.model_dump()
+
+
+def test_removed_runtime_profile_models_are_gone() -> None:
+    for name in [
+        "ToolProfile",
+        "ToolProfileRecord",
+        "FilterDecision",
+        "CompileToolProfileResult",
+        "HelloWorldToolCall",
+        "HelloWorldDemoResult",
+    ]:
+        assert not hasattr(models, name)
+
+
 def test_eval_scenario_rejects_min_tool_calls_above_max_tool_calls() -> None:
     with pytest.raises(ValidationError):
         EvalScenario(
             scenario_id="bad-bounds",
             description="Invalid bounds",
-            compile_task_input={
+            task_input={
                 "task_name": "workspace_onboarding_brief",
                 "instructions": "Write the onboarding brief.",
                 "payload": {"user_id": "usr_ada_01"},

@@ -9,14 +9,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ToolSpec(BaseModel):
-    """Tool definition plus descriptive metadata for LLM-guided selection.
-
-    The metadata fields are lightweight context for the compiler model:
-    capability_tags describe what the tool can do, data_domains describe what
-    data or source it operates on, and side_effect_level signals whether the
-    tool is read-only or can mutate external state. They are not used for
-    deterministic Python-side routing.
-    """
+    """Provider-discovered tool metadata exposed to the runtime LLM loop."""
 
     tool_name: str
     description: str
@@ -86,96 +79,41 @@ class ToolSpec(BaseModel):
 class ToolCall(BaseModel):
     tool_name: str
     arguments: dict[str, Any] = Field(default_factory=dict)
-    profile_name: str
-    profile_version: str
     request_id: str = Field(default_factory=lambda: str(uuid4()))
 
 
 class ToolResult(BaseModel):
     tool_name: str
-    status: Literal["ok", "error", "blocked"]
+    status: Literal["ok", "error"]
     content: dict[str, Any] | list[Any] | str
     metadata: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None
-
-
-class ToolProfile(BaseModel):
-    profile_name: str
-    profile_version: str
-    inventory_hash: str
-    provider_type: str
-    llm_endpoint_name: str
-    prompt_version: str
-    compile_task_name: str
-    compile_task_hash: str
-    compile_task_summary: str
-    discovered_tools: list[ToolSpec]
-    allowed_tools: list[str]
-    disallowed_tools: list[str]
-    justifications: dict[str, str]
-    audit_report_text: str
-    selection_policy: str
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    is_active: bool = True
 
 
 class AgentTaskRequest(BaseModel):
     task_name: str
     instructions: str
     payload: dict[str, Any] = Field(default_factory=dict)
-    expected_blocked_calls: bool = False
     run_id: str = Field(default_factory=lambda: str(uuid4()))
 
 
 class AgentRunRecord(BaseModel):
     run_id: str
-    profile_name: str
-    profile_version: str
     task_name: str
-    status: Literal["success", "error", "blocked", "max_steps_exceeded"]
+    status: Literal["success", "error", "max_steps_exceeded"]
     tools_called: list[dict[str, Any]] = Field(default_factory=list)
     llm_turn_count: int = 0
     result: dict[str, Any] = Field(default_factory=dict)
     error_message: str | None = None
-    blocked_calls: list[dict[str, Any]] = Field(default_factory=list)
     inventory_hash: str | None = None
     started_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-
-class FilterDecision(BaseModel):
-    allowed_tools: list[str]
-    disallowed_tools: list[str]
-    tool_justifications: dict[str, str]
-    summary_reasoning: str | None = None
-
-
-class ToolProfileRecord(BaseModel):
-    profile_name: str
-    profile_version: str
-    inventory_hash: str
-    provider_type: str
-    llm_endpoint_name: str
-    prompt_version: str
-    compile_task_name: str
-    compile_task_hash: str
-    compile_task_summary: str
-    is_active: bool
-    created_at: str
-    selection_policy: str
-    audit_report_text: str
-    discovered_tools_json: str
-    allowed_tools_json: str
-    disallowed_tools_json: str
-    justifications_json: str
 
 
 class AgentOutputRecord(BaseModel):
     run_id: str
     task_name: str
     status: str
-    profile_name: str
-    profile_version: str
     output_payload: dict[str, Any]
     error_message: str | None = None
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -187,7 +125,6 @@ class DiscoveryReport(BaseModel):
     provider_id: str
     inventory_hash: str
     tools: list[ToolSpec]
-    active_profile: ToolProfile | None = None
 
 
 class PreflightCheck(BaseModel):
@@ -200,41 +137,26 @@ class PreflightCheck(BaseModel):
 class PreflightReport(BaseModel):
     overall_status: Literal["pass", "fail"]
     checks: list[PreflightCheck]
-    has_active_profile: bool = False
-    can_compile_profile: bool = False
     settings_summary: dict[str, Any] = Field(default_factory=dict)
-
-
-class CompileToolProfileResult(BaseModel):
-    profile: ToolProfile
-    reused_existing: bool
 
 
 class EvalScenario(BaseModel):
     scenario_id: str
     description: str
-    compile_task_input: AgentTaskRequest
-    run_task_input: AgentTaskRequest | None = None
+    task_input: AgentTaskRequest
 
     expected_status: Literal["success", "error", "max_steps_exceeded"] = "success"
-
-    required_allowed_tools: list[str] = Field(default_factory=list)
-    forbidden_allowed_tools: list[str] = Field(default_factory=list)
-
+    required_available_tools: list[str] = Field(default_factory=list)
+    forbidden_available_tools: list[str] = Field(default_factory=list)
     required_executed_tools: list[str] = Field(default_factory=list)
     forbidden_executed_tools: list[str] = Field(default_factory=list)
-
     min_tool_calls: int | None = None
     max_tool_calls: int | None = None
-
     required_result_keys: list[str] = Field(
-        default_factory=lambda: ["final_response", "allowed_tools", "tool_trace"]
+        default_factory=lambda: ["final_response", "available_tools", "tool_calls"]
     )
-
     required_output_substrings: list[str] = Field(default_factory=list)
     forbidden_output_substrings: list[str] = Field(default_factory=list)
-
-    expect_blocked_tool_calls: bool | None = None
 
     @model_validator(mode="after")
     def validate_tool_call_bounds(self) -> "EvalScenario":
@@ -251,22 +173,14 @@ class EvalScenarioResult(BaseModel):
     scenario_id: str
     passed: bool
     failed_checks: list[str]
-
     expected_status: str
     actual_status: str | None = None
-
-    allowed_tools: list[str] = Field(default_factory=list)
+    available_tools: list[str] = Field(default_factory=list)
     executed_tools: list[str] = Field(default_factory=list)
-    blocked_tools: list[str] = Field(default_factory=list)
     tool_call_count: int = 0
-
     final_response_excerpt: str = ""
-
-    compile_task_name: str
-    run_task_name: str
-
+    task_name: str
     run_record_id: str | None = None
-    profile_version: str | None = None
 
 
 class EvalRunReport(BaseModel):

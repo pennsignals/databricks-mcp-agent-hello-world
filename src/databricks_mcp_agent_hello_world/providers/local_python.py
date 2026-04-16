@@ -66,8 +66,6 @@ class LocalPythonToolExecutor(ToolExecutor):
                     "provider_type": "local_python",
                     "backend_mode": backend_mode,
                     "request_id": tool_call.request_id,
-                    "profile_name": tool_call.profile_name,
-                    "profile_version": tool_call.profile_version,
                 },
             )
         except Exception as exc:  # noqa: BLE001
@@ -85,8 +83,6 @@ class LocalPythonToolExecutor(ToolExecutor):
                     "provider_type": "local_python",
                     "backend_mode": backend_mode,
                     "request_id": tool_call.request_id,
-                    "profile_name": tool_call.profile_name,
-                    "profile_version": tool_call.profile_version,
                 },
                 error=str(exc),
             )

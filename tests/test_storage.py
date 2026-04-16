@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -26,9 +27,9 @@ def test_result_writer_appends_run_and_output_rows_locally(
             "run_id": "run-1",
             "task_name": "workspace_onboarding_brief",
             "status": "success",
-            "profile_name": "default",
-            "profile_version": "v1",
             "tools_called": [],
+            "llm_turn_count": 2,
+            "result": {"final_response": "done", "available_tools": ["tool_a"]},
         }
     )
     writer.write_output_record(
@@ -36,18 +37,31 @@ def test_result_writer_appends_run_and_output_rows_locally(
             "run_id": "run-1",
             "task_name": "workspace_onboarding_brief",
             "status": "success",
-            "profile_name": "default",
-            "profile_version": "v1",
             "output_payload": {"final_response": "hello"},
         }
     )
 
     run_rows = (tmp_path / "agent_runs.jsonl").read_text(encoding="utf-8").strip().splitlines()
-    output_rows = (
-        tmp_path / "agent_outputs.jsonl"
-    ).read_text(encoding="utf-8").strip().splitlines()
+    output_rows = (tmp_path / "agent_outputs.jsonl").read_text(encoding="utf-8").strip().splitlines()
 
     assert len(run_rows) == 1
     assert len(output_rows) == 1
-    assert '"run_id": "run-1"' in run_rows[0]
-    assert '"final_response": "hello"' in output_rows[0]
+
+    run_payload = json.loads(run_rows[0])
+    output_payload = json.loads(output_rows[0])
+
+    assert run_payload["run_id"] == "run-1"
+    assert run_payload["task_name"] == "workspace_onboarding_brief"
+    assert run_payload["status"] == "success"
+    assert "profile_name" not in run_payload
+    assert "profile_version" not in run_payload
+    assert "blocked_calls" not in run_payload
+    assert run_payload["result"]["final_response"] == "done"
+
+    assert output_payload["run_id"] == "run-1"
+    assert output_payload["task_name"] == "workspace_onboarding_brief"
+    assert output_payload["status"] == "success"
+    assert "profile_name" not in output_payload
+    assert "profile_version" not in output_payload
+    assert "blocked_calls" not in output_payload
+    assert output_payload["output_payload"]["final_response"] == "hello"

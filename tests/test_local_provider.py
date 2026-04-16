@@ -61,14 +61,14 @@ def test_local_python_executor_does_not_touch_sql_config(monkeypatch) -> None:
         SimpleNamespace(
             tool_name="get_user_profile",
             arguments={"user_id": "usr_ada_01"},
-            profile_name="default",
-            profile_version="v1",
             request_id="req-1",
         )
     )
 
     assert result.status == "ok"
     assert result.metadata["backend_mode"] == "auto"
+    assert "profile_name" not in result.metadata
+    assert "profile_version" not in result.metadata
 
 
 def test_factories_reject_managed_mcp() -> None:

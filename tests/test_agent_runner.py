@@ -1,23 +1,20 @@
-import logging
 from pathlib import Path
 from types import SimpleNamespace
 
-from databricks_mcp_agent_hello_world.models import (
-    AgentRunRecord,
-    AgentTaskRequest,
-    ToolProfile,
-    ToolResult,
-    ToolSpec,
-)
+from databricks_mcp_agent_hello_world.models import AgentRunRecord, AgentTaskRequest, ToolResult, ToolSpec
 from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
 
 
-class StubProfileRepo:
-    def __init__(self, profile: ToolProfile | None):
-        self.profile = profile
+class StubProvider:
+    def __init__(self, tools: list[ToolSpec], inventory_hash: str = "inventory-hash") -> None:
+        self.tools = tools
+        self._inventory_hash = inventory_hash
 
-    def load_active(self, profile_name: str):
-        return self.profile
+    def list_tools(self) -> list[ToolSpec]:
+        return list(self.tools)
+
+    def inventory_hash(self) -> str:
+        return self._inventory_hash
 
 
 class StubExecutor:
@@ -82,41 +79,14 @@ def _tool(name: str) -> ToolSpec:
     )
 
 
-def _profile() -> ToolProfile:
-    return ToolProfile(
-        profile_name="default",
-        profile_version="v1",
-        inventory_hash="abc123",
-        provider_type="local_python",
-        llm_endpoint_name="endpoint-a",
-        prompt_version="v1",
-        compile_task_name="workspace_onboarding_brief",
-        compile_task_hash="compile-task-hash",
-        compile_task_summary="workspace_onboarding_brief: Write the report.",
-        discovered_tools=[
-            _tool("get_user_profile"),
-            _tool("search_onboarding_docs"),
-            _tool("get_workspace_setting"),
-            _tool("list_recent_job_runs"),
-            _tool("create_support_ticket"),
-        ],
-        allowed_tools=[
-            "get_user_profile",
-            "search_onboarding_docs",
-            "get_workspace_setting",
-            "list_recent_job_runs",
-        ],
-        disallowed_tools=["create_support_ticket"],
-        justifications={
-            "get_user_profile": "needed",
-            "search_onboarding_docs": "needed",
-            "get_workspace_setting": "needed",
-            "list_recent_job_runs": "needed",
-            "create_support_ticket": "not needed",
-        },
-        audit_report_text="audit",
-        selection_policy="small allowlist",
-    )
+def _discovered_tools() -> list[ToolSpec]:
+    return [
+        _tool("get_user_profile"),
+        _tool("search_onboarding_docs"),
+        _tool("get_workspace_setting"),
+        _tool("list_recent_job_runs"),
+        _tool("create_support_ticket"),
+    ]
 
 
 def _response(content: str | None = None, tool_calls=None):
@@ -133,24 +103,24 @@ def _runner(
     tmp_path: Path,
     llm,
     *,
-    profile: ToolProfile | None = None,
+    tools: list[ToolSpec] | None = None,
     max_agent_steps: int = 2,
 ) -> AgentRunner:
     runner = AgentRunner.__new__(AgentRunner)
     runner.settings = SimpleNamespace(
         prompts=SimpleNamespace(agent_system_prompt="system"),
         max_agent_steps=max_agent_steps,
-        active_profile_name="default",
         storage=SimpleNamespace(local_data_dir=str(tmp_path)),
     )
-    runner.profile_repo = StubProfileRepo(profile)
+    runner.provider = StubProvider(tools or _discovered_tools())
     runner.executor = StubExecutor()
     runner.result_writer = StubWriter()
     runner.llm = llm
     return runner
 
 
-def test_agent_runner_returns_generic_result_contract(tmp_path: Path) -> None:
+def test_agent_runner_returns_runtime_result_contract(tmp_path: Path) -> None:
+    tools = _discovered_tools()
     runner = _runner(
         tmp_path,
         StubLLM(
@@ -163,7 +133,7 @@ def test_agent_runner_returns_generic_result_contract(tmp_path: Path) -> None:
                 _response(content="## Onboarding Brief\nAda Lovelace"),
             ]
         ),
-        profile=_profile(),
+        tools=tools,
     )
 
     record = runner.run(
@@ -175,28 +145,15 @@ def test_agent_runner_returns_generic_result_contract(tmp_path: Path) -> None:
     )
 
     assert isinstance(record, AgentRunRecord)
-    assert runner.llm.call_args[0]["tool_choice"] is None
-    assert set(record.result) == {"final_response", "task_payload", "available_tools", "allowed_tools", "tool_trace"}
-    assert isinstance(record.result["final_response"], str)
-    assert isinstance(record.result["allowed_tools"], list)
-    assert isinstance(record.result["tool_trace"], list)
+    assert runner.llm.call_args[0]["tool_choice"] == "auto"
+    assert [tool["function"]["name"] for tool in runner.llm.call_args[0]["tools"]] == [
+        tool.tool_name for tool in tools
+    ]
     assert record.result == {
         "final_response": "## Onboarding Brief\nAda Lovelace",
-        "task_payload": {"user_id": "usr_ada_01"},
-        "available_tools": [
-            "get_user_profile",
-            "search_onboarding_docs",
-            "get_workspace_setting",
-            "list_recent_job_runs",
-            "create_support_ticket",
-        ],
-        "allowed_tools": [
-            "get_user_profile",
-            "search_onboarding_docs",
-            "get_workspace_setting",
-            "list_recent_job_runs",
-        ],
-        "tool_trace": [
+        "available_tools": [tool.tool_name for tool in tools],
+        "available_tools_count": len(tools),
+        "tool_calls": [
             {
                 "tool_name": "get_user_profile",
                 "arguments": {"user_id": "usr_ada_01"},
@@ -205,21 +162,15 @@ def test_agent_runner_returns_generic_result_contract(tmp_path: Path) -> None:
             }
         ],
     }
-    assert all(
-        set(entry) == {"tool_name", "arguments", "status", "error"}
-        and isinstance(entry["tool_name"], str)
-        and isinstance(entry["arguments"], dict)
-        and isinstance(entry["status"], str)
-        for entry in record.result["tool_trace"]
-    )
     assert [item.tool_name for item in runner.executor.calls] == ["get_user_profile"]
     assert runner.result_writer.run_records[0].result == record.result
     assert runner.result_writer.output_records[0].output_payload == record.result
 
 
-def test_agent_runner_marks_max_steps_exceeded_with_generic_result_payload(
+def test_agent_runner_marks_max_steps_exceeded_with_runtime_result_payload(
     tmp_path: Path,
 ) -> None:
+    tools = _discovered_tools()
     runner = _runner(
         tmp_path,
         StubLLM(
@@ -231,7 +182,7 @@ def test_agent_runner_marks_max_steps_exceeded_with_generic_result_payload(
                 ),
             ]
         ),
-        profile=_profile(),
+        tools=tools,
         max_agent_steps=1,
     )
 
@@ -245,45 +196,44 @@ def test_agent_runner_marks_max_steps_exceeded_with_generic_result_payload(
 
     assert record.status == "max_steps_exceeded"
     assert record.error_message == "Maximum agent steps exceeded."
-    assert record.result["available_tools"] == [
-        "get_user_profile",
-        "search_onboarding_docs",
-        "get_workspace_setting",
-        "list_recent_job_runs",
-        "create_support_ticket",
-    ]
+    assert record.result["available_tools"] == [tool.tool_name for tool in tools]
+    assert record.result["available_tools_count"] == len(tools)
+    assert record.result["tool_calls"][0]["status"] == "ok"
 
 
-def test_agent_runner_blocks_disallowed_tool_and_records_it(tmp_path: Path) -> None:
+def test_agent_runner_returns_error_for_unknown_tool_call(tmp_path: Path) -> None:
+    tools = _discovered_tools()[:-1]
     runner = _runner(
         tmp_path,
         StubLLM(
             [
                 _response(tool_calls=[_tool_call("create_support_ticket", '{"summary":"help"}')]),
-                _response(content="Stayed read only."),
+                _response(content="Finished after the error."),
             ]
         ),
-        profile=_profile(),
+        tools=tools,
     )
 
     record = runner.run(
         AgentTaskRequest(
             task_name="workspace_onboarding_brief",
-            instructions="Do not mutate state.",
+            instructions="Write the report.",
         )
     )
 
-    assert record.blocked_calls[0]["tool_name"] == "create_support_ticket"
-    assert record.tools_called[0]["status"] == "blocked"
-    assert record.result["tool_trace"][0] == {
+    assert runner.executor.calls == []
+    assert record.result["tool_calls"][0] == {
         "tool_name": "create_support_ticket",
         "arguments": {"summary": "help"},
-        "status": "blocked",
-        "error": "Tool 'create_support_ticket' is not allowlisted in profile v1.",
+        "status": "error",
+        "error": "Unknown tool: create_support_ticket",
     }
+    assert "blocked_calls" not in record.model_dump()
+    assert "blocked" not in record.model_dump_json()
 
 
-def test_agent_runner_preserves_tool_trace_order(tmp_path: Path) -> None:
+def test_agent_runner_preserves_tool_call_order(tmp_path: Path) -> None:
+    tools = _discovered_tools()
     runner = _runner(
         tmp_path,
         StubLLM(
@@ -297,7 +247,7 @@ def test_agent_runner_preserves_tool_trace_order(tmp_path: Path) -> None:
                 _response(content="Ordered trace."),
             ]
         ),
-        profile=_profile(),
+        tools=tools,
     )
 
     record = runner.run(
@@ -308,60 +258,7 @@ def test_agent_runner_preserves_tool_trace_order(tmp_path: Path) -> None:
         )
     )
 
-    assert [entry["tool_name"] for entry in record.result["tool_trace"]] == [
+    assert [entry["tool_name"] for entry in record.result["tool_calls"]] == [
         "get_user_profile",
         "search_onboarding_docs",
-    ]
-
-
-def test_expected_blocked_call_logs_at_info(tmp_path: Path, caplog) -> None:
-    runner = _runner(
-        tmp_path,
-        StubLLM(
-            [
-                _response(tool_calls=[_tool_call("create_support_ticket", '{"summary":"help"}')]),
-                _response(content="Stayed read only."),
-            ]
-        ),
-        profile=_profile(),
-    )
-
-    caplog.set_level(logging.INFO, logger="databricks_mcp_agent_hello_world.runner.agent_runner")
-
-    runner.run(
-        AgentTaskRequest(
-            task_name="workspace_onboarding_brief",
-            instructions="Attempt a blocked write tool.",
-            expected_blocked_calls=True,
-        )
-    )
-
-    assert "Blocked disallowed tool call (expected): create_support_ticket" in [
-        record.message for record in caplog.records
-    ]
-
-
-def test_unexpected_blocked_call_logs_at_warning(tmp_path: Path, caplog) -> None:
-    runner = _runner(
-        tmp_path,
-        StubLLM(
-            [
-                _response(tool_calls=[_tool_call("create_support_ticket", '{"summary":"help"}')]),
-                _response(content="Stayed read only."),
-            ]
-        ),
-        profile=_profile(),
-    )
-
-    caplog.set_level(logging.INFO, logger="databricks_mcp_agent_hello_world.runner.agent_runner")
-
-    runner.run(
-        AgentTaskRequest(
-            task_name="workspace_onboarding_brief",
-            instructions="Attempt a blocked write tool.",
-        )
-    )
-
-    assert "Blocked disallowed tool call: create_support_ticket" in [
-        record.message for record in caplog.records
     ]

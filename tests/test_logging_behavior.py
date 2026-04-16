@@ -6,23 +6,25 @@ import types
 from pathlib import Path
 from types import SimpleNamespace
 
-from databricks_mcp_agent_hello_world.models import AgentTaskRequest, ToolProfile, ToolResult, ToolSpec
+from databricks_mcp_agent_hello_world.models import AgentTaskRequest, ToolResult, ToolSpec
 from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
 from databricks_mcp_agent_hello_world.storage import spark_utils
 
 EXPECTED_SPARK_FALLBACK_MESSAGE = (
     "Local mode: no active Spark session detected; using local fallback persistence."
 )
-EXPECTED_BLOCKED_INFO_MESSAGE = "Blocked disallowed tool call (expected): create_support_ticket"
-EXPECTED_BLOCKED_WARNING_MESSAGE = "Blocked disallowed tool call: create_support_ticket"
 
 
-class StubProfileRepo:
-    def __init__(self, profile: ToolProfile | None):
-        self.profile = profile
+class StubProvider:
+    def __init__(self, tools: list[ToolSpec], inventory_hash: str = "inventory-hash") -> None:
+        self.tools = tools
+        self._inventory_hash = inventory_hash
 
-    def load_active(self, profile_name: str):
-        return self.profile
+    def list_tools(self) -> list[ToolSpec]:
+        return list(self.tools)
+
+    def inventory_hash(self) -> str:
+        return self._inventory_hash
 
 
 class StubExecutor:
@@ -58,16 +60,6 @@ class StubLLM:
         return response
 
 
-def _response(content: str | None = None, tool_calls=None):
-    message = SimpleNamespace(content=content, tool_calls=tool_calls)
-    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
-
-
-def _tool_call(name: str, arguments: str, call_id: str = "call-1"):
-    function = SimpleNamespace(name=name, arguments=arguments)
-    return SimpleNamespace(id=call_id, function=function)
-
-
 def _tool(name: str) -> ToolSpec:
     return ToolSpec(
         tool_name=name,
@@ -81,52 +73,24 @@ def _tool(name: str) -> ToolSpec:
     )
 
 
-def _profile() -> ToolProfile:
-    return ToolProfile(
-        profile_name="default",
-        profile_version="v1",
-        inventory_hash="abc123",
-        provider_type="local_python",
-        llm_endpoint_name="endpoint-a",
-        prompt_version="v1",
-        compile_task_name="workspace_onboarding_brief",
-        compile_task_hash="compile-task-hash",
-        compile_task_summary="workspace_onboarding_brief: Write the report.",
-        discovered_tools=[
-            _tool("get_user_profile"),
-            _tool("search_onboarding_docs"),
-            _tool("get_workspace_setting"),
-            _tool("list_recent_job_runs"),
-            _tool("create_support_ticket"),
-        ],
-        allowed_tools=[
-            "get_user_profile",
-            "search_onboarding_docs",
-            "get_workspace_setting",
-            "list_recent_job_runs",
-        ],
-        disallowed_tools=["create_support_ticket"],
-        justifications={
-            "get_user_profile": "needed",
-            "search_onboarding_docs": "needed",
-            "get_workspace_setting": "needed",
-            "list_recent_job_runs": "needed",
-            "create_support_ticket": "not needed",
-        },
-        audit_report_text="audit",
-        selection_policy="small allowlist",
-    )
+def _response(content: str | None = None, tool_calls=None):
+    message = SimpleNamespace(content=content, tool_calls=tool_calls)
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
-def _runner(tmp_path: Path, llm, *, profile: ToolProfile | None = None) -> AgentRunner:
+def _tool_call(name: str, arguments: str, call_id: str = "call-1"):
+    function = SimpleNamespace(name=name, arguments=arguments)
+    return SimpleNamespace(id=call_id, function=function)
+
+
+def _runner(tmp_path: Path, llm, *, tools: list[ToolSpec] | None = None) -> AgentRunner:
     runner = AgentRunner.__new__(AgentRunner)
     runner.settings = SimpleNamespace(
         prompts=SimpleNamespace(agent_system_prompt="system"),
         max_agent_steps=2,
-        active_profile_name="default",
         storage=SimpleNamespace(local_data_dir=str(tmp_path)),
     )
-    runner.profile_repo = StubProfileRepo(profile)
+    runner.provider = StubProvider(tools or [_tool("get_user_profile")])
     runner.executor = StubExecutor()
     runner.result_writer = StubWriter()
     runner.llm = llm
@@ -158,64 +122,29 @@ def test_get_spark_session_logs_local_fallback_once(caplog, monkeypatch) -> None
     assert [record.message for record in caplog.records].count(EXPECTED_SPARK_FALLBACK_MESSAGE) == 1
 
 
-def test_expected_blocked_call_logs_at_info(tmp_path: Path, caplog) -> None:
+def test_unknown_tool_call_does_not_emit_blocked_logs(tmp_path: Path, caplog) -> None:
     runner = _runner(
         tmp_path,
         StubLLM(
             [
                 _response(tool_calls=[_tool_call("create_support_ticket", '{"summary":"help"}')]),
-                _response(content="Read-only run complete."),
+                _response(content="Finished after the error."),
             ]
         ),
-        profile=_profile(),
     )
 
     caplog.set_level(logging.INFO, logger="databricks_mcp_agent_hello_world.runner.agent_runner")
 
-    runner.run(
+    record = runner.run(
         AgentTaskRequest(
             task_name="workspace_onboarding_brief",
-            instructions="Try the blocked write tool.",
-            expected_blocked_calls=True,
+            instructions="Try the unknown tool.",
         )
     )
 
+    assert record.result["tool_calls"][0]["status"] == "error"
     assert any(
-        record.levelno == logging.INFO and record.message == EXPECTED_BLOCKED_INFO_MESSAGE
+        record.levelno == logging.WARNING and record.message == "Unknown tool call: create_support_ticket"
         for record in caplog.records
     )
-    assert not any(
-        record.levelno == logging.WARNING and record.message == EXPECTED_BLOCKED_WARNING_MESSAGE
-        for record in caplog.records
-    )
-
-
-def test_unexpected_blocked_call_logs_at_warning(tmp_path: Path, caplog) -> None:
-    runner = _runner(
-        tmp_path,
-        StubLLM(
-            [
-                _response(tool_calls=[_tool_call("create_support_ticket", '{"summary":"help"}')]),
-                _response(content="Read-only run complete."),
-            ]
-        ),
-        profile=_profile(),
-    )
-
-    caplog.set_level(logging.INFO, logger="databricks_mcp_agent_hello_world.runner.agent_runner")
-
-    runner.run(
-        AgentTaskRequest(
-            task_name="workspace_onboarding_brief",
-            instructions="Try the blocked write tool.",
-        )
-    )
-
-    assert any(
-        record.levelno == logging.WARNING and record.message == EXPECTED_BLOCKED_WARNING_MESSAGE
-        for record in caplog.records
-    )
-    assert not any(
-        record.levelno == logging.INFO and record.message == EXPECTED_BLOCKED_INFO_MESSAGE
-        for record in caplog.records
-    )
+    assert not any("Blocked disallowed tool call" in record.message for record in caplog.records)
