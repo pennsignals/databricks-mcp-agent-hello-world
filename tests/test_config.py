@@ -196,6 +196,31 @@ def test_load_settings_does_not_accept_legacy_storage_keys(tmp_path: Path) -> No
     assert settings.storage.agent_events_table is None
 
 
+def test_load_settings_requires_agent_events_table_when_spark_is_available(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = tmp_path / "workspace-config.yml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "llm_endpoint_name: endpoint-a",
+                "tool_provider_type: local_python",
+                "storage:",
+                "  local_data_dir: ./.local_state",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.config.get_spark_session",
+        lambda: object(),
+    )
+
+    with pytest.raises(ValueError, match="storage.agent_events_table"):
+        load_settings(str(config_path))
+
+
 def test_load_settings_defaults_local_data_dir_when_blank(tmp_path: Path) -> None:
     config_path = tmp_path / "workspace-config.yml"
     config_path.write_text(
