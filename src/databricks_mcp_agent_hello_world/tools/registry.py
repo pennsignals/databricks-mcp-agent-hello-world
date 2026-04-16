@@ -13,30 +13,32 @@ class LocalToolDefinition:
 
 
 # TEMPLATE_CUSTOMIZE_HERE
-# Replace these demo registry entries with your real tool metadata and keep the ToolSpec fields populated.
-# Keep registry metadata neutral and capability-based so the compiler model can
+# Replace these demo registry entries with your real tool metadata and keep the
+# ToolSpec fields populated.
+# Keep registry metadata neutral and capability-based so the runtime model can
 # reason over the full tool inventory without task-specific routing hints.
 TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {
     "get_user_profile": LocalToolDefinition(
         spec=ToolSpec(
             tool_name="get_user_profile",
-            description="Fetch a user's profile information by user_id. Use this when a task needs a user's display name, team, role, or other profile details.",
+            description=(
+                "Fetch a user's information by user_id. Use this when a task "
+                "needs a user's display name, team, role, or other identity details."
+            ),
             input_schema={
                 "type": "object",
-                "properties": {
-                    "user_id": {"type": "string"}
-                },
+                "properties": {"user_id": {"type": "string"}},
                 "required": ["user_id"],
                 "additionalProperties": False,
             },
             provider_type="local_python",
             provider_id="builtin_tools",
-            capability_tags=["profile", "identity"],
+            capability_tags=["identity", "user_lookup"],
             side_effect_level="read_only",
             data_domains=["user"],
             example_uses=[
                 "Look up the display name for a user",
-                "Retrieve profile details for an onboarding brief",
+                "Retrieve user details for an onboarding brief",
             ],
         ),
         fn=demo_tools.get_user_profile,
@@ -44,7 +46,11 @@ TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {
     "search_onboarding_docs": LocalToolDefinition(
         spec=ToolSpec(
             tool_name="search_onboarding_docs",
-            description="Search onboarding and setup documentation by keyword. Use this when a task needs setup guidance, onboarding tips, or repository workflow guidance.",
+            description=(
+                "Search onboarding and setup documentation by keyword. Use this "
+                "when a task needs setup guidance, onboarding tips, or repository "
+                "workflow guidance."
+            ),
             input_schema={
                 "type": "object",
                 "properties": {
@@ -72,12 +78,14 @@ TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {
     "get_workspace_setting": LocalToolDefinition(
         spec=ToolSpec(
             tool_name="get_workspace_setting",
-            description="Fetch a named workspace setting. Use this when a task needs current configuration values such as runtime target, workspace region, or storage settings.",
+            description=(
+                "Fetch a named workspace setting. Use this when a task needs "
+                "current configuration values such as runtime target, workspace "
+                "region, or storage settings."
+            ),
             input_schema={
                 "type": "object",
-                "properties": {
-                    "key": {"type": "string"}
-                },
+                "properties": {"key": {"type": "string"}},
                 "required": ["key"],
                 "additionalProperties": False,
             },
@@ -96,12 +104,14 @@ TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {
     "list_recent_job_runs": LocalToolDefinition(
         spec=ToolSpec(
             tool_name="list_recent_job_runs",
-            description="List recent job runs and their summary notes. Use this when a task needs a recent operational update or recent job execution context.",
+            description=(
+                "List recent job runs and their summary notes. Use this when a "
+                "task needs a recent operational update or recent job execution "
+                "context."
+            ),
             input_schema={
                 "type": "object",
-                "properties": {
-                    "limit": {"type": "integer", "minimum": 1}
-                },
+                "properties": {"limit": {"type": "integer", "minimum": 1}},
                 "additionalProperties": False,
             },
             provider_type="local_python",
@@ -119,7 +129,11 @@ TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {
     "create_support_ticket": LocalToolDefinition(
         spec=ToolSpec(
             tool_name="create_support_ticket",
-            description="Create a support ticket with a short summary and severity. Use this only when the task explicitly asks to create or file a support request.",
+            description=(
+                "Create a support ticket with a short summary and severity. Use "
+                "this only when the task explicitly asks to create or file a "
+                "support request."
+            ),
             input_schema={
                 "type": "object",
                 "properties": {

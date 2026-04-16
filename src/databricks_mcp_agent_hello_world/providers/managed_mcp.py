@@ -10,20 +10,26 @@ class ManagedMCPToolProvider(ToolProvider):
 
     def list_tools(self) -> list[ToolSpec]:
         raise NotImplementedError(
-            "Managed MCP is intentionally a future adapter target "
-            "and is not implemented at runtime."
+            "Managed MCP is a future extension point for this template. It is "
+            "not implemented today, and the supported runtime flow remains "
+            "provider discovery plus LLM-driven tool selection once an MCP "
+            "provider exists."
         )
 
     def inventory_hash(self) -> str:
         raise NotImplementedError(
-            "Managed MCP is intentionally a future adapter target "
-            "and is not implemented at runtime."
+            "Managed MCP is a future extension point for this template. It is "
+            "not implemented today, and the supported runtime flow remains "
+            "provider discovery plus LLM-driven tool selection once an MCP "
+            "provider exists."
         )
 
 
 class ManagedMCPToolExecutor(ToolExecutor):
     def call_tool(self, tool_call: ToolCall) -> ToolResult:
         raise NotImplementedError(
-            "Managed MCP is intentionally a future adapter target "
-            "and is not implemented at runtime."
+            "Managed MCP is a future extension point for this template. It is "
+            "not implemented today, and the supported runtime flow remains "
+            "provider discovery plus LLM-driven tool selection once an MCP "
+            "provider exists."
         )

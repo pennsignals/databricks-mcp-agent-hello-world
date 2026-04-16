@@ -64,7 +64,11 @@ def _tool(name: str) -> ToolSpec:
     return ToolSpec(
         tool_name=name,
         description=f"{name} description",
-        input_schema={"type": "object", "properties": {"value": {"type": "string"}}, "required": []},
+        input_schema={
+            "type": "object",
+            "properties": {"value": {"type": "string"}},
+            "required": [],
+        },
         provider_type="local_python",
         provider_id="builtin_tools",
         capability_tags=["demo"],
@@ -144,7 +148,8 @@ def test_unknown_tool_call_does_not_emit_blocked_logs(tmp_path: Path, caplog) ->
 
     assert record.result["tool_calls"][0]["status"] == "error"
     assert any(
-        record.levelno == logging.WARNING and record.message == "Unknown tool call: create_support_ticket"
+        record.levelno == logging.WARNING
+        and record.message == "Unknown tool call: create_support_ticket"
         for record in caplog.records
     )
     assert not any("Blocked disallowed tool call" in record.message for record in caplog.records)

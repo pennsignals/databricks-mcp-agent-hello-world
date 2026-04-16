@@ -7,7 +7,14 @@ from typing import Any
 from ..config import Settings
 from ..executors import get_tool_executor
 from ..llm_client import DatabricksLLM
-from ..models import AgentOutputRecord, AgentRunRecord, AgentTaskRequest, ToolCall, ToolResult, ToolSpec
+from ..models import (
+    AgentOutputRecord,
+    AgentRunRecord,
+    AgentTaskRequest,
+    ToolCall,
+    ToolResult,
+    ToolSpec,
+)
 from ..providers.factory import get_tool_provider
 from ..storage.result_writer import ResultWriter
 from ..tooling.runtime import set_runtime_settings
@@ -41,6 +48,9 @@ class AgentRunner:
         inventory_hash: str | None,
     ) -> AgentRunRecord:
         discovered_tools_by_name = {tool.tool_name: tool for tool in discovered_tools}
+        # The runtime exposes the full discovered inventory to the model. Tool
+        # selection is performed by the LLM at runtime; Python does not
+        # pre-filter or manually route tools.
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.settings.prompts.agent_system_prompt},
             {
@@ -167,7 +177,7 @@ class AgentRunner:
                 status="error",
                 content={},
                 metadata={"request_id": request_id},
-                error=f"Unknown tool: {tool_name}",
+                error=f"Unknown tool call: {tool_name}",
             )
         tool_call = ToolCall(
             tool_name=tool_name,
@@ -183,7 +193,11 @@ class AgentRunner:
         if isinstance(raw_arguments, dict):
             return raw_arguments, None
         if not isinstance(raw_arguments, str):
-            return {}, f"Tool call arguments must be JSON text or an object, got {type(raw_arguments)!r}"
+            return (
+                {},
+                "Tool call arguments must be JSON text or an object, "
+                f"got {type(raw_arguments)!r}",
+            )
         try:
             parsed = json.loads(raw_arguments)
         except json.JSONDecodeError as exc:

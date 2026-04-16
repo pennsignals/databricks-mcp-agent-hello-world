@@ -3,7 +3,6 @@ from __future__ import annotations
 from ..config import Settings
 from .base import ToolProvider
 from .local_python import LocalPythonToolProvider
-from .managed_mcp import ManagedMCPToolProvider
 
 
 def get_tool_provider(settings: Settings) -> ToolProvider:
@@ -11,7 +10,8 @@ def get_tool_provider(settings: Settings) -> ToolProvider:
         return LocalPythonToolProvider()
     if settings.tool_provider_type == "managed_mcp":
         raise NotImplementedError(
-            "tool_provider_type='managed_mcp' is reserved for future support and is not "
-            "implemented in this MVP runtime."
+            "tool_provider_type='managed_mcp' is a future extension point in this "
+            "template. It is not implemented today; once supported, the same "
+            "runtime discovery and LLM-driven tool-selection architecture will apply."
         )
     raise ValueError(f"Unsupported tool_provider_type: {settings.tool_provider_type}")

@@ -1,7 +1,12 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from databricks_mcp_agent_hello_world.models import AgentRunRecord, AgentTaskRequest, ToolResult, ToolSpec
+from databricks_mcp_agent_hello_world.models import (
+    AgentRunRecord,
+    AgentTaskRequest,
+    ToolResult,
+    ToolSpec,
+)
 from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
 
 
@@ -127,7 +132,11 @@ def test_agent_runner_returns_runtime_result_contract(tmp_path: Path) -> None:
             [
                 _response(
                     tool_calls=[
-                        _tool_call("get_user_profile", '{"user_id":"usr_ada_01"}', call_id="call-1"),
+                        _tool_call(
+                            "get_user_profile",
+                            '{"user_id":"usr_ada_01"}',
+                            call_id="call-1",
+                        ),
                     ]
                 ),
                 _response(content="## Onboarding Brief\nAda Lovelace"),
@@ -149,6 +158,8 @@ def test_agent_runner_returns_runtime_result_contract(tmp_path: Path) -> None:
     assert [tool["function"]["name"] for tool in runner.llm.call_args[0]["tools"]] == [
         tool.tool_name for tool in tools
     ]
+    assert "create_support_ticket" in record.result["available_tools"]
+    assert [item.tool_name for item in runner.executor.calls] == ["get_user_profile"]
     assert record.result == {
         "final_response": "## Onboarding Brief\nAda Lovelace",
         "available_tools": [tool.tool_name for tool in tools],
@@ -162,7 +173,6 @@ def test_agent_runner_returns_runtime_result_contract(tmp_path: Path) -> None:
             }
         ],
     }
-    assert [item.tool_name for item in runner.executor.calls] == ["get_user_profile"]
     assert runner.result_writer.run_records[0].result == record.result
     assert runner.result_writer.output_records[0].output_payload == record.result
 
@@ -177,7 +187,11 @@ def test_agent_runner_marks_max_steps_exceeded_with_runtime_result_payload(
             [
                 _response(
                     tool_calls=[
-                        _tool_call("get_user_profile", '{"user_id":"usr_ada_01"}', call_id="call-1"),
+                        _tool_call(
+                            "get_user_profile",
+                            '{"user_id":"usr_ada_01"}',
+                            call_id="call-1",
+                        ),
                     ]
                 ),
             ]
@@ -233,7 +247,7 @@ def test_agent_runner_returns_error_for_unknown_tool_call(tmp_path: Path) -> Non
         "tool_name": "create_support_ticket",
         "arguments": {"summary": "help"},
         "status": "error",
-        "error": "Unknown tool: create_support_ticket",
+        "error": "Unknown tool call: create_support_ticket",
     }
     assert "blocked" not in {record.result["tool_calls"][0]["status"]}
 
@@ -246,8 +260,16 @@ def test_agent_runner_preserves_tool_call_order(tmp_path: Path) -> None:
             [
                 _response(
                     tool_calls=[
-                        _tool_call("get_user_profile", '{"user_id":"usr_ada_01"}', call_id="call-1"),
-                        _tool_call("search_onboarding_docs", '{"query":"local development"}', call_id="call-2"),
+                        _tool_call(
+                            "get_user_profile",
+                            '{"user_id":"usr_ada_01"}',
+                            call_id="call-1",
+                        ),
+                        _tool_call(
+                            "search_onboarding_docs",
+                            '{"query":"local development"}',
+                            call_id="call-2",
+                        ),
                     ]
                 ),
                 _response(content="Ordered trace."),
@@ -280,9 +302,21 @@ def test_agent_runner_exposes_full_inventory_while_llm_selects_relevant_tools(
             [
                 _response(
                     tool_calls=[
-                        _tool_call("get_user_profile", '{"user_id":"usr_ada_01"}', call_id="call-1"),
-                        _tool_call("search_onboarding_docs", '{"query":"uv sync"}', call_id="call-2"),
-                        _tool_call("get_workspace_setting", '{"setting_name":"runtime_target"}', call_id="call-3"),
+                        _tool_call(
+                            "get_user_profile",
+                            '{"user_id":"usr_ada_01"}',
+                            call_id="call-1",
+                        ),
+                        _tool_call(
+                            "search_onboarding_docs",
+                            '{"query":"uv sync"}',
+                            call_id="call-2",
+                        ),
+                        _tool_call(
+                            "get_workspace_setting",
+                            '{"setting_name":"runtime_target"}',
+                            call_id="call-3",
+                        ),
                         _tool_call("list_recent_job_runs", '{"limit":1}', call_id="call-4"),
                     ]
                 ),

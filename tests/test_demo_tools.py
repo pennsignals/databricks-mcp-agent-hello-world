@@ -10,9 +10,9 @@ from databricks_mcp_agent_hello_world.demo.tools import (
 
 
 def test_get_user_profile_returns_expected_user() -> None:
-    profile = get_user_profile("usr_ada_01")
+    user_details = get_user_profile("usr_ada_01")
 
-    assert profile["display_name"] == "Ada Lovelace"
+    assert user_details["display_name"] == "Ada Lovelace"
 
 
 def test_get_user_profile_raises_for_unknown_user() -> None:

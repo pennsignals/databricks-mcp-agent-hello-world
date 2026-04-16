@@ -71,7 +71,9 @@ def test_preflight_persistence_checks_cover_runtime_tables_only(
     monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.get_spark_session", lambda: None)
 
     report = run_preflight(str(config_path))
-    persistence_check = next(check for check in report.checks if check.name == "persistence_targets")
+    persistence_check = next(
+        check for check in report.checks if check.name == "persistence_targets"
+    )
 
     assert persistence_check.details == {
         "agent_runs_table": "main.agent.agent_runs",
@@ -160,7 +162,7 @@ def test_print_discovery_report_shows_metadata(tmp_path: Path, capsys) -> None:
     output = capsys.readouterr().out
 
     assert "Side effect level: read_only" in output
-    assert "Tags: identity, profile" in output
+    assert "Tags: identity, user_lookup" in output
     assert "Domains: user" in output
 
 
@@ -210,7 +212,11 @@ def test_run_example_task_keeps_sql_fields_optional(tmp_path: Path, monkeypatch)
     observed_sql_fields = {}
     task_file = tmp_path / "task.json"
     task_file.write_text(
-        '{"task_name":"workspace_onboarding_brief","instructions":"Write the report.","payload":{"user_id":"usr_ada_01"}}',
+        (
+            '{"task_name":"workspace_onboarding_brief",'
+            '"instructions":"Write the report.",'
+            '"payload":{"user_id":"usr_ada_01"}}'
+        ),
         encoding="utf-8",
     )
 

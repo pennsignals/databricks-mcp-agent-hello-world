@@ -77,6 +77,8 @@ def _score_scenario(scenario: EvalScenario, run_record: AgentRunRecord) -> EvalS
     final_response = _as_string(result.get("final_response"))
     available_tools = _as_string_list(result.get("available_tools"))
     tool_calls = _as_trace_list(result.get("tool_calls"))
+    # The eval harness validates runtime behavior only. The model chooses tools
+    # from the discovered inventory during each run.
     tool_call_count = len(tool_calls)
     executed_tools = _ordered_unique_tools(tool_calls, statuses={"ok", "error"})
     missing_result_keys = [key for key in scenario.required_result_keys if key not in result]
