@@ -48,7 +48,8 @@ def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
         print(
-            "Usage: python -m databricks_mcp_agent_hello_world.cli <command> [options]",
+            "Usage: python -m databricks_mcp_agent_hello_world.cli "
+            "<command> [options]",
             file=sys.stderr,
         )
         return 2
