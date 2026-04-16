@@ -63,4 +63,4 @@ Locally, persistence falls back to JSONL under `storage.local_data_dir`. On Data
 
 ## Advanced concepts
 
-Precompiled profiles, `allowed_tools`, and blocked tool-call policy layers are intentionally out of scope for this template. They may be useful later for larger inventories, governance, or token optimization, but they are not implemented here.
+Precompiled tool-governance layers, manual tool allowlists, and policy-based tool-call blocking are intentionally out of scope for this template. They may be useful later for larger inventories, governance, or token optimization, but they are not implemented here.

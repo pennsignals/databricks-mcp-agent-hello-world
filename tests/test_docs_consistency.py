@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 README_PATH = Path("README.md")
 ARCHITECTURE_PATH = Path("docs/ARCHITECTURE.md")
 CONVERSION_PATH = Path("docs/CONVERT_TEMPLATE_TO_REAL_APP.md")
@@ -34,7 +33,7 @@ def test_readme_contains_required_headings_and_llm_driven_rule() -> None:
         assert heading in content
 
     assert "Tool selection is **LLM-driven**" in content
-    assert "the full discovered tool set" in content
+    assert "the full discovered tool inventory" in content
     assert "The LLM decides which tools to call" in content
 
 
@@ -61,7 +60,7 @@ def test_conversion_guide_contains_all_steps_and_manual_allowlist_warning() -> N
     for heading in required_headings:
         assert heading in content
 
-    assert "Do not replace LLM-driven tool selection with a manual allowlist." in content
+    assert "Do not replace LLM-driven tool selection with manual Python-side filtering" in content
 
 
 def test_docs_reference_existing_project_paths() -> None:
@@ -110,7 +109,7 @@ def test_docs_do_not_present_removed_manual_allowlist_pattern_as_supported() -> 
     assert "out of scope for this template" in combined_docs
     assert "hello-world allowlist" not in combined_docs_lower
     assert "manual allowlist is the supported pattern" not in combined_docs_lower
-    assert "compile-tool-profile" not in combined_docs_lower
+    assert "compile tool" not in combined_docs_lower
 
 
 def test_docs_do_not_use_machine_specific_absolute_paths() -> None:

@@ -30,7 +30,7 @@ The runtime flow is intentionally small:
 
 Tool selection is **LLM-driven**. At runtime, the application discovers the full tool inventory for the configured provider and passes that full discovered tool set to the model. The LLM decides which tools to call for each input based on the task instructions and the tool definitions.
 
-This template intentionally does **not** implement precompiled profiles, `allowed_tools`, or blocked tool-call policy layers. Those are advanced patterns for larger tool inventories, governance-heavy deployments, or token-optimization work, and are intentionally out of scope for this starter.
+This template intentionally does **not** implement precompiled tool-governance layers, manual tool allowlists, or policy-based tool blocking. Those are advanced patterns for larger inventories, governance-heavy deployments, or token-optimization work, and are intentionally out of scope for this starter.
 
 For the built-in demo, the current inventory contains **five** tools:
 
@@ -40,7 +40,7 @@ For the built-in demo, the current inventory contains **five** tools:
 - `list_recent_job_runs`
 - `create_support_ticket`
 
-The built-in demo task is a **read-only onboarding brief**. The model is expected to choose the relevant tools for the task, but the template does not pre-filter the inventory or enforce a profile-based allowlist.
+The built-in demo task is a **read-only onboarding brief**. The model is expected to choose the relevant tools for the task, and the template does not pre-filter the inventory before runtime.
 
 ## Prerequisites
 
@@ -371,9 +371,9 @@ Inspect `storage.agent_runs_table` and `storage.agent_output_table`, then confir
 
 These are not part of the supported default flow for this template. This starter intentionally does not implement the following patterns:
 
-- precompiled tool profiles
-- `allowed_tools`
-- blocked tool-call policy layers
+- precompiled tool-governance layers
+- manual tool allowlists
+- policy-based tool-call blocking
 - MCP-based runtime tooling
 
 Those can be useful later for larger tool inventories, governance-heavy deployments, and token-optimization work. If you outgrow the starter, these are good places to learn more:

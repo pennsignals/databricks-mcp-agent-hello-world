@@ -25,7 +25,7 @@ Edit these files:
 
 Populate `description`, `capability_tags`, `side_effect_level`, `data_domains`, and `example_uses` carefully.
 
-Do not replace LLM-driven tool selection with a manual allowlist.
+Do not replace LLM-driven tool selection with manual Python-side filtering or deterministic routing.
 
 ## Step 3 — Replace the runtime task file
 
