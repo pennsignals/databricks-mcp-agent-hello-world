@@ -99,6 +99,30 @@ def test_preflight_json_output_omits_deprecated_profile_fields(
     assert '"databricks_config_profile"' not in output
 
 
+def test_preflight_databricks_client_failure_points_to_cli_auth_setup(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_config(tmp_path)
+
+    def _raise(_settings):
+        raise RuntimeError("auth not configured")
+
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.get_workspace_client", _raise)
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.get_spark_session", lambda: None)
+
+    report = run_preflight(str(config_path))
+    databricks_check = next(check for check in report.checks if check.name == "databricks_client")
+
+    assert databricks_check.status == "fail"
+    assert databricks_check.message == (
+        "Unable to initialize Databricks client. For local development, the "
+        "recommended path is Databricks CLI auth with "
+        "`DATABRICKS_CONFIG_PROFILE` pointing to a valid profile in "
+        "`~/.databrickscfg`."
+    )
+    assert databricks_check.details == {"error": "auth not configured"}
+
+
 def test_discover_tools_returns_demo_registry_tools(tmp_path: Path) -> None:
     settings = load_settings(str(_write_config(tmp_path)))
 

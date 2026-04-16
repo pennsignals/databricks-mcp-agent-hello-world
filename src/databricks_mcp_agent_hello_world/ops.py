@@ -140,8 +140,13 @@ def _check_databricks_client(settings: Settings) -> PreflightCheck:
         return PreflightCheck(
             name="databricks_client",
             status="fail",
-            message=str(exc),
-            details={"profile": settings.databricks_cli_profile},
+            message=(
+                "Unable to initialize Databricks client. For local development, the "
+                "recommended path is Databricks CLI auth with "
+                "`DATABRICKS_CONFIG_PROFILE` pointing to a valid profile in "
+                "`~/.databrickscfg`."
+            ),
+            details={"error": str(exc)},
         )
 
 
