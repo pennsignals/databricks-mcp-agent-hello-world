@@ -6,14 +6,15 @@ resources:
         - task_key: run_agent_task
           environment_key: default
           python_wheel_task:
-            package_name: databricks_mcp_agent_hello_world
-            entry_point: run_agent_task
+            package_name: databricks-mcp-agent-hello-world
+            entry_point: run-agent-task-job
             named_parameters:
               config_path: ${workspace.file_path}/workspace-config.yml
               task_input_json: ${var.task_input_json}
+              output: text
       environments:
         - environment_key: default
           spec:
-            environment_version: "2"
+            environment_version: "4"
             dependencies:
-              - ${workspace.file_path}/dist/*.whl
+              - ${workspace.root_path}/artifacts/.internal/databricks_mcp_agent_hello_world-0.1.0-py3-none-any.whl
