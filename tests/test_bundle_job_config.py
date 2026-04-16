@@ -17,11 +17,15 @@ def test_job_uses_databricks_specific_wheel_entry_point() -> None:
 
     assert wheel_task["package_name"] == "databricks_mcp_agent_hello_world"
     assert wheel_task["entry_point"] == "run_agent_task"
-    assert wheel_task["named_parameters"] == {
-        "config_path": "${workspace.file_path}/workspace-config.yml",
-        "task_input_json": "${var.task_input_json}",
-        "output": "text",
-    }
+    assert "named_parameters" not in wheel_task
+    assert wheel_task["parameters"] == [
+        "--config-path",
+        "${workspace.file_path}/workspace-config.yml",
+        "--task-input-json",
+        "${var.task_input_json}",
+        "--output",
+        "text",
+    ]
 
 
 def test_job_uses_concrete_artifact_dependency_without_wildcards() -> None:

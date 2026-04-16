@@ -8,10 +8,13 @@ resources:
           python_wheel_task:
             package_name: databricks_mcp_agent_hello_world
             entry_point: run_agent_task
-            named_parameters:
-              config_path: ${workspace.file_path}/workspace-config.yml
-              task_input_json: ${var.task_input_json}
-              output: text
+            parameters:
+              - --config-path
+              - ${workspace.file_path}/workspace-config.yml
+              - --task-input-json
+              - ${var.task_input_json}
+              - --output
+              - text
       environments:
         - environment_key: default
           spec:
