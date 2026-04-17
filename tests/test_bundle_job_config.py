@@ -3,6 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from databricks_mcp_agent_hello_world.versioning import (
+    expected_bundle_wheel_path,
+    read_project_name,
+    read_project_version,
+)
 
 JOB_RESOURCE_PATH = Path("resources/databricks_mcp_agent_hello_world_job.yml")
 
@@ -44,12 +49,13 @@ def test_job_uses_databricks_specific_wheel_entry_point() -> None:
 def test_job_uses_concrete_artifact_dependency_without_wildcards() -> None:
     environment = _load_job_resource()["resources"]["jobs"]["run_agent_task_job"]["environments"][0]
     dependency = environment["spec"]["dependencies"][0]
+    expected_dependency = expected_bundle_wheel_path(
+        read_project_version(),
+        read_project_name(),
+    )
 
     assert environment["spec"]["environment_version"] == "4"
-    assert dependency == (
-        "${workspace.root_path}/artifacts/.internal/"
-        "databricks_mcp_agent_hello_world-0.1.0-py3-none-any.whl"
-    )
+    assert dependency == expected_dependency
     assert "${workspace.file_path}/dist/*.whl" not in dependency
     assert "*" not in dependency
 
