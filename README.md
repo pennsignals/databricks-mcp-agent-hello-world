@@ -51,20 +51,10 @@ Before you start, make sure you have:
 - the **Databricks CLI** installed
 - a Databricks workspace you can authenticate to locally
 - a **Databricks model serving endpoint** to use as `llm_endpoint_name`
-- permission to deploy bundles and run jobs in your target workspace
 
 The serving endpoint should support the **function-calling / tool-calling pattern** this template uses.
 
-The default deployed job definition in this repo uses **serverless job environments**. If your workspace does not support that pattern, you can still use this template, but you will need to edit the job resource before deployment.
-
-## Authentication model
-
-This project uses two auth modes:
-
-- **Local development**: use **Databricks CLI profile auth**, sign in with `databricks auth login`, and store the profile name in `.env` as `DATABRICKS_CONFIG_PROFILE`.
-- **Scheduled or CI/CD execution**: use your organization’s approved non-interactive auth path, typically a service principal with OAuth M2M.
-
-For the supported beginner path, use CLI profile auth locally rather than direct Databricks credentials in `.env`.
+Deployment-specific requirements are covered later in [Deploying to Databricks](#deploying-to-databricks).
 
 ## First-time setup
 
@@ -78,23 +68,11 @@ cp .env.example .env
 
 ## Required edits before your first run
 
-### 1) Set your workspace host in `databricks.yml`
+For the smoothest first pass, start with the local-only setup below and leave deployment-specific changes for the later Databricks section.
 
-Replace the placeholder host in every target you plan to validate or deploy:
+### Local first-run edits
 
-```yaml
-targets:
-  dev:
-    workspace:
-      host: https://<your-workspace-host>
-  prod:
-    workspace:
-      host: https://<your-workspace-host>
-```
-
-If you leave the placeholder host in place, `databricks bundle validate` will fail.
-
-### 2) Set your local CLI profile in `.env`
+### 1) Set your local CLI profile in `.env`
 
 ```dotenv
 DATABRICKS_CONFIG_PROFILE=DEFAULT
@@ -102,7 +80,7 @@ DATABRICKS_CONFIG_PROFILE=DEFAULT
 
 If you use a different profile name, put that value here instead.
 
-### 3) Set the main runtime config in `workspace-config.yml`
+### 2) Set the main runtime config in `workspace-config.yml`
 
 At minimum, update these fields:
 
@@ -113,7 +91,7 @@ llm_endpoint_name: <your-serving-endpoint-name>
 
 You can also override `llm_endpoint_name` from `.env` with `LLM_ENDPOINT_NAME`, but keeping the main value in `workspace-config.yml` is the clearest beginner path.
 
-### 4) Decide where Databricks runs should persist state
+### 3) Leave storage on the local default for your first pass
 
 The example config ships with one event-store target and one local fallback directory:
 
@@ -123,38 +101,17 @@ storage:
   local_data_dir: ./.local_state
 ```
 
-The template uses the same event-log shape in both runtimes: local runs append JSONL under `./.local_state`, and Databricks runs append to Delta. For real Databricks runs, change `agent_events_table` to a **catalog and schema you can create and write to**.
+For your first local run, you usually do not need to change either value. When Spark is unavailable, the template automatically falls back to local JSONL under `./.local_state`.
 
-### 5) Decide how each runtime bootstraps storage
-
-The template now has one explicit rule:
-
-- local JSONL storage is created lazily on first write under `storage.local_data_dir`
-- remote Delta storage is initialized only by the bundled Databricks job
-
-That means there is no local `uv run init-storage ...` setup step anymore.
-
-Before your first remote Databricks workload run, initialize the target Delta table inside Databricks:
-
-```bash
-databricks bundle run --target dev init_storage_job
-```
-
-The remote bootstrap job is non-interactive and safe by default:
-
-- missing catalog: fail
-- missing schema: create automatically
-- missing table: create automatically
-- matching table: no-op success
-- mismatched table: fail with a readable schema diff and do not mutate
-
-### 6) Ignore the SQL section for the demo
+### 4) Ignore the SQL section for the demo
 
 The `sql:` block in `workspace-config.example.yml` is for future SQL-backed tools. It is **not required** for the current `local_python` demo flow.
 
 ## Quickstart: first successful local run
 
 ### Step 1: authenticate to Databricks
+
+Use **Databricks CLI profile auth** for the supported beginner path.
 
 ```bash
 databricks auth login --host https://<your-workspace-host>
@@ -263,6 +220,34 @@ A healthy first pass looks like this:
 
 Do this only after the local flow is green.
 
+Before you deploy, make these additional Databricks-specific updates:
+
+### 1) Set your workspace host in `databricks.yml`
+
+Replace the placeholder host in every target you plan to validate or deploy:
+
+```yaml
+targets:
+  dev:
+    workspace:
+      host: https://<your-workspace-host>
+  prod:
+    workspace:
+      host: https://<your-workspace-host>
+```
+
+If you leave the placeholder host in place, `databricks bundle validate` will fail.
+
+### 2) Point `storage.agent_events_table` at a writable Delta target
+
+In `workspace-config.yml`, change `storage.agent_events_table` to a **catalog and schema you can create and write to** for deployed Databricks runs.
+
+### 3) Confirm your deployment permissions and compute model
+
+You need permission to deploy bundles and run jobs in your target workspace.
+
+The default deployed job definition in this repo uses **serverless job environments**. If your workspace does not support that pattern, edit [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/databricks_mcp_agent_hello_world_job.yml) before deploying.
+
 This repo deploys **two Python wheel jobs**:
 
 - `init_storage_job`
@@ -276,6 +261,8 @@ databricks bundle deploy --target dev
 databricks bundle run --target dev init_storage_job
 databricks bundle run --target dev run_agent_task_job
 ```
+
+Run `init_storage_job` only after the bundle has been deployed. It initializes the remote Delta table inside Databricks before the first remote workload run.
 
 Both deployed jobs read the workspace copy of `workspace-config.yml` from `${workspace.file_path}/workspace-config.yml`, so keep that deployed config aligned with the local config you validated.
 
@@ -292,8 +279,6 @@ The serverless environment dependency should reference the **built bundle artifa
 When you change packaged job behavior, bump the package `version` in `pyproject.toml` before redeploying. Serverless environments can reuse cached custom-package environments, and updating the version is the safest way to ensure Databricks installs the new wheel content.
 
 `databricks.yml` also defines a default bundle variable named `task_input_json` for the runtime job. Downstream teams commonly replace that default payload with their own task family.
-
-The bundled job uses **serverless** as the default deployed path. If your workspace does not support that pattern, edit [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/databricks_mcp_agent_hello_world_job.yml) and replace the default job environment configuration with the compute model your environment allows.
 
 This starter is intentionally **not scheduled by default**. Get the on-demand flow working first, then add a schedule in a downstream project.
 
