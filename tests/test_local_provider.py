@@ -21,6 +21,8 @@ def test_local_provider_lists_tools():
         "list_recent_job_runs",
         "create_support_ticket",
     ]
+    assert all(tool.provider_type == "local_python" for tool in tools)
+    assert all(tool.provider_id == "builtin_tools" for tool in tools)
 
 
 def test_inventory_hash_is_stable():

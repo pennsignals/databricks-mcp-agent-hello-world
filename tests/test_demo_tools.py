@@ -1,6 +1,6 @@
 import pytest
 
-from databricks_mcp_agent_hello_world.demo.tools import (
+from databricks_mcp_agent_hello_world.app.tools import (
     create_support_ticket,
     get_user_profile,
     get_workspace_setting,

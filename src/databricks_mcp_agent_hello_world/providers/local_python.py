@@ -4,8 +4,8 @@ import hashlib
 import json
 import logging
 
+from ..app.registry import get_tool_function, list_authored_tools
 from ..config import Settings
-from ..demo.registry import get_tool_function, list_tool_specs
 from ..models import ToolCall, ToolResult, ToolSpec
 from .base import ToolProvider
 
@@ -20,7 +20,20 @@ class LocalPythonToolProvider(ToolProvider):
         self.settings = settings
 
     def list_tools(self) -> list[ToolSpec]:
-        return list_tool_specs()
+        return [
+            ToolSpec(
+                tool_name=tool.tool_name,
+                description=tool.description,
+                input_schema=tool.input_schema,
+                provider_type=self.provider_type,
+                provider_id=self.provider_id,
+                capability_tags=tool.capability_tags,
+                side_effect_level=tool.side_effect_level,
+                data_domains=tool.data_domains,
+                example_uses=tool.example_uses,
+            )
+            for tool in list_authored_tools()
+        ]
 
     def inventory_hash(self) -> str:
         payload = json.dumps(

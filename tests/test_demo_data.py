@@ -1,4 +1,4 @@
-from databricks_mcp_agent_hello_world.demo.data import (
+from databricks_mcp_agent_hello_world.app.data import (
     DEMO_ONBOARDING_DOCS,
     DEMO_RECENT_JOB_RUNS,
     DEMO_USERS,

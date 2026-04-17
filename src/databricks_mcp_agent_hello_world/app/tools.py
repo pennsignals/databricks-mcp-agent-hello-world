@@ -10,7 +10,8 @@ from .data import (
 )
 
 # TEMPLATE_CUSTOMIZE_HERE
-# Replace these demo tools with your real project tools and keep behavior aligned with your domain.
+# Replace these example app tools with your real project tools and keep behavior
+# aligned with your domain.
 
 
 def get_user_profile(user_id: str) -> dict[str, object]:
