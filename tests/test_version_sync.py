@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -109,3 +112,20 @@ def test_sync_version_refs_fails_clearly_when_expected_pattern_is_missing(tmp_pa
 
     with pytest.raises(RuntimeError, match="Did not find any bundle wheel path"):
         sync_version_refs(bundle_resource_path=bundle_path)
+
+
+def test_sync_version_refs_script_runs_from_plain_repo_checkout() -> None:
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+
+    completed = subprocess.run(
+        [sys.executable, "scripts/sync_version_refs.py", "--help"],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0
+    assert "Sync version-derived wheel references." in completed.stdout

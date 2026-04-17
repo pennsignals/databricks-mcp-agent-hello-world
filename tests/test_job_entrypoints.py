@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import databricks_mcp_agent_hello_world as package_root
 from databricks_mcp_agent_hello_world.job_entrypoints import (
     run_agent_task,
     run_init_storage,
@@ -99,6 +100,19 @@ def test_run_agent_task_raises_system_exit_when_command_fails(monkeypatch) -> No
     assert excinfo.value.code == 2
 
 
+def test_package_root_run_agent_task_is_lazy_and_invokes_job_entrypoint(monkeypatch) -> None:
+    called: list[str] = []
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.job_entrypoints.run_agent_task",
+        lambda: called.append("run_agent_task"),
+    )
+
+    package_root.run_agent_task()
+
+    assert called == ["run_agent_task"]
+
+
 def test_run_init_storage_loads_settings_and_calls_bootstrap(monkeypatch, capsys) -> None:
     settings = SimpleNamespace(storage=SimpleNamespace())
     recorded: dict[str, object] = {}
@@ -176,3 +190,18 @@ def test_run_init_storage_raises_system_exit_when_bootstrap_fails(monkeypatch) -
         run_init_storage()
 
     assert excinfo.value.code == 1
+
+
+def test_package_root_run_init_storage_is_lazy_and_invokes_job_entrypoint(
+    monkeypatch,
+) -> None:
+    called: list[str] = []
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.job_entrypoints.run_init_storage",
+        lambda: called.append("run_init_storage"),
+    )
+
+    package_root.run_init_storage()
+
+    assert called == ["run_init_storage"]
