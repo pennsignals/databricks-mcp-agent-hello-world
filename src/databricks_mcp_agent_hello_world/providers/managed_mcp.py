@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from ..models import ToolCall, ToolResult, ToolSpec
-from .base import ToolExecutor, ToolProvider
+from .base import ToolProvider
+
+MANAGED_MCP_NOT_IMPLEMENTED_MESSAGE = (
+    "managed_mcp is retained as a near-term extension point but is not implemented yet."
+)
 
 
 class ManagedMCPToolProvider(ToolProvider):
@@ -9,27 +13,10 @@ class ManagedMCPToolProvider(ToolProvider):
     provider_id = "managed_mcp_placeholder"
 
     def list_tools(self) -> list[ToolSpec]:
-        raise NotImplementedError(
-            "Managed MCP is a future extension point for this template. It is "
-            "not implemented today, and the supported runtime flow remains "
-            "provider discovery plus LLM-driven tool selection once an MCP "
-            "provider exists."
-        )
+        raise NotImplementedError(MANAGED_MCP_NOT_IMPLEMENTED_MESSAGE)
 
     def inventory_hash(self) -> str:
-        raise NotImplementedError(
-            "Managed MCP is a future extension point for this template. It is "
-            "not implemented today, and the supported runtime flow remains "
-            "provider discovery plus LLM-driven tool selection once an MCP "
-            "provider exists."
-        )
+        raise NotImplementedError(MANAGED_MCP_NOT_IMPLEMENTED_MESSAGE)
 
-
-class ManagedMCPToolExecutor(ToolExecutor):
     def call_tool(self, tool_call: ToolCall) -> ToolResult:
-        raise NotImplementedError(
-            "Managed MCP is a future extension point for this template. It is "
-            "not implemented today, and the supported runtime flow remains "
-            "provider discovery plus LLM-driven tool selection once an MCP "
-            "provider exists."
-        )
+        raise NotImplementedError(MANAGED_MCP_NOT_IMPLEMENTED_MESSAGE)

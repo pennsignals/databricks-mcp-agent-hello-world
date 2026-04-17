@@ -1,4 +1,4 @@
-from databricks_mcp_agent_hello_world.tools.registry import TOOL_DEFINITIONS
+from databricks_mcp_agent_hello_world.demo.registry import TOOL_DEFINITIONS
 
 
 def test_demo_registry_contains_exact_tool_set() -> None:

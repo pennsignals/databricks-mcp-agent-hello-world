@@ -5,7 +5,6 @@ import logging
 from typing import Any
 
 from ..config import Settings
-from ..executors import get_tool_executor
 from ..llm_client import DatabricksLLM
 from ..models import (
     AgentRunRecord,
@@ -17,7 +16,6 @@ from ..models import (
 from ..providers.factory import get_tool_provider
 from ..storage.persistence_schema import safe_jsonable, serialize_event_row
 from ..storage.result_writer import ResultWriter
-from ..tooling.runtime import set_runtime_settings
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +23,8 @@ logger = logging.getLogger(__name__)
 class AgentRunner:
     def __init__(self, settings: Settings):
         self.settings = settings
-        set_runtime_settings(settings)
         self.provider = get_tool_provider(settings)
         self.llm = DatabricksLLM(settings)
-        self.executor = get_tool_executor(settings)
         self.result_writer = ResultWriter(settings)
 
     def run(self, task: AgentTaskRequest) -> AgentRunRecord:
@@ -310,7 +306,7 @@ class AgentRunner:
             arguments=arguments,
             request_id=request_id,
         )
-        return self.executor.call_tool(tool_call)
+        return self.provider.call_tool(tool_call)
 
     @staticmethod
     def _parse_tool_arguments(raw_arguments: Any) -> tuple[dict[str, Any], str | None]:

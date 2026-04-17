@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from ..demo import tools as demo_tools
 from ..models import ToolSpec
+from . import tools as demo_tools
 
 
 class LocalToolDefinition:

@@ -5,10 +5,9 @@ import json
 import logging
 
 from ..config import Settings
+from ..demo.registry import get_tool_function, list_tool_specs
 from ..models import ToolCall, ToolResult, ToolSpec
-from ..tooling.runtime import set_runtime_settings
-from ..tools.registry import get_tool_function, list_tool_specs
-from .base import ToolExecutor, ToolProvider
+from .base import ToolProvider
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +15,9 @@ logger = logging.getLogger(__name__)
 class LocalPythonToolProvider(ToolProvider):
     provider_type = "local_python"
     provider_id = "builtin_tools"
+
+    def __init__(self, settings: Settings | None = None):
+        self.settings = settings
 
     def list_tools(self) -> list[ToolSpec]:
         return list_tool_specs()
@@ -40,13 +42,6 @@ class LocalPythonToolProvider(ToolProvider):
             sort_keys=True,
         )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-class LocalPythonToolExecutor(ToolExecutor):
-    def __init__(self, settings: Settings | None = None):
-        self.settings = settings
-        if settings:
-            set_runtime_settings(settings)
 
     def call_tool(self, tool_call: ToolCall) -> ToolResult:
         try:

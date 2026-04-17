@@ -17,17 +17,13 @@ class StubProvider:
     def __init__(self, tools: list[ToolSpec], inventory_hash: str = "inventory-hash") -> None:
         self.tools = tools
         self._inventory_hash = inventory_hash
+        self.calls = []
 
     def list_tools(self) -> list[ToolSpec]:
         return list(self.tools)
 
     def inventory_hash(self) -> str:
         return self._inventory_hash
-
-
-class StubExecutor:
-    def __init__(self) -> None:
-        self.calls = []
 
     def call_tool(self, tool_call):
         self.calls.append(tool_call)
@@ -39,7 +35,7 @@ class StubExecutor:
         )
 
 
-class RaisingExecutor(StubExecutor):
+class RaisingProvider(StubProvider):
     def call_tool(self, tool_call):
         self.calls.append(tool_call)
         raise RuntimeError(f"tool boom: {tool_call.tool_name}")
@@ -120,7 +116,7 @@ def _runner(
     *,
     tools: list[ToolSpec] | None = None,
     max_agent_steps: int = 2,
-    executor=None,
+    provider=None,
 ) -> AgentRunner:
     runner = AgentRunner.__new__(AgentRunner)
     runner.settings = SimpleNamespace(
@@ -129,8 +125,7 @@ def _runner(
         llm_endpoint_name="databricks-meta-llama",
         storage=SimpleNamespace(local_data_dir=str(tmp_path)),
     )
-    runner.provider = StubProvider(tools or _discovered_tools())
-    runner.executor = executor or StubExecutor()
+    runner.provider = provider or StubProvider(tools or _discovered_tools())
     runner.result_writer = StubWriter()
     runner.llm = llm
     return runner
@@ -180,7 +175,7 @@ def test_agent_runner_returns_runtime_result_contract_and_event_log(tmp_path: Pa
         tool.tool_name for tool in tools
     ]
     assert "create_support_ticket" in record.result["available_tools"]
-    assert [item.tool_name for item in runner.executor.calls] == ["get_user_profile"]
+    assert [item.tool_name for item in runner.provider.calls] == ["get_user_profile"]
     assert record.result == {
         "final_response": "## Onboarding Brief\nAda Lovelace",
         "available_tools": [tool.tool_name for tool in tools],
@@ -308,7 +303,7 @@ def test_agent_runner_returns_error_for_unknown_tool_call(tmp_path: Path) -> Non
         )
     )
 
-    assert runner.executor.calls == []
+    assert runner.provider.calls == []
     assert record.result["tool_calls"][0] == {
         "tool_name": "create_support_ticket",
         "arguments": {"summary": "help"},
@@ -370,7 +365,11 @@ def test_agent_runner_preserves_tool_call_order(tmp_path: Path) -> None:
         "get_user_profile",
         "search_onboarding_docs",
     ]
-    tool_events = [row for row in runner.result_writer.event_rows if row["event_type"] == "tool_call"]
+    tool_events = [
+        row
+        for row in runner.result_writer.event_rows
+        if row["event_type"] == "tool_call"
+    ]
     assert [row["tool_name"] for row in tool_events] == [
         "get_user_profile",
         "search_onboarding_docs",
@@ -526,8 +525,10 @@ def test_agent_runner_leaves_partial_events_when_llm_raises_mid_run(tmp_path: Pa
 def test_agent_runner_leaves_partial_events_when_tool_execution_raises(tmp_path: Path) -> None:
     runner = _runner(
         tmp_path,
-        StubLLM([_response(tool_calls=[_tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')])]),
-        executor=RaisingExecutor(),
+        StubLLM(
+            [_response(tool_calls=[_tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')])]
+        ),
+        provider=RaisingProvider(_discovered_tools()),
     )
 
     with pytest.raises(RuntimeError, match="tool boom: get_user_profile"):

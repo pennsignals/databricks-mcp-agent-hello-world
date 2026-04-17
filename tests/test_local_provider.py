@@ -2,11 +2,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from databricks_mcp_agent_hello_world.executors.factory import get_tool_executor
+from databricks_mcp_agent_hello_world.models import ToolCall
 from databricks_mcp_agent_hello_world.providers.factory import get_tool_provider
-from databricks_mcp_agent_hello_world.providers.local_python import (
-    LocalPythonToolExecutor,
-    LocalPythonToolProvider,
+from databricks_mcp_agent_hello_world.providers.local_python import LocalPythonToolProvider
+from databricks_mcp_agent_hello_world.providers.managed_mcp import (
+    MANAGED_MCP_NOT_IMPLEMENTED_MESSAGE,
+    ManagedMCPToolProvider,
 )
 
 
@@ -32,33 +33,25 @@ def test_provider_factory_returns_local_python_provider() -> None:
     assert isinstance(provider, LocalPythonToolProvider)
 
 
-def test_executor_factory_returns_local_python_executor() -> None:
-    executor = get_tool_executor(
-        SimpleNamespace(tool_provider_type="local_python", local_tool_backend_mode="auto")
-    )
-    assert isinstance(executor, LocalPythonToolExecutor)
-
-
-def test_local_python_executor_does_not_touch_sql_config(monkeypatch) -> None:
+def test_local_python_provider_executes_tools_without_touching_sql_config(monkeypatch) -> None:
     class ExplodingSqlConfig:
         def __getattr__(self, name):
             raise AssertionError("sql config should not be accessed in local_python mode")
 
-    executor = LocalPythonToolExecutor(
-        SimpleNamespace(
-            tool_provider_type="local_python",
-            local_tool_backend_mode="auto",
-            sql=ExplodingSqlConfig(),
-        )
+    settings = SimpleNamespace(
+        tool_provider_type="local_python",
+        local_tool_backend_mode="auto",
+        sql=ExplodingSqlConfig(),
     )
+    provider = LocalPythonToolProvider(settings)
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.providers.local_python.get_tool_function",
         lambda tool_name: lambda **kwargs: {"tool_name": tool_name, "arguments": kwargs},
     )
 
-    result = executor.call_tool(
-        SimpleNamespace(
+    result = provider.call_tool(
+        ToolCall(
             tool_name="get_user_profile",
             arguments={"user_id": "usr_ada_01"},
             request_id="req-1",
@@ -73,8 +66,28 @@ def test_local_python_executor_does_not_touch_sql_config(monkeypatch) -> None:
     }
 
 
-def test_factories_reject_managed_mcp() -> None:
-    with pytest.raises(NotImplementedError):
-        get_tool_provider(SimpleNamespace(tool_provider_type="managed_mcp"))
-    with pytest.raises(NotImplementedError):
-        get_tool_executor(SimpleNamespace(tool_provider_type="managed_mcp"))
+def test_provider_factory_returns_managed_mcp_provider() -> None:
+    provider = get_tool_provider(SimpleNamespace(tool_provider_type="managed_mcp"))
+
+    assert isinstance(provider, ManagedMCPToolProvider)
+
+
+@pytest.mark.parametrize("method_name", ["list_tools", "inventory_hash"])
+def test_managed_mcp_is_explicitly_retained_but_not_implemented(method_name: str) -> None:
+    provider = ManagedMCPToolProvider()
+
+    with pytest.raises(NotImplementedError, match="near-term extension point"):
+        getattr(provider, method_name)()
+
+    with pytest.raises(NotImplementedError, match="near-term extension point"):
+        provider.call_tool(
+            ToolCall(
+                tool_name="get_user_profile",
+                arguments={},
+                request_id="req-1",
+            )
+        )
+
+    assert MANAGED_MCP_NOT_IMPLEMENTED_MESSAGE == (
+        "managed_mcp is retained as a near-term extension point but is not implemented yet."
+    )

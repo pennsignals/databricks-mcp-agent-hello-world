@@ -1,4 +1,4 @@
-from databricks_mcp_agent_hello_world.tools.registry import TOOL_DEFINITIONS, list_tool_specs
+from databricks_mcp_agent_hello_world.demo.registry import TOOL_DEFINITIONS, list_tool_specs
 
 
 def test_every_registered_tool_declares_explicit_metadata() -> None:

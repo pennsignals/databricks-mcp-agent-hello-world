@@ -17,8 +17,6 @@ class ToolProvider(ABC):
     def inventory_hash(self) -> str:
         raise NotImplementedError
 
-
-class ToolExecutor(ABC):
     @abstractmethod
     def call_tool(self, tool_call: ToolCall) -> ToolResult:
         raise NotImplementedError

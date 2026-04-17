@@ -19,17 +19,13 @@ class StubProvider:
     def __init__(self, tools: list[ToolSpec], inventory_hash: str = "inventory-hash") -> None:
         self.tools = tools
         self._inventory_hash = inventory_hash
+        self.calls = []
 
     def list_tools(self) -> list[ToolSpec]:
         return list(self.tools)
 
     def inventory_hash(self) -> str:
         return self._inventory_hash
-
-
-class StubExecutor:
-    def __init__(self) -> None:
-        self.calls = []
 
     def call_tool(self, tool_call):
         self.calls.append(tool_call)
@@ -93,7 +89,6 @@ def _runner(tmp_path: Path, llm, *, tools: list[ToolSpec] | None = None) -> Agen
         storage=SimpleNamespace(local_data_dir=str(tmp_path)),
     )
     runner.provider = StubProvider(tools or [_tool("get_user_profile")])
-    runner.executor = StubExecutor()
     runner.result_writer = StubWriter()
     runner.llm = llm
     return runner
