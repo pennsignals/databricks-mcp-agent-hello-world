@@ -34,15 +34,7 @@ def test_provider_factory_returns_local_python_provider() -> None:
 
 
 def test_local_python_provider_executes_tools_without_touching_sql_config(monkeypatch) -> None:
-    class ExplodingSqlConfig:
-        def __getattr__(self, name):
-            raise AssertionError("sql config should not be accessed in local_python mode")
-
-    settings = SimpleNamespace(
-        tool_provider_type="local_python",
-        local_tool_backend_mode="auto",
-        sql=ExplodingSqlConfig(),
-    )
+    settings = SimpleNamespace(tool_provider_type="local_python")
     provider = LocalPythonToolProvider(settings)
 
     monkeypatch.setattr(
@@ -61,7 +53,6 @@ def test_local_python_provider_executes_tools_without_touching_sql_config(monkey
     assert result.status == "ok"
     assert result.metadata == {
         "provider_type": "local_python",
-        "backend_mode": "auto",
         "request_id": "req-1",
     }
 

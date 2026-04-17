@@ -46,7 +46,6 @@ def test_preflight_returns_pass_without_profile_checks(tmp_path: Path, monkeypat
         "llm_endpoint_name",
         "provider_factory",
         "tool_registry_nonempty",
-        "sql_config",
         "persistence_targets",
         "persistence_reachability",
     ]
@@ -181,6 +180,92 @@ def test_preflight_json_output_omits_deprecated_profile_fields(
 
     assert '"overall_status": "pass"' in output
     assert '"databricks_config_profile"' not in output
+
+
+def test_preflight_includes_single_config_warnings_check(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = tmp_path / "workspace-config.yml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "llm_endpoint_name: endpoint-a",
+                "tool_provider_type: local_python",
+                "auth_mode: local-dev",
+                "storage:",
+                "  agent_events_table: main.agent.agent_events",
+                "  agent_runs_table: main.agent.agent_runs",
+                "  local_data_dir: ./.local_state",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.get_spark_session", lambda: None)
+
+    report = run_preflight(str(config_path))
+    warning_checks = [check for check in report.checks if check.name == "config_warnings"]
+
+    assert len(warning_checks) == 1
+    assert warning_checks[0].status == "warn"
+    assert warning_checks[0].message == "Config contains deprecated or unused keys."
+    assert warning_checks[0].details == {
+        "warnings": [
+            "Unused config key 'auth_mode' is ignored by the current runtime.",
+            "Unused config key 'storage.agent_runs_table' is ignored by the current runtime.",
+        ]
+    }
+
+
+def test_preflight_warning_strings_match_config_warning_strings(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = tmp_path / "workspace-config.yml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "llm_endpoint_name: endpoint-a",
+                "provider_type: managed_mcp",
+                "storage:",
+                "  agent_events_table: main.agent.agent_events",
+                "  local_data_dir: ./.local_state",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.get_spark_session", lambda: None)
+
+    report = run_preflight(str(config_path))
+    warning_check = next(check for check in report.checks if check.name == "config_warnings")
+
+    assert warning_check.details["warnings"] == [
+        "Deprecated config key 'provider_type' used; use 'tool_provider_type' instead."
+    ]
+
+
+def test_preflight_omits_config_warnings_check_when_none_present(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_config(tmp_path)
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.get_spark_session", lambda: None)
+
+    report = run_preflight(str(config_path))
+
+    assert all(check.name != "config_warnings" for check in report.checks)
 
 
 def test_preflight_databricks_client_failure_points_to_cli_auth_setup(
