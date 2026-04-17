@@ -17,12 +17,14 @@ from .ops import (
     run_preflight,
 )
 from .runner.agent_runner import AgentRunner
+from .storage.bootstrap import init_storage
 from .tooling.runtime import set_runtime_settings
 
 OUTPUT_CHOICES = ("text", "json")
 COMMAND_NAMES = (
     "preflight",
     "discover-tools",
+    "init-storage",
     "run-agent-task",
     "run-evals",
 )
@@ -38,6 +40,10 @@ def discover_tools_entrypoint() -> None:
 
 def run_agent_task_entrypoint() -> None:
     raise SystemExit(run_named_command("run-agent-task"))
+
+
+def init_storage_entrypoint() -> None:
+    raise SystemExit(run_named_command("init-storage"))
 
 
 def run_evals_entrypoint() -> None:
@@ -92,14 +98,19 @@ def run_named_command(
 def build_parser(command_name: str, *, prog: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog=prog, description=f"{command_name} command")
     parser.add_argument("--config-path", default=DEFAULT_CONFIG_PATH)
-    parser.add_argument("--output", choices=OUTPUT_CHOICES, default="text")
 
     if command_name == "run-agent-task":
+        parser.add_argument("--output", choices=OUTPUT_CHOICES, default="text")
         group = parser.add_mutually_exclusive_group(required=True)
         group.add_argument("--task-input-json")
         group.add_argument("--task-input-file")
     elif command_name == "run-evals":
+        parser.add_argument("--output", choices=OUTPUT_CHOICES, default="text")
         parser.add_argument("--scenario-file", default="evals/sample_scenarios.json")
+    elif command_name in {"preflight", "discover-tools"}:
+        parser.add_argument("--output", choices=OUTPUT_CHOICES, default="text")
+    elif command_name == "init-storage":
+        parser.add_argument("--yes", action="store_true")
 
     return parser
 
@@ -133,6 +144,15 @@ def _run_agent_task(args: argparse.Namespace) -> int:
     record = runner.run(request)
     _render_output(record, output_format=args.output, text_renderer=_print_run_summary)
     return 0
+
+
+def _run_init_storage(args: argparse.Namespace) -> int:
+    settings = _load_settings_for_command(args.config_path, "init-storage")
+    set_runtime_settings(settings)
+    report = init_storage(settings, assume_yes=args.yes)
+    for message in report.messages:
+        print(message)
+    return report.exit_code
 
 
 def _run_evals(args: argparse.Namespace) -> int:
@@ -240,6 +260,7 @@ def _print_eval_summary(summary) -> None:
 COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], int]] = {
     "preflight": _run_preflight,
     "discover-tools": _run_discover_tools,
+    "init-storage": _run_init_storage,
     "run-agent-task": _run_agent_task,
     "run-evals": _run_evals,
 }
