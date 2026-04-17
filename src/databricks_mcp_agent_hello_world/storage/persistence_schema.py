@@ -35,14 +35,6 @@ EVENT_SCHEMA = pa.schema(
 )
 
 
-def get_canonical_event_schema() -> pa.Schema:
-    return EVENT_SCHEMA
-
-
-def build_empty_event_table() -> pa.Table:
-    return pa.Table.from_pylist([], schema=EVENT_SCHEMA)
-
-
 def validate_event_rows(rows: list[dict[str, object]]) -> pa.Table:
     return pa.Table.from_pylist(rows, schema=EVENT_SCHEMA)
 

@@ -110,15 +110,6 @@ class AgentRunRecord(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
-class AgentOutputRecord(BaseModel):
-    run_id: str
-    task_name: str
-    status: str
-    output_payload: dict[str, Any]
-    error_message: str | None = None
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-
 class DiscoveryReport(BaseModel):
     provider_type: str
     tool_count: int

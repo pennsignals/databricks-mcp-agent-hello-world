@@ -27,12 +27,3 @@ def append_delta_table_event_rows(
 
     arrow_table = validate_event_rows(rows)
     spark.createDataFrame(arrow_table).write.mode("append").saveAsTable(table_name)
-
-
-def append_local_jsonl_record(base_dir: str, name: str, record: dict[str, object]) -> None:
-    del name
-    append_local_jsonl_event_rows(base_dir, [record])
-
-
-def append_delta_table_record(spark, table_name: str, record: dict[str, object]) -> None:
-    append_delta_table_event_rows(spark, table_name, [record])

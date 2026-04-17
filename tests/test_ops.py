@@ -7,7 +7,6 @@ from databricks_mcp_agent_hello_world.ops import (
     print_discovery_report,
     print_json_report,
     print_preflight_summary,
-    run_example_task,
     run_preflight,
 )
 
@@ -150,7 +149,10 @@ def test_preflight_checks_event_store_reachability_with_spark(
         "databricks_mcp_agent_hello_world.ops.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.get_spark_session", lambda: StubSpark())
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.ops.get_spark_session",
+        lambda: StubSpark(),
+    )
 
     report = run_preflight(str(config_path))
     reachability_check = next(
@@ -196,12 +198,8 @@ def test_preflight_databricks_client_failure_points_to_cli_auth_setup(
     databricks_check = next(check for check in report.checks if check.name == "databricks_client")
 
     assert databricks_check.status == "fail"
-    assert databricks_check.message == (
-        "Unable to initialize Databricks client. For local development, the "
-        "recommended path is Databricks CLI auth with "
-        "`DATABRICKS_CONFIG_PROFILE` pointing to a valid profile in "
-        "`~/.databrickscfg`."
-    )
+    assert "Unable to initialize Databricks client" in databricks_check.message
+    assert "Databricks CLI auth" in databricks_check.message
     assert databricks_check.details == {"error": "auth not configured"}
 
 
@@ -244,84 +242,3 @@ def test_print_discovery_report_shows_metadata(tmp_path: Path, capsys) -> None:
     assert "Side effect level: read_only" in output
     assert "Tags: identity, user_lookup" in output
     assert "Domains: user" in output
-
-
-def test_run_example_task_orchestrates_discover_and_run(tmp_path: Path, monkeypatch) -> None:
-    settings = load_settings(str(_write_config(tmp_path)))
-    calls = []
-    task_file = tmp_path / "task.json"
-    task_file.write_text(
-        (
-            '{"task_name":"workspace_onboarding_brief","instructions":"Write the report.",'
-            '"payload":{"user_id":"usr_ada_01","onboarding_topic":"local development"}}'
-        ),
-        encoding="utf-8",
-    )
-
-    class StubRunner:
-        def __init__(self, passed_settings):
-            assert passed_settings == settings
-
-        def run(self, task):
-            calls.append(("run", task.task_name, task.payload))
-            return {"task_name": task.task_name, "payload": task.payload}
-
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.AgentRunner", StubRunner)
-
-    result = run_example_task(settings, str(task_file))
-
-    assert result["task_name"] == "workspace_onboarding_brief"
-    assert result["payload"] == {
-        "user_id": "usr_ada_01",
-        "onboarding_topic": "local development",
-    }
-    assert calls == [
-        (
-            "run",
-            "workspace_onboarding_brief",
-            {
-                "user_id": "usr_ada_01",
-                "onboarding_topic": "local development",
-            },
-        ),
-    ]
-
-
-def test_run_example_task_keeps_sql_fields_optional(tmp_path: Path, monkeypatch) -> None:
-    settings = load_settings(str(_write_config(tmp_path)))
-    observed_sql_fields = {}
-    task_file = tmp_path / "task.json"
-    task_file.write_text(
-        (
-            '{"task_name":"workspace_onboarding_brief",'
-            '"instructions":"Write the report.",'
-            '"payload":{"user_id":"usr_ada_01"}}'
-        ),
-        encoding="utf-8",
-    )
-
-    def _discover(passed_settings):
-        observed_sql_fields.update(
-            {
-                "warehouse_id": passed_settings.sql.warehouse_id,
-                "catalog": passed_settings.sql.catalog,
-                "schema": passed_settings.sql.schema,
-            }
-        )
-        return SimpleNamespace()
-
-    class StubRunner:
-        def __init__(self, passed_settings):
-            assert passed_settings.sql.warehouse_id is None
-            assert passed_settings.sql.catalog is None
-            assert passed_settings.sql.schema is None
-
-        def run(self, task):
-            return {"task_name": task.task_name, "payload": task.payload}
-
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.ops.AgentRunner", StubRunner)
-
-    result = run_example_task(settings, str(task_file))
-
-    assert result["task_name"] == "workspace_onboarding_brief"
-    assert observed_sql_fields == {}

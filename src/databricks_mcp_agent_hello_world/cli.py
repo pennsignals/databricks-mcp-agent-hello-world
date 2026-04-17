@@ -17,7 +17,6 @@ from .ops import (
     run_preflight,
 )
 from .runner.agent_runner import AgentRunner
-from .tooling.runtime import set_runtime_settings
 
 OUTPUT_CHOICES = ("text", "json")
 COMMAND_NAMES = (
@@ -115,7 +114,6 @@ def _run_preflight(args: argparse.Namespace) -> int:
 
 def _run_discover_tools(args: argparse.Namespace) -> int:
     settings = _load_settings_for_command(args.config_path, "discover-tools")
-    set_runtime_settings(settings)
     report = discover_tools(settings)
     _render_output(report, output_format=args.output, text_renderer=print_discovery_report)
     return 0
@@ -127,7 +125,6 @@ def _run_agent_task(args: argparse.Namespace) -> int:
         "run-agent-task",
         next_step="run_agent_task_job",
     )
-    set_runtime_settings(settings)
     request = _build_agent_task_request(
         _load_task_payload(args),
         command_name="run-agent-task",
@@ -146,7 +143,6 @@ def _run_evals(args: argparse.Namespace) -> int:
             f"Unable to load config from {Path(args.config_path)} while running run-evals: {exc}"
         ) from exc
 
-    set_runtime_settings(settings)
     try:
         summary = run_evals(settings, args.scenario_file)
     except EvalSetupError:

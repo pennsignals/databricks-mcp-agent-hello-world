@@ -9,13 +9,10 @@ from .config import (
     build_settings,
     load_dotenv_values,
     load_yaml_config,
-    parse_task_input_file,
 )
-from .models import AgentTaskRequest, DiscoveryReport, PreflightCheck, PreflightReport
+from .models import DiscoveryReport, PreflightCheck, PreflightReport
 from .providers.factory import get_tool_provider
-from .runner.agent_runner import AgentRunner
 from .storage.spark_utils import get_spark_session
-from .tooling.runtime import set_runtime_settings
 
 
 def run_preflight(config_path: str) -> PreflightReport:
@@ -71,7 +68,6 @@ def run_preflight(config_path: str) -> PreflightReport:
         dotenv_path=dotenv_path,
         dotenv_values=dotenv_values,
     )
-    set_runtime_settings(settings)
 
     checks.append(_check_databricks_client(settings))
     checks.append(_check_llm_endpoint_name(settings))
@@ -95,19 +91,6 @@ def discover_tools(settings: Settings) -> DiscoveryReport:
         provider_id=provider.provider_id,
         inventory_hash=provider.inventory_hash(),
         tools=tools,
-    )
-
-
-def run_example_task(settings: Settings, task_input_file: str) -> Any:
-    set_runtime_settings(settings)
-    runner = AgentRunner(settings)
-    task_input = parse_task_input_file(task_input_file)
-    return runner.run(
-        AgentTaskRequest(
-            task_name=task_input.get("task_name", "example_task"),
-            instructions=task_input.get("instructions", "Complete the requested task."),
-            payload=task_input.get("payload", task_input),
-        )
     )
 
 

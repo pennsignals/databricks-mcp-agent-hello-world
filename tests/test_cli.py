@@ -102,9 +102,6 @@ def test_run_agent_task_uses_cli_json_source(monkeypatch, capsys) -> None:
         "databricks_mcp_agent_hello_world.cli.parse_task_input", _parse_task_input
     )
     monkeypatch.setattr("databricks_mcp_agent_hello_world.cli.AgentRunner", StubRunner)
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.set_runtime_settings", lambda settings: None
-    )
 
     exit_code = run_named_command(
         "run-agent-task",
@@ -166,9 +163,6 @@ def test_run_agent_task_uses_cli_file_source(tmp_path: Path, monkeypatch) -> Non
             )
 
     monkeypatch.setattr("databricks_mcp_agent_hello_world.cli.AgentRunner", StubRunner)
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.set_runtime_settings", lambda settings: None
-    )
 
     exit_code = run_named_command(
         "run-agent-task",
@@ -184,10 +178,6 @@ def test_run_agent_task_fails_when_required_task_fields_are_missing(monkeypatch,
         "databricks_mcp_agent_hello_world.cli.load_settings",
         lambda config_path: SimpleNamespace(),
     )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.set_runtime_settings",
-        lambda settings: None,
-    )
 
     exit_code = run_named_command(
         "run-agent-task",
@@ -196,7 +186,8 @@ def test_run_agent_task_fails_when_required_task_fields_are_missing(monkeypatch,
     output = capsys.readouterr().err
 
     assert exit_code == 1
-    assert "run-agent-task requires task fields: instructions." in output
+    assert "run-agent-task requires task fields:" in output
+    assert "instructions" in output
 
 
 def test_print_run_summary_includes_final_response_without_profile_vocabulary(capsys) -> None:

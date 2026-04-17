@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from ..config import Settings
 from . import persistence_schema
 from .result_repository import EVENTS_JSONL_FILE_NAME
 from .spark_utils import get_spark_session
-
-PromptFn = Callable[[str], str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,9 +41,6 @@ class SchemaFieldSpec:
 
 def init_storage(
     settings: Settings,
-    assume_yes: bool = False,
-    *,
-    prompt_fn: PromptFn | None = None,
 ) -> InitStorageReport:
     spark = get_spark_session()
     if spark is None:
@@ -107,11 +102,6 @@ def parse_table_name(table_name: str) -> StorageTableName:
             "catalog.schema.table"
         )
     return StorageTableName(catalog=parts[0], schema=parts[1], table=parts[2])
-
-
-def prompt_yes_no(prompt: str, *, prompt_fn: PromptFn | None = None) -> bool:
-    reader = input if prompt_fn is None else prompt_fn
-    return reader(f"{prompt} ").strip().lower() in {"y", "yes"}
 
 
 def ensure_local_storage_dir(local_data_dir: Path) -> bool:

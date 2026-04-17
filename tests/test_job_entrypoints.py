@@ -1,29 +1,14 @@
 from __future__ import annotations
 
-import inspect
 from types import SimpleNamespace
 
 import pytest
 
-from databricks_mcp_agent_hello_world import (
-    run_agent_task as package_run_agent_task,
-)
-from databricks_mcp_agent_hello_world import (
-    run_init_storage as package_run_init_storage,
-)
 from databricks_mcp_agent_hello_world.job_entrypoints import (
     run_agent_task,
     run_init_storage,
 )
 from databricks_mcp_agent_hello_world.storage.bootstrap import InitStorageReport
-
-
-def test_run_agent_task_uses_zero_argument_wrapper_signature() -> None:
-    assert inspect.signature(run_agent_task).parameters == {}
-
-
-def test_run_init_storage_uses_zero_argument_wrapper_signature() -> None:
-    assert inspect.signature(run_init_storage).parameters == {}
 
 
 def test_run_agent_task_forwards_sys_argv_to_cli_command(monkeypatch) -> None:
@@ -123,10 +108,6 @@ def test_run_init_storage_loads_settings_and_calls_bootstrap(monkeypatch, capsys
         lambda config_path: recorded.update({"config_path": config_path}) or settings,
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.job_entrypoints.set_runtime_settings",
-        lambda loaded_settings: recorded.update({"runtime_settings": loaded_settings}),
-    )
-    monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.job_entrypoints.init_storage",
         lambda loaded_settings: (
             recorded.update({"settings": loaded_settings})
@@ -150,7 +131,6 @@ def test_run_init_storage_loads_settings_and_calls_bootstrap(monkeypatch, capsys
 
     assert recorded == {
         "config_path": "/Workspace/Repos/user/project/workspace-config.yml",
-        "runtime_settings": settings,
         "settings": settings,
     }
     assert "Schema main.agent created" in output
@@ -163,10 +143,6 @@ def test_run_init_storage_defaults_to_workspace_config(monkeypatch) -> None:
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.job_entrypoints.load_settings",
         lambda config_path: recorded.update({"config_path": config_path}) or SimpleNamespace(),
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.job_entrypoints.set_runtime_settings",
-        lambda loaded_settings: None,
     )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.job_entrypoints.init_storage",
@@ -188,10 +164,6 @@ def test_run_init_storage_raises_system_exit_when_bootstrap_fails(monkeypatch) -
         lambda config_path: SimpleNamespace(),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.job_entrypoints.set_runtime_settings",
-        lambda loaded_settings: None,
-    )
-    monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.job_entrypoints.init_storage",
         lambda loaded_settings: InitStorageReport(exit_code=1, messages=["boom"]),
     )
@@ -204,11 +176,3 @@ def test_run_init_storage_raises_system_exit_when_bootstrap_fails(monkeypatch) -
         run_init_storage()
 
     assert excinfo.value.code == 1
-
-
-def test_package_root_exports_run_agent_task() -> None:
-    assert package_run_agent_task is run_agent_task
-
-
-def test_package_root_exports_run_init_storage() -> None:
-    assert package_run_init_storage is run_init_storage

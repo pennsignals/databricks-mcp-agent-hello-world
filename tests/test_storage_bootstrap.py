@@ -95,7 +95,9 @@ class FakeSpark:
             return FakeSqlResult([])
         if query.startswith("CREATE TABLE "):
             table_name = ".".join(
-                _unquote_qualified_name(query.split("(", 1)[0].removeprefix("CREATE TABLE ").strip())
+                _unquote_qualified_name(
+                    query.split("(", 1)[0].removeprefix("CREATE TABLE ").strip()
+                )
             )
             self.create_table_sql.append(query)
             self.created_tables.append(table_name)
@@ -156,14 +158,6 @@ def _field_specs(*names: str) -> list[bootstrap.SchemaFieldSpec]:
 def test_parse_table_name_requires_three_parts() -> None:
     with pytest.raises(ValueError, match="3-part name"):
         bootstrap.parse_table_name("main.agent_events")
-
-
-def test_confirm_defaults_to_no(monkeypatch) -> None:
-    monkeypatch.setattr("builtins.input", lambda prompt: "")
-    assert bootstrap.prompt_yes_no("Create it?") is False
-
-    monkeypatch.setattr("builtins.input", lambda prompt: "yes")
-    assert bootstrap.prompt_yes_no("Create it?") is True
 
 
 def test_init_storage_local_mode_creates_directory_without_jsonl(
@@ -327,54 +321,6 @@ def test_init_storage_returns_error_when_schema_mismatches(tmp_path: Path, monke
     assert report.messages[-1] == "Refusing to modify an existing table automatically."
     assert spark.created_tables == []
     assert spark.dropped_tables == []
-
-
-def test_init_storage_yes_flag_does_not_change_non_destructive_behavior(
-    tmp_path: Path, monkeypatch
-) -> None:
-    monkeypatch.setattr(
-        bootstrap.persistence_schema,
-        "arrow_schema_to_field_specs",
-        lambda schema: _field_specs("schema_version"),
-    )
-    mismatching_spark = FakeSpark(
-        catalogs={"main"},
-        schemas={("main", "agent_demo")},
-        tables={"main.agent_demo.agent_events": _schema("event_id")},
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
-        lambda: mismatching_spark,
-    )
-
-    report = bootstrap.init_storage(_settings(tmp_path), assume_yes=True)
-
-    assert report.exit_code == 1
-    assert report.messages[-1] == "Refusing to modify an existing table automatically."
-    assert mismatching_spark.dropped_tables == []
-    assert mismatching_spark.created_tables == []
-
-
-def test_init_storage_yes_flag_still_allows_automatic_create_paths(
-    tmp_path: Path, monkeypatch
-) -> None:
-    spark = FakeSpark(catalogs={"main"})
-    monkeypatch.setattr(
-        bootstrap.persistence_schema,
-        "arrow_schema_to_sql_columns",
-        lambda schema: "`schema_version` STRING NOT NULL",
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
-        lambda: spark,
-    )
-    report = bootstrap.init_storage(_settings(tmp_path), assume_yes=True)
-
-    assert report.exit_code == 0
-    assert report.messages == [
-        "Schema main.agent_demo created",
-        "Table main.agent_demo.agent_events created",
-    ]
 
 
 def test_expected_table_schema_fields_uses_arrow_schema_helper(monkeypatch) -> None:

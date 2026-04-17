@@ -6,7 +6,6 @@ import sys
 from .cli import run_named_command
 from .config import DEFAULT_CONFIG_PATH, load_settings
 from .storage.bootstrap import init_storage
-from .tooling.runtime import set_runtime_settings
 
 
 def run_agent_task() -> None:
@@ -25,7 +24,6 @@ def run_init_storage() -> None:
     args = parser.parse_args(sys.argv[1:])
 
     settings = load_settings(args.config_path)
-    set_runtime_settings(settings)
     report = init_storage(settings)
     for message in report.messages:
         print(message)
