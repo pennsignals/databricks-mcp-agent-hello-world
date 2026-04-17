@@ -5,18 +5,21 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-from .config import DEFAULT_CONFIG_PATH, load_settings, parse_task_input, parse_task_input_file
-from .evals.harness import EvalSetupError, run_evals
+from .commands import (
+    CommandResult,
+    run_agent_task_command,
+    run_discover_tools_command,
+    run_evals_command,
+    run_preflight_command,
+)
+from .config import DEFAULT_CONFIG_PATH
+from .evals.harness import EvalSetupError
 from .logging_utils import configure_logging
-from .models import AgentTaskRequest
 from .ops import (
-    discover_tools,
     print_discovery_report,
     print_json_report,
     print_preflight_summary,
-    run_preflight,
 )
-from .runner.agent_runner import AgentRunner
 
 OUTPUT_CHOICES = ("text", "json")
 COMMAND_NAMES = (
@@ -77,7 +80,9 @@ def run_named_command(
     parser = build_parser(command_name, prog=prog or command_name)
     try:
         args = parser.parse_args(argv)
-        return COMMAND_HANDLERS[command_name](args)
+        command_result = COMMAND_HANDLERS[command_name](args)
+        _render_command_result(command_name, args, command_result)
+        return command_result.exit_code
     except SystemExit as exc:
         return int(exc.code) if isinstance(exc.code, int) else 2
     except EvalSetupError as exc:
@@ -106,102 +111,42 @@ def build_parser(command_name: str, *, prog: str) -> argparse.ArgumentParser:
     return parser
 
 
-def _run_preflight(args: argparse.Namespace) -> int:
-    report = run_preflight(args.config_path)
-    _render_output(report, output_format=args.output, text_renderer=print_preflight_summary)
-    return 0 if report.overall_status == "pass" else 1
+def _run_preflight(args: argparse.Namespace) -> CommandResult:
+    return run_preflight_command(args.config_path)
 
 
-def _run_discover_tools(args: argparse.Namespace) -> int:
-    settings = _load_settings_for_command(args.config_path, "discover-tools")
-    report = discover_tools(settings)
-    _render_output(report, output_format=args.output, text_renderer=print_discovery_report)
-    return 0
+def _run_discover_tools(args: argparse.Namespace) -> CommandResult:
+    return run_discover_tools_command(args.config_path)
 
 
-def _run_agent_task(args: argparse.Namespace) -> int:
-    settings = _load_settings_for_command(
+def _run_agent_task(args: argparse.Namespace) -> CommandResult:
+    return run_agent_task_command(
         args.config_path,
-        "run-agent-task",
-        next_step="run_agent_task_job",
+        task_input_json=args.task_input_json,
+        task_input_file=args.task_input_file,
     )
-    request = _build_agent_task_request(
-        _load_task_payload(args),
-        command_name="run-agent-task",
-    )
-    runner = AgentRunner(settings)
-    record = runner.run(request)
-    _render_output(record, output_format=args.output, text_renderer=_print_run_summary)
-    return 0
 
 
-def _run_evals(args: argparse.Namespace) -> int:
-    try:
-        settings = load_settings(args.config_path)
-    except Exception as exc:  # noqa: BLE001
-        raise EvalSetupError(
-            f"Unable to load config from {Path(args.config_path)} while running run-evals: {exc}"
-        ) from exc
-
-    try:
-        summary = run_evals(settings, args.scenario_file)
-    except EvalSetupError:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        raise EvalSetupError(str(exc)) from exc
-
-    _render_output(summary, output_format=args.output, text_renderer=_print_eval_summary)
-    return 0 if summary.all_passed else 1
+def _run_evals(args: argparse.Namespace) -> CommandResult:
+    return run_evals_command(args.config_path, scenario_file=args.scenario_file)
 
 
-def _load_task_payload(args: argparse.Namespace) -> dict[str, Any]:
-    if args.task_input_json:
-        return parse_task_input(args.task_input_json)
-    return parse_task_input_file(args.task_input_file)
-
-
-def _build_agent_task_request(
-    payload: dict[str, Any],
-    *,
+def _render_command_result(
     command_name: str,
-) -> AgentTaskRequest:
-    missing_fields = [
-        field_name
-        for field_name in ("task_name", "instructions", "payload")
-        if field_name not in payload
-    ]
-    if missing_fields:
-        formatted = ", ".join(missing_fields)
-        raise RuntimeError(f"{command_name} requires task fields: {formatted}.")
-
-    request_kwargs = {
-        "task_name": payload["task_name"],
-        "instructions": payload["instructions"],
-        "payload": payload["payload"],
+    args: argparse.Namespace,
+    command_result: CommandResult,
+) -> None:
+    text_renderers: dict[str, Callable[[Any], None]] = {
+        "preflight": print_preflight_summary,
+        "discover-tools": print_discovery_report,
+        "run-agent-task": _print_run_summary,
+        "run-evals": _print_eval_summary,
     }
-    if payload.get("run_id"):
-        request_kwargs["run_id"] = payload["run_id"]
-    return AgentTaskRequest(**request_kwargs)
-
-
-def _load_settings_for_command(
-    config_path: str,
-    command_name: str,
-    *,
-    next_step: str | None = None,
-):
-    try:
-        return load_settings(config_path)
-    except FileNotFoundError as exc:
-        location = Path(config_path)
-        if next_step:
-            raise RuntimeError(
-                f"Missing config file at {location} while running {command_name}. "
-                f"Create workspace-config.yml and rerun {next_step}."
-            ) from exc
-        raise RuntimeError(
-            f"Missing config file at {location} while running {command_name}."
-        ) from exc
+    _render_output(
+        command_result.payload,
+        output_format=getattr(args, "output", "text"),
+        text_renderer=text_renderers[command_name],
+    )
 
 
 def _render_output(
@@ -236,7 +181,7 @@ def _print_eval_summary(summary) -> None:
     print(f"Passed {summary.passed_scenarios}/{summary.total_scenarios} scenarios")
 
 
-COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], int]] = {
+COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], CommandResult]] = {
     "preflight": _run_preflight,
     "discover-tools": _run_discover_tools,
     "run-agent-task": _run_agent_task,
