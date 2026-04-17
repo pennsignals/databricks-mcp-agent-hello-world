@@ -45,52 +45,24 @@ class FakeCatalogApi:
         return table_name in self.spark.tables
 
 
-class FakeDataFrameWriter:
-    def __init__(self, spark: "FakeSpark", schema: FakeSchema) -> None:
-        self.spark = spark
-        self.schema = schema
-        self.format_name = None
-        self.mode_name = None
-
-    def format(self, format_name: str):
-        self.format_name = format_name
-        return self
-
-    def mode(self, mode_name: str):
-        self.mode_name = mode_name
-        return self
-
-    def saveAsTable(self, table_name: str) -> None:
-        normalized_name = ".".join(_unquote_qualified_name(table_name))
-        self.spark.saved_tables.append(normalized_name)
-        self.spark.tables[normalized_name] = self.schema
-
-
-class FakeDataFrame:
-    def __init__(self, spark: "FakeSpark", schema: FakeSchema) -> None:
-        self.spark = spark
-        self.schema = schema
-        self.write = FakeDataFrameWriter(spark, schema)
-
-
 class FakeSpark:
     def __init__(
         self,
         *,
-        expected_schema: FakeSchema,
+        created_table_schema: FakeSchema | None = None,
         catalogs: set[str] | None = None,
         schemas: set[tuple[str, str]] | None = None,
         tables: dict[str, FakeSchema] | None = None,
     ) -> None:
-        self.expected_schema = expected_schema
+        self.created_table_schema = created_table_schema or _schema("schema_version")
         self.catalogs = set(catalogs or set())
         self.schemas = set(schemas or set())
         self.tables = dict(tables or {})
         self.catalog = FakeCatalogApi(self)
         self.sql_calls: list[str] = []
-        self.saved_tables: list[str] = []
+        self.created_tables: list[str] = []
+        self.create_table_sql: list[str] = []
         self.dropped_tables: list[str] = []
-        self.arrow_tables = []
 
     def sql(self, query: str) -> FakeSqlResult:
         self.sql_calls.append(query)
@@ -121,6 +93,14 @@ class FakeSpark:
             )
             self.schemas.add((catalog_name, schema_name))
             return FakeSqlResult([])
+        if query.startswith("CREATE TABLE "):
+            table_name = ".".join(
+                _unquote_qualified_name(query.split("(", 1)[0].removeprefix("CREATE TABLE ").strip())
+            )
+            self.create_table_sql.append(query)
+            self.created_tables.append(table_name)
+            self.tables[table_name] = self.created_table_schema
+            return FakeSqlResult([])
         if query.startswith("DROP TABLE "):
             table_name = ".".join(_unquote_qualified_name(query.removeprefix("DROP TABLE ")))
             self.dropped_tables.append(table_name)
@@ -128,9 +108,8 @@ class FakeSpark:
             return FakeSqlResult([])
         raise AssertionError(f"Unexpected SQL query: {query}")
 
-    def createDataFrame(self, arrow_table) -> FakeDataFrame:
-        self.arrow_tables.append(arrow_table)
-        return FakeDataFrame(self, self.expected_schema)
+    def createDataFrame(self, *_args, **_kwargs):
+        raise AssertionError("bootstrap should not call createDataFrame")
 
     def table(self, table_name: str):
         normalized_name = ".".join(_unquote_qualified_name(table_name))
@@ -161,6 +140,17 @@ def _schema(*names: str) -> FakeSchema:
             for name in names
         )
     )
+
+
+def _field_specs(*names: str) -> list[bootstrap.SchemaFieldSpec]:
+    return [
+        bootstrap.SchemaFieldSpec(
+            name=name,
+            data_type="string",
+            nullable=False,
+        )
+        for name in names
+    ]
 
 
 def test_parse_table_name_requires_three_parts() -> None:
@@ -216,7 +206,7 @@ def test_init_storage_local_mode_noops_when_directory_already_exists(
 
 
 def test_init_storage_fails_when_catalog_is_missing(tmp_path: Path, monkeypatch) -> None:
-    spark = FakeSpark(expected_schema=_schema("schema_version"))
+    spark = FakeSpark()
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
         lambda: spark,
@@ -227,7 +217,12 @@ def test_init_storage_fails_when_catalog_is_missing(tmp_path: Path, monkeypatch)
 
 
 def test_init_storage_creates_missing_schema_automatically(tmp_path: Path, monkeypatch) -> None:
-    spark = FakeSpark(expected_schema=_schema("schema_version"), catalogs={"main"})
+    spark = FakeSpark(catalogs={"main"})
+    monkeypatch.setattr(
+        bootstrap.persistence_schema,
+        "arrow_schema_to_sql_columns",
+        lambda schema: "`schema_version` STRING NOT NULL",
+    )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
         lambda: spark,
@@ -240,16 +235,26 @@ def test_init_storage_creates_missing_schema_automatically(tmp_path: Path, monke
         "Table main.agent_demo.agent_events created",
     ]
     assert ("main", "agent_demo") in spark.schemas
-    assert spark.saved_tables == ["main.agent_demo.agent_events"]
+    assert spark.created_tables == ["main.agent_demo.agent_events"]
+    assert spark.create_table_sql == [
+        "CREATE TABLE `main`.`agent_demo`.`agent_events` (\n"
+        "    `schema_version` STRING NOT NULL\n"
+        ")\n"
+        "USING DELTA"
+    ]
 
 
 def test_init_storage_creates_missing_table_without_prompt(
     tmp_path: Path, monkeypatch
 ) -> None:
     spark = FakeSpark(
-        expected_schema=_schema("schema_version"),
         catalogs={"main"},
         schemas={("main", "agent_demo")},
+    )
+    monkeypatch.setattr(
+        bootstrap.persistence_schema,
+        "arrow_schema_to_sql_columns",
+        lambda schema: "`schema_version` STRING NOT NULL",
     )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
@@ -259,18 +264,29 @@ def test_init_storage_creates_missing_table_without_prompt(
 
     assert report.exit_code == 0
     assert report.messages == ["Table main.agent_demo.agent_events created"]
-    assert spark.saved_tables == ["main.agent_demo.agent_events"]
+    assert spark.created_tables == ["main.agent_demo.agent_events"]
+    assert spark.create_table_sql == [
+        "CREATE TABLE `main`.`agent_demo`.`agent_events` (\n"
+        "    `schema_version` STRING NOT NULL\n"
+        ")\n"
+        "USING DELTA"
+    ]
 
 
 def test_init_storage_noops_when_existing_table_matches_expected_schema(
     tmp_path: Path, monkeypatch
 ) -> None:
     expected_schema = _schema("schema_version")
+    expected_field_specs = _field_specs("schema_version")
     spark = FakeSpark(
-        expected_schema=expected_schema,
         catalogs={"main"},
         schemas={("main", "agent_demo")},
         tables={"main.agent_demo.agent_events": expected_schema},
+    )
+    monkeypatch.setattr(
+        bootstrap.persistence_schema,
+        "arrow_schema_to_field_specs",
+        lambda schema: expected_field_specs,
     )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
@@ -283,13 +299,17 @@ def test_init_storage_noops_when_existing_table_matches_expected_schema(
     assert report.messages == [
         "Table main.agent_demo.agent_events already exists and matches expected schema"
     ]
-    assert spark.saved_tables == []
+    assert spark.created_tables == []
     assert spark.dropped_tables == []
 
 
 def test_init_storage_returns_error_when_schema_mismatches(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        bootstrap.persistence_schema,
+        "arrow_schema_to_field_specs",
+        lambda schema: _field_specs("schema_version"),
+    )
     spark = FakeSpark(
-        expected_schema=_schema("schema_version"),
         catalogs={"main"},
         schemas={("main", "agent_demo")},
         tables={"main.agent_demo.agent_events": _schema("event_id")},
@@ -305,15 +325,19 @@ def test_init_storage_returns_error_when_schema_mismatches(tmp_path: Path, monke
     assert "Expected schema:" in report.messages
     assert "Actual schema:" in report.messages
     assert report.messages[-1] == "Refusing to modify an existing table automatically."
-    assert spark.saved_tables == []
+    assert spark.created_tables == []
     assert spark.dropped_tables == []
 
 
 def test_init_storage_yes_flag_does_not_change_non_destructive_behavior(
     tmp_path: Path, monkeypatch
 ) -> None:
+    monkeypatch.setattr(
+        bootstrap.persistence_schema,
+        "arrow_schema_to_field_specs",
+        lambda schema: _field_specs("schema_version"),
+    )
     mismatching_spark = FakeSpark(
-        expected_schema=_schema("schema_version"),
         catalogs={"main"},
         schemas={("main", "agent_demo")},
         tables={"main.agent_demo.agent_events": _schema("event_id")},
@@ -328,13 +352,18 @@ def test_init_storage_yes_flag_does_not_change_non_destructive_behavior(
     assert report.exit_code == 1
     assert report.messages[-1] == "Refusing to modify an existing table automatically."
     assert mismatching_spark.dropped_tables == []
-    assert mismatching_spark.saved_tables == []
+    assert mismatching_spark.created_tables == []
 
 
 def test_init_storage_yes_flag_still_allows_automatic_create_paths(
     tmp_path: Path, monkeypatch
 ) -> None:
-    spark = FakeSpark(expected_schema=_schema("schema_version"), catalogs={"main"})
+    spark = FakeSpark(catalogs={"main"})
+    monkeypatch.setattr(
+        bootstrap.persistence_schema,
+        "arrow_schema_to_sql_columns",
+        lambda schema: "`schema_version` STRING NOT NULL",
+    )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
         lambda: spark,
@@ -345,4 +374,49 @@ def test_init_storage_yes_flag_still_allows_automatic_create_paths(
     assert report.messages == [
         "Schema main.agent_demo created",
         "Table main.agent_demo.agent_events created",
+    ]
+
+
+def test_expected_table_schema_fields_uses_arrow_schema_helper(monkeypatch) -> None:
+    sentinel_spark = object()
+    expected = [
+        bootstrap.SchemaFieldSpec(name="schema_version", data_type="string", nullable=False),
+        bootstrap.SchemaFieldSpec(name="payload_json", data_type="string", nullable=False),
+    ]
+    calls: list[object] = []
+
+    monkeypatch.setattr(
+        bootstrap.persistence_schema,
+        "arrow_schema_to_field_specs",
+        lambda schema: calls.append(schema) or expected,
+    )
+
+    assert bootstrap.expected_table_schema_fields(sentinel_spark) == expected
+    assert calls == [bootstrap.persistence_schema.EVENT_SCHEMA]
+
+
+def test_create_table_uses_generated_delta_ddl(monkeypatch) -> None:
+    spark = FakeSpark(catalogs={"main"}, schemas={("main", "agent_demo")})
+    target = bootstrap.parse_table_name("main.agent_demo.agent_events")
+
+    monkeypatch.setattr(
+        bootstrap.persistence_schema,
+        "arrow_schema_to_sql_columns",
+        lambda schema: (
+            "`event_index` BIGINT NOT NULL,\n"
+            "`payload_json` STRING NOT NULL,\n"
+            "`error_message` STRING"
+        ),
+    )
+
+    bootstrap.create_table(spark, target)
+
+    assert spark.created_tables == ["main.agent_demo.agent_events"]
+    assert spark.create_table_sql == [
+        "CREATE TABLE `main`.`agent_demo`.`agent_events` (\n"
+        "    `event_index` BIGINT NOT NULL,\n"
+        "    `payload_json` STRING NOT NULL,\n"
+        "    `error_message` STRING\n"
+        ")\n"
+        "USING DELTA"
     ]

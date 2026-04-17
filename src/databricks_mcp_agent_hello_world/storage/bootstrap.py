@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..config import Settings
-from .persistence_schema import build_empty_event_table
+from . import persistence_schema
 from .result_repository import EVENTS_JSONL_FILE_NAME
 from .spark_utils import get_spark_session
 
@@ -155,8 +155,8 @@ def compare_table_schema(spark: Any, target: StorageTableName) -> list[str] | No
 
 
 def expected_table_schema_fields(spark: Any) -> list[SchemaFieldSpec]:
-    schema = spark.createDataFrame(build_empty_event_table()).schema
-    return schema_to_field_specs(schema)
+    del spark
+    return persistence_schema.arrow_schema_to_field_specs(persistence_schema.EVENT_SCHEMA)
 
 
 def actual_table_schema_fields(spark: Any, target: StorageTableName) -> list[SchemaFieldSpec]:
@@ -165,9 +165,18 @@ def actual_table_schema_fields(spark: Any, target: StorageTableName) -> list[Sch
 
 
 def create_table(spark: Any, target: StorageTableName) -> None:
-    empty_table = build_empty_event_table()
-    spark.createDataFrame(empty_table).write.format("delta").mode("errorifexists").saveAsTable(
-        qualified_table_name(target)
+    columns_sql = persistence_schema.arrow_schema_to_sql_columns(
+        persistence_schema.EVENT_SCHEMA
+    ).replace("\n", "\n    ")
+    spark.sql(
+        "\n".join(
+            (
+                f"CREATE TABLE {qualified_table_name(target)} (",
+                f"    {columns_sql}",
+                ")",
+                "USING DELTA",
+            )
+        )
     )
 
 
