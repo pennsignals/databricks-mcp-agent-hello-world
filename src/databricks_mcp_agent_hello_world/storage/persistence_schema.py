@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 import pyarrow as pa
+
+if TYPE_CHECKING:
+    from .bootstrap import SchemaFieldSpec
 
 SCHEMA_VERSION = "v1"
 _FINAL_RESPONSE_EXCERPT_LIMIT = 500
@@ -41,6 +45,42 @@ def build_empty_event_table() -> pa.Table:
 
 def validate_event_rows(rows: list[dict[str, object]]) -> pa.Table:
     return pa.Table.from_pylist(rows, schema=EVENT_SCHEMA)
+
+
+def arrow_field_to_spark_sql_type(field: pa.Field) -> str:
+    field_type = field.type
+    if pa.types.is_string(field_type) or pa.types.is_large_string(field_type):
+        return "STRING"
+    if pa.types.is_int64(field_type):
+        return "BIGINT"
+    raise ValueError(f"Unsupported Arrow type for field {field.name}: {field_type}")
+
+
+def arrow_schema_to_sql_columns(schema: pa.Schema) -> str:
+    column_lines: list[str] = []
+    for field in schema:
+        nullability_sql = "" if field.nullable else " NOT NULL"
+        column_lines.append(
+            f"`{field.name}` {arrow_field_to_spark_sql_type(field)}{nullability_sql}"
+        )
+    return ",\n".join(column_lines)
+
+
+def arrow_schema_to_field_specs(schema: pa.Schema) -> list[SchemaFieldSpec]:
+    # Local import avoids a module import cycle while still returning the
+    # shared comparison type defined in bootstrap.py.
+    from .bootstrap import SchemaFieldSpec
+
+    field_specs: list[SchemaFieldSpec] = []
+    for field in schema:
+        field_specs.append(
+            SchemaFieldSpec(
+                name=field.name,
+                data_type=_arrow_field_to_spark_field_type(field),
+                nullable=field.nullable,
+            )
+        )
+    return field_specs
 
 
 def safe_jsonable(value: object) -> object:
@@ -110,3 +150,7 @@ def serialize_event_row(
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _arrow_field_to_spark_field_type(field: pa.Field) -> str:
+    return arrow_field_to_spark_sql_type(field).lower()
