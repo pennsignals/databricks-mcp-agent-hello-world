@@ -1,0 +1,256 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable
+
+from ..config import Settings
+from .persistence_schema import build_empty_event_table
+from .result_repository import EVENTS_JSONL_FILE_NAME
+from .spark_utils import get_spark_session
+
+PromptFn = Callable[[str], str]
+
+
+@dataclass(frozen=True, slots=True)
+class InitStorageReport:
+    exit_code: int
+    messages: list[str] = field(default_factory=list)
+    changed: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class StorageTableName:
+    catalog: str
+    schema: str
+    table: str
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.catalog}.{self.schema}.{self.table}"
+
+    @property
+    def schema_name(self) -> str:
+        return f"{self.catalog}.{self.schema}"
+
+
+@dataclass(frozen=True, slots=True)
+class SchemaFieldSpec:
+    name: str
+    data_type: str
+    nullable: bool
+
+
+def init_storage(
+    settings: Settings,
+    assume_yes: bool = False,
+    *,
+    prompt_fn: PromptFn | None = None,
+) -> InitStorageReport:
+    spark = get_spark_session()
+    if spark is None:
+        local_data_dir = Path(settings.storage.local_data_dir).expanduser()
+        created_dir = ensure_local_storage_dir(local_data_dir)
+        return InitStorageReport(
+            exit_code=0,
+            messages=[f"Local storage ready at {settings.storage.local_data_dir}"],
+            changed=created_dir,
+        )
+
+    table_name = (settings.storage.agent_events_table or "").strip()
+    if not table_name:
+        raise ValueError("storage.agent_events_table must be configured when Spark is available.")
+
+    target = parse_table_name(table_name)
+    messages: list[str] = []
+    changed = False
+
+    if not catalog_exists(spark, target.catalog):
+        raise ValueError(f"Catalog {target.catalog} does not exist")
+
+    if not schema_exists(spark, target):
+        if not _confirm(
+            f"Schema {target.schema_name} does not exist. Create it? [y/N]",
+            assume_yes=assume_yes,
+            prompt_fn=prompt_fn,
+        ):
+            return InitStorageReport(
+                exit_code=0,
+                messages=[
+                    f"Schema {target.schema_name} does not exist.",
+                    "No changes were made.",
+                ],
+            )
+        create_schema(spark, target)
+        changed = True
+        messages.append(f"Schema {target.schema_name} created")
+
+    if not table_exists(spark, target):
+        create_table(spark, target)
+        changed = True
+        messages.append(f"Table {target.full_name} created")
+        return InitStorageReport(exit_code=0, messages=messages, changed=changed)
+
+    schema_diff = compare_table_schema(spark, target)
+    if schema_diff is None:
+        messages.append(f"Table {target.full_name} already exists and matches expected schema")
+        return InitStorageReport(exit_code=0, messages=messages, changed=changed)
+
+    messages.append(f"Table {target.full_name} schema mismatch detected")
+    messages.extend(schema_diff)
+
+    if not _confirm(
+        "Table schema does not match expected schema. Drop and recreate? [y/N]",
+        assume_yes=assume_yes,
+        prompt_fn=prompt_fn,
+    ):
+        messages.append("No changes were made.")
+        return InitStorageReport(exit_code=1, messages=messages, changed=changed)
+
+    recreate_table(spark, target)
+    changed = True
+    messages.append(f"Table {target.full_name} dropped and recreated")
+    return InitStorageReport(exit_code=0, messages=messages, changed=changed)
+
+
+def parse_table_name(table_name: str) -> StorageTableName:
+    parts = [part.strip() for part in table_name.split(".")]
+    if len(parts) != 3 or any(not part for part in parts):
+        raise ValueError(
+            "storage.agent_events_table must be a fully qualified 3-part name: "
+            "catalog.schema.table"
+        )
+    return StorageTableName(catalog=parts[0], schema=parts[1], table=parts[2])
+
+
+def prompt_yes_no(prompt: str, *, prompt_fn: PromptFn | None = None) -> bool:
+    reader = input if prompt_fn is None else prompt_fn
+    return reader(f"{prompt} ").strip().lower() in {"y", "yes"}
+
+
+def ensure_local_storage_dir(local_data_dir: Path) -> bool:
+    created = not local_data_dir.exists()
+    local_data_dir.mkdir(parents=True, exist_ok=True)
+    jsonl_path = local_data_dir / EVENTS_JSONL_FILE_NAME
+    if jsonl_path.exists() and jsonl_path.is_dir():
+        raise ValueError(f"Expected JSONL path to be a file, found directory: {jsonl_path}")
+    return created
+
+
+def catalog_exists(spark: Any, catalog_name: str) -> bool:
+    rows = spark.sql(f"SHOW CATALOGS LIKE '{sql_literal(catalog_name)}'").collect()
+    return any(_row_first_value(row) == catalog_name for row in rows)
+
+
+def schema_exists(spark: Any, target: StorageTableName) -> bool:
+    rows = spark.sql(
+        f"SHOW SCHEMAS IN {quote_name(target.catalog)} LIKE '{sql_literal(target.schema)}'"
+    ).collect()
+    return any(_row_first_value(row) == target.schema for row in rows)
+
+
+def create_schema(spark: Any, target: StorageTableName) -> None:
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {qualified_schema_name(target)}")
+
+
+def table_exists(spark: Any, target: StorageTableName) -> bool:
+    rows = spark.sql(
+        f"SHOW TABLES IN {qualified_schema_name(target)} LIKE '{sql_literal(target.table)}'"
+    ).collect()
+    return any(getattr(row, "tableName", None) == target.table for row in rows)
+
+
+def compare_table_schema(spark: Any, target: StorageTableName) -> list[str] | None:
+    expected_schema = expected_table_schema_fields(spark)
+    actual_schema = actual_table_schema_fields(spark, target)
+    if actual_schema == expected_schema:
+        return None
+    return format_schema_diff(expected_schema, actual_schema)
+
+
+def expected_table_schema_fields(spark: Any) -> list[SchemaFieldSpec]:
+    schema = spark.createDataFrame(build_empty_event_table()).schema
+    return schema_to_field_specs(schema)
+
+
+def actual_table_schema_fields(spark: Any, target: StorageTableName) -> list[SchemaFieldSpec]:
+    schema = spark.table(qualified_table_name(target)).schema
+    return schema_to_field_specs(schema)
+
+
+def create_table(spark: Any, target: StorageTableName) -> None:
+    empty_table = build_empty_event_table()
+    spark.createDataFrame(empty_table).write.format("delta").mode("errorifexists").saveAsTable(
+        qualified_table_name(target)
+    )
+
+
+def recreate_table(spark: Any, target: StorageTableName) -> None:
+    spark.sql(f"DROP TABLE {qualified_table_name(target)}")
+    create_table(spark, target)
+
+
+def format_schema_diff(
+    expected_schema: list[SchemaFieldSpec], actual_schema: list[SchemaFieldSpec]
+) -> list[str]:
+    return [
+        "Expected schema:",
+        *[f"  - {line}" for line in describe_schema(expected_schema)],
+        "Actual schema:",
+        *[f"  - {line}" for line in describe_schema(actual_schema)],
+    ]
+
+
+def describe_schema(schema: list[SchemaFieldSpec]) -> list[str]:
+    return [
+        f"{field.name}: {field.data_type} (nullable={field.nullable})"
+        for field in schema
+    ]
+
+
+def schema_to_field_specs(schema: Any) -> list[SchemaFieldSpec]:
+    return [
+        SchemaFieldSpec(
+            name=field.name,
+            data_type=field.dataType.simpleString(),
+            nullable=field.nullable,
+        )
+        for field in schema.fields
+    ]
+
+
+def qualified_schema_name(target: StorageTableName) -> str:
+    return ".".join((quote_name(target.catalog), quote_name(target.schema)))
+
+
+def qualified_table_name(target: StorageTableName) -> str:
+    return ".".join(
+        (quote_name(target.catalog), quote_name(target.schema), quote_name(target.table))
+    )
+
+
+def quote_name(name: str) -> str:
+    escaped = name.replace("`", "``")
+    return f"`{escaped}`"
+
+
+def sql_literal(value: str) -> str:
+    return value.replace("'", "''")
+
+
+def _confirm(prompt: str, *, assume_yes: bool, prompt_fn: PromptFn | None) -> bool:
+    if assume_yes:
+        return True
+    return prompt_yes_no(prompt, prompt_fn=prompt_fn)
+
+
+def _row_first_value(row: Any) -> Any:
+    if isinstance(row, dict):
+        values = list(row.values())
+        if values:
+            return values[0]
+    if hasattr(row, "asDict"):
+        values = list(row.asDict().values())
+        if values:
+            return values[0]
+    return row[0]
