@@ -37,7 +37,7 @@ examples/demo_run_task.json
   -> generic runner loop
   -> provider.call_tool(...)
   -> runtime emits execution events incrementally
-  -> ResultWriter.write_event_rows(...)
+  -> write_event_rows(...)
 ```
 
 ## Runtime tool selection
@@ -114,8 +114,7 @@ That is why local JSONL is created lazily during normal writes, while remote Del
 
 Every persisted row belongs to the same event schema. A few top-level fields stay queryable in Delta SQL:
 
-- `conversation_id`: logical conversation or workflow identifier
-- `run_key`: idempotency and future resume key
+- `run_key`: the persisted run identifier
 - `turn_index`: turn number for LLM and tool events, `null` for run-level events
 - `event_index`: strictly increasing sequence number within the run
 - `event_type`: event category such as `run_started`, `llm_request`, `tool_call`, `tool_result`, or `run_completed`
@@ -125,6 +124,8 @@ Every persisted row belongs to the same event schema. A few top-level fields sta
 - `created_at`: ISO-8601 UTC timestamp string
 
 Everything event-specific and potentially nested stays in `payload_json`.
+
+`run_key + event_index` is the only supported event identity pair. The template does not persist `conversation_id`, and it intentionally does not persist a composite `event_id` because that can always be reconstructed later from those two fields.
 
 ### Why `payload_json` exists
 
@@ -155,7 +156,7 @@ The Databricks path is intentionally conservative. Catalogs must already exist, 
 
 ## Demo assets vs framework assets
 
-- Framework assets: `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`, `src/databricks_mcp_agent_hello_world/storage/result_writer.py`, `src/databricks_mcp_agent_hello_world/storage/result_repository.py`, `src/databricks_mcp_agent_hello_world/evals/harness.py`, `src/databricks_mcp_agent_hello_world/models.py`, `src/databricks_mcp_agent_hello_world/config.py`
+- Framework assets: `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`, `src/databricks_mcp_agent_hello_world/storage/write.py`, `src/databricks_mcp_agent_hello_world/storage/schema.py`, `src/databricks_mcp_agent_hello_world/storage/bootstrap.py`, `src/databricks_mcp_agent_hello_world/evals/harness.py`, `src/databricks_mcp_agent_hello_world/models.py`, `src/databricks_mcp_agent_hello_world/config.py`
 - Demo assets: `src/databricks_mcp_agent_hello_world/demo/tools.py`, `src/databricks_mcp_agent_hello_world/demo/registry.py`, `examples/demo_run_task.json`, `evals/sample_scenarios.json`, `databricks.yml`, `workspace-config.example.yml`, `resources/databricks_mcp_agent_hello_world_job.yml`
 
 ## What downstream teams should customize

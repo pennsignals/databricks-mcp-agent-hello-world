@@ -313,6 +313,8 @@ Before you rely on deployed runs, make sure `storage.agent_events_table` points 
 
 The template uses one append-only event store shared across local JSONL and Databricks Delta. Each row is one execution event. Stable identifiers and queryable metadata stay in top-level columns, and event-specific detail stays in `payload_json`.
 
+The only supported per-event identity pair is `run_key + event_index`. The runtime does not persist `conversation_id` or a composite `event_id`.
+
 ## What you should customize vs keep
 
 Replace these first in a downstream project:
@@ -327,7 +329,8 @@ Replace these first in a downstream project:
 Usually keep these framework files intact unless you are intentionally changing the core runtime:
 
 - [`src/databricks_mcp_agent_hello_world/runner/agent_runner.py`](src/databricks_mcp_agent_hello_world/runner/agent_runner.py)
-- [`src/databricks_mcp_agent_hello_world/storage/result_writer.py`](src/databricks_mcp_agent_hello_world/storage/result_writer.py)
+- [`src/databricks_mcp_agent_hello_world/storage/write.py`](src/databricks_mcp_agent_hello_world/storage/write.py)
+- [`src/databricks_mcp_agent_hello_world/storage/schema.py`](src/databricks_mcp_agent_hello_world/storage/schema.py)
 - [`src/databricks_mcp_agent_hello_world/evals/harness.py`](src/databricks_mcp_agent_hello_world/evals/harness.py)
 - [`src/databricks_mcp_agent_hello_world/models.py`](src/databricks_mcp_agent_hello_world/models.py)
 - [`src/databricks_mcp_agent_hello_world/config.py`](src/databricks_mcp_agent_hello_world/config.py)
@@ -400,7 +403,7 @@ Fix: update `storage.agent_events_table` in `workspace-config.yml` to a writable
 
 ### Databricks job runs but output is empty
 
-Inspect `storage.agent_events_table`, then confirm the runtime task JSON is valid. The persisted rows are event records, so query by `conversation_id`, `run_key`, `event_type`, or `event_index` instead of expecting separate summary tables.
+Inspect `storage.agent_events_table`, then confirm the runtime task JSON is valid. The persisted rows are event records, so query by `run_key`, `event_index`, `event_type`, or `tool_name` instead of expecting separate summary tables.
 
 ## Advanced concepts and additional resources
 
