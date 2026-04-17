@@ -41,17 +41,6 @@ class RaisingProvider(StubProvider):
         raise RuntimeError(f"tool boom: {tool_call.tool_name}")
 
 
-class StubWriter:
-    def __init__(self) -> None:
-        self.event_batches = []
-        self.event_rows = []
-
-    def write_event_rows(self, rows) -> None:
-        batch = [dict(row) for row in rows]
-        self.event_batches.append(batch)
-        self.event_rows.extend(batch)
-
-
 class StubLLM:
     def __init__(self, responses):
         self.responses = responses
@@ -126,9 +115,23 @@ def _runner(
         storage=SimpleNamespace(local_data_dir=str(tmp_path)),
     )
     runner.provider = provider or StubProvider(tools or _discovered_tools())
-    runner.result_writer = StubWriter()
+    runner.persisted_event_batches = []
+    runner.persisted_event_rows = []
     runner.llm = llm
     return runner
+
+
+def _capture_event_rows(runner: AgentRunner, monkeypatch) -> None:
+    def _stub_write_event_rows(settings, rows) -> None:
+        del settings
+        batch = [dict(row) for row in rows]
+        runner.persisted_event_batches.append(batch)
+        runner.persisted_event_rows.extend(batch)
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.runner.agent_runner.write_event_rows",
+        _stub_write_event_rows,
+    )
 
 
 def _event_types(rows: list[dict]) -> list[str]:
@@ -139,7 +142,9 @@ def _payload(row: dict) -> dict:
     return json.loads(row["payload_json"])
 
 
-def test_agent_runner_returns_runtime_result_contract_and_event_log(tmp_path: Path) -> None:
+def test_agent_runner_returns_runtime_result_contract_and_event_log(
+    tmp_path: Path, monkeypatch
+) -> None:
     tools = _discovered_tools()
     runner = _runner(
         tmp_path,
@@ -159,6 +164,7 @@ def test_agent_runner_returns_runtime_result_contract_and_event_log(tmp_path: Pa
         ),
         tools=tools,
     )
+    _capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(
@@ -190,7 +196,7 @@ def test_agent_runner_returns_runtime_result_contract_and_event_log(tmp_path: Pa
         ],
     }
 
-    events = runner.result_writer.event_rows
+    events = runner.persisted_event_rows
     assert _event_types(events) == [
         "run_started",
         "llm_request",
@@ -202,10 +208,10 @@ def test_agent_runner_returns_runtime_result_contract_and_event_log(tmp_path: Pa
         "run_completed",
     ]
     assert [row["event_index"] for row in events] == list(range(len(events)))
-    assert [row["event_id"] for row in events] == [f"run-123:{index}" for index in range(8)]
     assert all(isinstance(row["payload_json"], str) for row in events)
-    assert events[0]["conversation_id"] == "run-123"
     assert events[0]["run_key"] == "run-123"
+    assert all("conversation_id" not in row for row in events)
+    assert all("event_id" not in row for row in events)
     assert events[0]["status"] == "started"
     assert _payload(events[0])["available_tools_count"] == len(tools)
     assert events[1]["turn_index"] == 0
@@ -226,7 +232,7 @@ def test_agent_runner_returns_runtime_result_contract_and_event_log(tmp_path: Pa
 
 
 def test_agent_runner_marks_max_steps_exceeded_with_runtime_result_payload(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch
 ) -> None:
     tools = _discovered_tools()
     runner = _runner(
@@ -247,6 +253,7 @@ def test_agent_runner_marks_max_steps_exceeded_with_runtime_result_payload(
         tools=tools,
         max_agent_steps=1,
     )
+    _capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(
@@ -269,7 +276,7 @@ def test_agent_runner_marks_max_steps_exceeded_with_runtime_result_payload(
             "error": None,
         }
     ]
-    assert _event_types(runner.result_writer.event_rows) == [
+    assert _event_types(runner.persisted_event_rows) == [
         "run_started",
         "llm_request",
         "llm_response",
@@ -277,12 +284,12 @@ def test_agent_runner_marks_max_steps_exceeded_with_runtime_result_payload(
         "tool_result",
         "run_max_steps_exceeded",
     ]
-    assert runner.result_writer.event_rows[-1]["event_id"] == "run-max:5"
-    assert runner.result_writer.event_rows[-1]["status"] == "max_steps_exceeded"
-    assert runner.result_writer.event_rows[-1]["error_message"] == "Maximum agent steps exceeded."
+    assert runner.persisted_event_rows[-1]["run_key"] == "run-max"
+    assert runner.persisted_event_rows[-1]["event_index"] == 5
+    assert runner.persisted_event_rows[-1]["status"] == "max_steps_exceeded"
+    assert runner.persisted_event_rows[-1]["error_message"] == "Maximum agent steps exceeded."
 
-
-def test_agent_runner_returns_error_for_unknown_tool_call(tmp_path: Path) -> None:
+def test_agent_runner_returns_error_for_unknown_tool_call(tmp_path: Path, monkeypatch) -> None:
     tools = _discovered_tools()[:-1]
     runner = _runner(
         tmp_path,
@@ -294,6 +301,7 @@ def test_agent_runner_returns_error_for_unknown_tool_call(tmp_path: Path) -> Non
         ),
         tools=tools,
     )
+    _capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(
@@ -311,7 +319,7 @@ def test_agent_runner_returns_error_for_unknown_tool_call(tmp_path: Path) -> Non
         "error": "Unknown tool call: create_support_ticket",
     }
     assert "blocked" not in {record.result["tool_calls"][0]["status"]}
-    assert _event_types(runner.result_writer.event_rows) == [
+    assert _event_types(runner.persisted_event_rows) == [
         "run_started",
         "llm_request",
         "llm_response",
@@ -321,12 +329,12 @@ def test_agent_runner_returns_error_for_unknown_tool_call(tmp_path: Path) -> Non
         "llm_response",
         "run_completed",
     ]
-    assert runner.result_writer.event_rows[4]["error_message"] == (
+    assert runner.persisted_event_rows[4]["error_message"] == (
         "Unknown tool call: create_support_ticket"
     )
 
 
-def test_agent_runner_preserves_tool_call_order(tmp_path: Path) -> None:
+def test_agent_runner_preserves_tool_call_order(tmp_path: Path, monkeypatch) -> None:
     tools = _discovered_tools()
     runner = _runner(
         tmp_path,
@@ -351,6 +359,7 @@ def test_agent_runner_preserves_tool_call_order(tmp_path: Path) -> None:
         ),
         tools=tools,
     )
+    _capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(
@@ -367,7 +376,7 @@ def test_agent_runner_preserves_tool_call_order(tmp_path: Path) -> None:
     ]
     tool_events = [
         row
-        for row in runner.result_writer.event_rows
+        for row in runner.persisted_event_rows
         if row["event_type"] == "tool_call"
     ]
     assert [row["tool_name"] for row in tool_events] == [
@@ -377,7 +386,7 @@ def test_agent_runner_preserves_tool_call_order(tmp_path: Path) -> None:
 
 
 def test_agent_runner_exposes_full_inventory_while_llm_selects_relevant_tools(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch
 ) -> None:
     tools = _discovered_tools()
     runner = _runner(
@@ -414,6 +423,7 @@ def test_agent_runner_exposes_full_inventory_while_llm_selects_relevant_tools(
         ),
         tools=tools,
     )
+    _capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(
@@ -439,7 +449,7 @@ def test_agent_runner_exposes_full_inventory_while_llm_selects_relevant_tools(
     assert "Databricks Serverless Jobs" in record.result["final_response"]
 
 
-def test_agent_runner_persists_parse_failures_incrementally(tmp_path: Path) -> None:
+def test_agent_runner_persists_parse_failures_incrementally(tmp_path: Path, monkeypatch) -> None:
     runner = _runner(
         tmp_path,
         StubLLM(
@@ -449,6 +459,7 @@ def test_agent_runner_persists_parse_failures_incrementally(tmp_path: Path) -> N
             ]
         ),
     )
+    _capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(
@@ -460,7 +471,7 @@ def test_agent_runner_persists_parse_failures_incrementally(tmp_path: Path) -> N
 
     assert record.result["tool_calls"][0]["status"] == "error"
     assert "valid JSON" in record.result["tool_calls"][0]["error"]
-    assert _event_types(runner.result_writer.event_rows) == [
+    assert _event_types(runner.persisted_event_rows) == [
         "run_started",
         "llm_request",
         "llm_response",
@@ -470,11 +481,12 @@ def test_agent_runner_persists_parse_failures_incrementally(tmp_path: Path) -> N
         "llm_response",
         "run_completed",
     ]
-    assert _payload(runner.result_writer.event_rows[3])["parse_error"] is not None
-    assert runner.result_writer.event_rows[4]["status"] == "error"
+    assert _payload(runner.persisted_event_rows[3])["parse_error"] is not None
+    assert runner.persisted_event_rows[4]["status"] == "error"
 
-
-def test_agent_runner_leaves_partial_events_when_llm_raises_mid_run(tmp_path: Path) -> None:
+def test_agent_runner_leaves_partial_events_when_llm_raises_mid_run(
+    tmp_path: Path, monkeypatch
+) -> None:
     runner = _runner(
         tmp_path,
         StubLLM(
@@ -488,6 +500,7 @@ def test_agent_runner_leaves_partial_events_when_llm_raises_mid_run(tmp_path: Pa
             ]
         ),
     )
+    _capture_event_rows(runner, monkeypatch)
 
     with pytest.raises(RuntimeError, match="llm boom"):
         runner.run(
@@ -498,7 +511,7 @@ def test_agent_runner_leaves_partial_events_when_llm_raises_mid_run(tmp_path: Pa
             )
         )
 
-    assert _event_types(runner.result_writer.event_rows) == [
+    assert _event_types(runner.persisted_event_rows) == [
         "run_started",
         "llm_request",
         "llm_response",
@@ -507,22 +520,17 @@ def test_agent_runner_leaves_partial_events_when_llm_raises_mid_run(tmp_path: Pa
         "llm_request",
         "run_failed",
     ]
-    assert [row["event_id"] for row in runner.result_writer.event_rows] == [
-        "run-partial:0",
-        "run-partial:1",
-        "run-partial:2",
-        "run-partial:3",
-        "run-partial:4",
-        "run-partial:5",
-        "run-partial:6",
-    ]
-    failed_event = runner.result_writer.event_rows[-1]
+    assert [row["event_index"] for row in runner.persisted_event_rows] == list(range(7))
+    assert all("event_id" not in row for row in runner.persisted_event_rows)
+    failed_event = runner.persisted_event_rows[-1]
     assert failed_event["status"] == "error"
     assert failed_event["error_message"] == "llm boom"
     assert _payload(failed_event)["error_type"] == "RuntimeError"
 
 
-def test_agent_runner_leaves_partial_events_when_tool_execution_raises(tmp_path: Path) -> None:
+def test_agent_runner_leaves_partial_events_when_tool_execution_raises(
+    tmp_path: Path, monkeypatch
+) -> None:
     runner = _runner(
         tmp_path,
         StubLLM(
@@ -530,6 +538,7 @@ def test_agent_runner_leaves_partial_events_when_tool_execution_raises(tmp_path:
         ),
         provider=RaisingProvider(_discovered_tools()),
     )
+    _capture_event_rows(runner, monkeypatch)
 
     with pytest.raises(RuntimeError, match="tool boom: get_user_profile"):
         runner.run(
@@ -540,14 +549,14 @@ def test_agent_runner_leaves_partial_events_when_tool_execution_raises(tmp_path:
             )
         )
 
-    assert _event_types(runner.result_writer.event_rows) == [
+    assert _event_types(runner.persisted_event_rows) == [
         "run_started",
         "llm_request",
         "llm_response",
         "tool_call",
         "run_failed",
     ]
-    failed_event = runner.result_writer.event_rows[-1]
+    failed_event = runner.persisted_event_rows[-1]
     assert failed_event["status"] == "error"
     assert failed_event["error_message"] == "tool boom: get_user_profile"
     assert _payload(failed_event)["result"]["tool_calls"] == []

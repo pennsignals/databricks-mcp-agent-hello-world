@@ -3,18 +3,17 @@ from types import SimpleNamespace
 
 import pyarrow as pa
 
-from databricks_mcp_agent_hello_world.storage.persistence_schema import (
+from databricks_mcp_agent_hello_world.storage.schema import (
     EVENT_SCHEMA,
     SCHEMA_VERSION,
     serialize_event_row,
     validate_event_rows,
 )
-from databricks_mcp_agent_hello_world.storage.result_writer import ResultWriter
+from databricks_mcp_agent_hello_world.storage.write import write_event_rows
 
 
 def _event_row(**overrides):
     return serialize_event_row(
-        conversation_id=overrides.pop("conversation_id", "conv-1"),
         run_key=overrides.pop("run_key", "run-1"),
         task_name=overrides.pop("task_name", "workspace_onboarding_brief"),
         turn_index=overrides.pop("turn_index", 0),
@@ -39,7 +38,7 @@ def test_validate_event_rows_accepts_valid_event_rows() -> None:
     assert isinstance(table, pa.Table)
     assert table.schema == EVENT_SCHEMA
     assert table.num_rows == 1
-    assert table.column("event_id").to_pylist() == ["conv-1:3"]
+    assert table.column("run_key").to_pylist() == ["run-1"]
     assert table.column("payload_json").to_pylist() == [row["payload_json"]]
 
 
@@ -56,22 +55,25 @@ def test_validate_event_rows_rejects_invalid_event_rows() -> None:
 
 def test_serialize_event_row_is_deterministic_and_json_string_payload() -> None:
     row = _event_row(
-        conversation_id="conversation-123",
+        run_key="run-123",
         event_index=7,
         final_response_excerpt="x" * 700,
     )
 
     assert row["schema_version"] == SCHEMA_VERSION
-    assert row["event_id"] == "conversation-123:7"
+    assert row["run_key"] == "run-123"
+    assert row["event_index"] == 7
+    assert "event_id" not in row
+    assert "conversation_id" not in row
     assert isinstance(row["payload_json"], str)
     assert json.loads(row["payload_json"]) == {"message": "hello", "nested": {"count": 1}}
     assert row["final_response_excerpt"] == "x" * 500
     assert isinstance(row["created_at"], str)
 
 
-def test_result_writer_writes_validated_event_rows_locally(tmp_path, monkeypatch) -> None:
+def test_write_event_rows_writes_validated_event_rows_locally(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.result_writer.get_spark_session",
+        "databricks_mcp_agent_hello_world.storage.write.get_spark_session",
         lambda: None,
     )
 
@@ -81,16 +83,18 @@ def test_result_writer_writes_validated_event_rows_locally(tmp_path, monkeypatch
             agent_events_table="main.agent.agent_events",
         )
     )
-    writer = ResultWriter(settings)
     row = _event_row()
 
-    writer.write_event_rows([row])
+    write_event_rows(settings, [row])
 
     output_path = tmp_path / "agent_events.jsonl"
     written_rows = output_path.read_text(encoding="utf-8").strip().splitlines()
     assert len(written_rows) == 1
     persisted = json.loads(written_rows[0])
-    assert persisted["event_id"] == "conv-1:3"
+    assert persisted["run_key"] == "run-1"
+    assert persisted["event_index"] == 3
+    assert "event_id" not in persisted
+    assert "conversation_id" not in persisted
     assert isinstance(persisted["payload_json"], str)
     assert json.loads(persisted["payload_json"]) == {"message": "hello", "nested": {"count": 1}}
 
@@ -126,10 +130,10 @@ class _FakeSparkSession:
         return self.last_dataframe
 
 
-def test_result_writer_uses_arrow_table_for_spark_event_writes(monkeypatch) -> None:
+def test_write_event_rows_uses_arrow_table_for_spark_event_writes(monkeypatch) -> None:
     spark = _FakeSparkSession()
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.result_writer.get_spark_session",
+        "databricks_mcp_agent_hello_world.storage.write.get_spark_session",
         lambda: spark,
     )
 
@@ -139,10 +143,9 @@ def test_result_writer_uses_arrow_table_for_spark_event_writes(monkeypatch) -> N
             agent_events_table="main.agent.agent_events",
         )
     )
-    writer = ResultWriter(settings)
     row = _event_row(payload={"tool_result": {"team": "support"}})
 
-    writer.write_event_rows([row])
+    write_event_rows(settings, [row])
 
     assert isinstance(spark.arrow_table, pa.Table)
     assert spark.arrow_table.schema == EVENT_SCHEMA

@@ -144,9 +144,9 @@ def _schema(*names: str) -> FakeSchema:
     )
 
 
-def _field_specs(*names: str) -> list[bootstrap.SchemaFieldSpec]:
+def _field_specs(*names: str) -> list[bootstrap.schema.SchemaFieldSpec]:
     return [
-        bootstrap.SchemaFieldSpec(
+        bootstrap.schema.SchemaFieldSpec(
             name=name,
             data_type="string",
             nullable=False,
@@ -213,7 +213,7 @@ def test_init_storage_fails_when_catalog_is_missing(tmp_path: Path, monkeypatch)
 def test_init_storage_creates_missing_schema_automatically(tmp_path: Path, monkeypatch) -> None:
     spark = FakeSpark(catalogs={"main"})
     monkeypatch.setattr(
-        bootstrap.persistence_schema,
+        bootstrap.schema,
         "arrow_schema_to_sql_columns",
         lambda schema: "`schema_version` STRING NOT NULL",
     )
@@ -246,7 +246,7 @@ def test_init_storage_creates_missing_table_without_prompt(
         schemas={("main", "agent_demo")},
     )
     monkeypatch.setattr(
-        bootstrap.persistence_schema,
+        bootstrap.schema,
         "arrow_schema_to_sql_columns",
         lambda schema: "`schema_version` STRING NOT NULL",
     )
@@ -278,7 +278,7 @@ def test_init_storage_noops_when_existing_table_matches_expected_schema(
         tables={"main.agent_demo.agent_events": expected_schema},
     )
     monkeypatch.setattr(
-        bootstrap.persistence_schema,
+        bootstrap.schema,
         "arrow_schema_to_field_specs",
         lambda schema: expected_field_specs,
     )
@@ -299,14 +299,14 @@ def test_init_storage_noops_when_existing_table_matches_expected_schema(
 
 def test_init_storage_returns_error_when_schema_mismatches(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
-        bootstrap.persistence_schema,
+        bootstrap.schema,
         "arrow_schema_to_field_specs",
         lambda schema: _field_specs("schema_version"),
     )
     spark = FakeSpark(
         catalogs={"main"},
         schemas={("main", "agent_demo")},
-        tables={"main.agent_demo.agent_events": _schema("event_id")},
+        tables={"main.agent_demo.agent_events": _schema("unexpected_field")},
     )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
@@ -326,19 +326,19 @@ def test_init_storage_returns_error_when_schema_mismatches(tmp_path: Path, monke
 def test_expected_table_schema_fields_uses_arrow_schema_helper(monkeypatch) -> None:
     sentinel_spark = object()
     expected = [
-        bootstrap.SchemaFieldSpec(name="schema_version", data_type="string", nullable=False),
-        bootstrap.SchemaFieldSpec(name="payload_json", data_type="string", nullable=False),
+        bootstrap.schema.SchemaFieldSpec(name="schema_version", data_type="string", nullable=False),
+        bootstrap.schema.SchemaFieldSpec(name="payload_json", data_type="string", nullable=False),
     ]
     calls: list[object] = []
 
     monkeypatch.setattr(
-        bootstrap.persistence_schema,
+        bootstrap.schema,
         "arrow_schema_to_field_specs",
         lambda schema: calls.append(schema) or expected,
     )
 
     assert bootstrap.expected_table_schema_fields(sentinel_spark) == expected
-    assert calls == [bootstrap.persistence_schema.EVENT_SCHEMA]
+    assert calls == [bootstrap.schema.EVENT_SCHEMA]
 
 
 def test_create_table_uses_generated_delta_ddl(monkeypatch) -> None:
@@ -346,7 +346,7 @@ def test_create_table_uses_generated_delta_ddl(monkeypatch) -> None:
     target = bootstrap.parse_table_name("main.agent_demo.agent_events")
 
     monkeypatch.setattr(
-        bootstrap.persistence_schema,
+        bootstrap.schema,
         "arrow_schema_to_sql_columns",
         lambda schema: (
             "`event_index` BIGINT NOT NULL,\n"
