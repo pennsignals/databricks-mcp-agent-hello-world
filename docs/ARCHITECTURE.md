@@ -61,7 +61,7 @@ The template defines one authored `pyarrow.Schema` and uses it in both runtimes:
 
 - locally, rows are validated before appending to `agent_events.jsonl`
 - on Databricks, rows are validated before Spark creates a DataFrame from the Arrow table and appends to Delta
-- during bootstrap, the same schema is used to construct an empty Arrow table so Spark can create the Delta table from the canonical shape
+- during bootstrap, the same schema is used to generate Delta DDL for missing table creation and expected schema comparison
 
 This keeps the template aligned with two hard rules:
 
