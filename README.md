@@ -123,11 +123,7 @@ storage:
   local_data_dir: ./.local_state
 ```
 
-The template now uses one authored PyArrow schema for persistence across both runtimes. Local runs validate and append JSONL event rows, and Databricks runs validate the same row shape before appending to Delta.
-
-For real Databricks runs, change `agent_events_table` to a **catalog and schema you can create and write to**.
-
-For local runs, Spark is usually unavailable, so the project automatically falls back to local files under `./.local_state`.
+The template uses the same event-log shape in both runtimes: local runs append JSONL under `./.local_state`, and Databricks runs append to Delta. For real Databricks runs, change `agent_events_table` to a **catalog and schema you can create and write to**.
 
 ### 5) Initialize storage explicitly
 
@@ -137,24 +133,14 @@ Run `init-storage` before your first real workload run:
 uv run init-storage --config-path workspace-config.yml
 ```
 
-This command is the explicit storage bootstrap step for the template. Normal workload runs should write event rows, not provision storage as a side effect.
+- local mode prepares `storage.local_data_dir`
+- Databricks or Spark mode inspects `storage.agent_events_table`, creates a missing schema only after confirmation, creates a missing table automatically once the schema exists, and prompts before destructive repair
 
-Behavior depends on the active runtime:
-
-- local mode without Spark: create `storage.local_data_dir` if needed and report that local storage is ready
-- Databricks or Spark mode: inspect `storage.agent_events_table`, create a missing schema only after confirmation, create a missing table automatically once the schema exists, and verify that an existing table matches the canonical schema
-
-Local bootstrap does **not** create an empty `agent_events.jsonl` file ahead of time. The directory is enough.
-
-Databricks bootstrap is intentionally Arrow-schema-driven. The command uses the same canonical `pyarrow.Schema` used for runtime persistence, builds an empty Arrow table from it, and lets Spark create the Delta table from that shape. There is no second authored Spark schema to keep in sync.
-
-Use `--yes` when you need non-interactive setup:
+For non-interactive setup, use:
 
 ```bash
 uv run init-storage --config-path workspace-config.yml --yes
 ```
-
-With `--yes`, the command auto-approves schema creation and mismatched table drop-and-recreate. Without it, prompts default to `No`.
 
 ### 6) Ignore the SQL section for the demo
 
@@ -217,18 +203,7 @@ For the built-in demo, you should see **5 tools**. The discovery output may also
 uv run init-storage --config-path workspace-config.yml
 ```
 
-Expected behavior:
-
-- local mode: create `./.local_state` if needed and stop there
-- Databricks or Spark mode: inspect the configured `catalog.schema.table`, prompt before creating a missing schema, create a missing table automatically, and prompt before dropping and recreating a mismatched table
-
-Prompts accept `y` or `yes`. Anything else is treated as `no`.
-
-For CI or other non-interactive environments, run:
-
-```bash
-uv run init-storage --config-path workspace-config.yml --yes
-```
+In local mode this prepares `./.local_state`. In Databricks or Spark mode it prepares or validates `storage.agent_events_table`. For CI or other non-interactive environments, add `--yes`.
 
 ### Step 5: run the demo task
 
@@ -305,11 +280,9 @@ The deployed job reads the workspace copy of `workspace-config.yml` from `${work
 
 The deployed wheel task intentionally uses a **separate Databricks job entry point** from the local CLI command:
 
-- local development keeps using `uv run run-agent-task ...`, which is a console-script wrapper around `argparse`
-- the bundled Databricks job uses the package `run_agent_task` wrapper, which Databricks can invoke as `run_agent_task()` with zero Python arguments
-- the bundle passes the actual `--config-path`, `--task-input-json`, and `--output` flags through `python_wheel_task.parameters`, and the wrapper forwards `sys.argv[1:]` into the existing `argparse` command handler
-
-This split is important because the observed serverless runtime behavior matches a zero-argument entry point plus command-line arguments more closely than a Python-kwargs invocation. Keeping the Databricks wrapper thin lets the local CLI workflow stay unchanged while making the deployed wheel task compatible with serverless job execution.
+- local development keeps using `uv run run-agent-task ...`
+- the bundled Databricks job uses the package `run_agent_task` wrapper
+- the bundle passes `--config-path`, `--task-input-json`, and `--output` through `python_wheel_task.parameters`, and the wrapper forwards `sys.argv[1:]` into the existing `argparse` command handler
 
 The serverless environment dependency should reference the **built bundle artifact wheel**, not a wildcard path under synced workspace files. In this template, that means the job resource points at the concrete wheel under `${workspace.root_path}/artifacts/.internal/...whl` instead of `${workspace.file_path}/dist/*.whl`.
 
@@ -332,7 +305,7 @@ When Spark is unavailable, the project falls back to local persistence under:
 └── agent_events.jsonl
 ```
 
-Each line is one execution event validated against the canonical PyArrow schema before it is appended. The event log captures partial runs as they happen, not only final summaries.
+Each line is one execution event.
 
 ### Databricks runs
 
@@ -340,22 +313,11 @@ When Spark is available, the project uses the Delta event store configured in `w
 
 - `storage.agent_events_table`
 
-The same logical row shape is used for local JSONL and Databricks Delta. The runtime validates rows with a canonical PyArrow schema and writes one row per execution event, with raw event details stored in `payload_json`.
-
 Before you rely on deployed runs, make sure `storage.agent_events_table` points to a writable location.
 
 ## Persistence model
 
-The template persistence layer is intentionally designed around a single event-store contract:
-
-- one authored PyArrow schema
-- one append-only event log
-- one row per execution event
-- one rich JSON payload column for event-specific detail
-
-Top-level columns hold stable identifiers and queryable metadata such as `conversation_id`, `run_key`, `event_index`, `event_type`, `status`, `tool_name`, `tool_call_id`, `model_name`, `inventory_hash`, and timestamps. Event-specific detail stays in `payload_json` so the storage contract stays flat and stable.
-
-This design keeps local JSONL and Databricks Delta in parity, avoids Spark schema inference for nested runtime objects, preserves partial progress, and makes later Delta SQL analysis much easier.
+The template uses one append-only event store shared across local JSONL and Databricks Delta. Each row is one execution event. Stable identifiers and queryable metadata stay in top-level columns, and event-specific detail stays in `payload_json`.
 
 ## What you should customize vs keep
 
