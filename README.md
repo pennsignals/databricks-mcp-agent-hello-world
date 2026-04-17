@@ -155,6 +155,8 @@ This checks that:
 
 If `workspace-config.yml` or `.env` still contains deprecated or stale keys such as `provider_type`, `databricks_cli_profile`, `auth_mode`, or `local_tool_backend_mode`, config loading still succeeds and preflight reports warnings so you can clean them up without blocking the run.
 
+When Spark is unavailable locally, `preflight` reports that local JSONL fallback would be used. When Spark is available but `storage.agent_events_table` has not been initialized yet, `preflight` fails intentionally and the required next step is `init_storage_job`.
+
 ### Step 3: discover tools
 
 ```bash
@@ -382,6 +384,18 @@ Check the wording in [`examples/demo_run_task.json`](examples/demo_run_task.json
 That is normal during local development.
 
 The project will use `./.local_state` instead of Delta when Spark is not available.
+
+### `preflight` says the Delta event store is not initialized yet
+
+Your Spark-backed storage target is configured, but the Delta table has not been created yet.
+
+Fix: run `init_storage_job`.
+
+### `preflight` fails for `managed_mcp`
+
+`managed_mcp` is still a placeholder and is not implemented yet as a working runtime.
+
+Fix: use `local_python` or implement the `managed_mcp` feature.
 
 ### The remote init job fails with a schema mismatch
 
