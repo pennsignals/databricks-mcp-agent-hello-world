@@ -14,7 +14,7 @@ from .config import (
 )
 from .models import PreflightCheck, PreflightReport
 from .providers.factory import get_tool_provider
-from .storage.spark_utils import get_spark_session
+from .storage.spark import get_spark_session
 
 
 def run_preflight(config_path: str) -> PreflightReport:

@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from ..config import Settings
-from . import persistence_schema
-from .result_repository import EVENTS_JSONL_FILE_NAME
-from .spark_utils import get_spark_session
+from . import schema
+from .spark import get_spark_session
+from .write import EVENTS_JSONL_FILE_NAME
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,13 +30,6 @@ class StorageTableName:
     @property
     def schema_name(self) -> str:
         return f"{self.catalog}.{self.schema}"
-
-
-@dataclass(frozen=True, slots=True)
-class SchemaFieldSpec:
-    name: str
-    data_type: str
-    nullable: bool
 
 
 def init_storage(
@@ -144,19 +137,21 @@ def compare_table_schema(spark: Any, target: StorageTableName) -> list[str] | No
     return format_schema_diff(expected_schema, actual_schema)
 
 
-def expected_table_schema_fields(spark: Any) -> list[SchemaFieldSpec]:
+def expected_table_schema_fields(spark: Any) -> list[schema.SchemaFieldSpec]:
     del spark
-    return persistence_schema.arrow_schema_to_field_specs(persistence_schema.EVENT_SCHEMA)
+    return schema.arrow_schema_to_field_specs(schema.EVENT_SCHEMA)
 
 
-def actual_table_schema_fields(spark: Any, target: StorageTableName) -> list[SchemaFieldSpec]:
+def actual_table_schema_fields(
+    spark: Any, target: StorageTableName
+) -> list[schema.SchemaFieldSpec]:
     schema = spark.table(qualified_table_name(target)).schema
-    return schema_to_field_specs(schema)
+    return spark_schema_to_field_specs(schema)
 
 
 def create_table(spark: Any, target: StorageTableName) -> None:
-    columns_sql = persistence_schema.arrow_schema_to_sql_columns(
-        persistence_schema.EVENT_SCHEMA
+    columns_sql = schema.arrow_schema_to_sql_columns(
+        schema.EVENT_SCHEMA
     ).replace("\n", "\n    ")
     spark.sql(
         "\n".join(
@@ -171,7 +166,7 @@ def create_table(spark: Any, target: StorageTableName) -> None:
 
 
 def format_schema_diff(
-    expected_schema: list[SchemaFieldSpec], actual_schema: list[SchemaFieldSpec]
+    expected_schema: list[schema.SchemaFieldSpec], actual_schema: list[schema.SchemaFieldSpec]
 ) -> list[str]:
     return [
         "Expected schema:",
@@ -181,21 +176,21 @@ def format_schema_diff(
     ]
 
 
-def describe_schema(schema: list[SchemaFieldSpec]) -> list[str]:
+def describe_schema(schema_fields: list[schema.SchemaFieldSpec]) -> list[str]:
     return [
         f"{field.name}: {field.data_type} (nullable={field.nullable})"
-        for field in schema
+        for field in schema_fields
     ]
 
 
-def schema_to_field_specs(schema: Any) -> list[SchemaFieldSpec]:
+def spark_schema_to_field_specs(schema_obj: Any) -> list[schema.SchemaFieldSpec]:
     return [
-        SchemaFieldSpec(
+        schema.SchemaFieldSpec(
             name=field.name,
             data_type=field.dataType.simpleString(),
             nullable=field.nullable,
         )
-        for field in schema.fields
+        for field in schema_obj.fields
     ]
 
 

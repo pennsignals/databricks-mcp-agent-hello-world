@@ -1,26 +1,36 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
 
 import pyarrow as pa
 
-if TYPE_CHECKING:
-    from .bootstrap import SchemaFieldSpec
+"""Canonical persisted event-row schema and serialization helpers.
+
+Persisted event identity is the pair (run_key, event_index). We do not store
+conversation_id because it duplicated run_key, and we do not store event_id
+because callers can derive that composite when needed.
+"""
 
 SCHEMA_VERSION = "v1"
 _FINAL_RESPONSE_EXCERPT_LIMIT = 500
 
+
+@dataclass(frozen=True, slots=True)
+class SchemaFieldSpec:
+    name: str
+    data_type: str
+    nullable: bool
+
+
 EVENT_SCHEMA = pa.schema(
     [
         pa.field("schema_version", pa.string(), nullable=False),
-        pa.field("conversation_id", pa.string(), nullable=False),
         pa.field("run_key", pa.string(), nullable=False),
         pa.field("task_name", pa.string(), nullable=False),
         pa.field("turn_index", pa.int64(), nullable=True),
         pa.field("event_index", pa.int64(), nullable=False),
-        pa.field("event_id", pa.string(), nullable=False),
         pa.field("event_type", pa.string(), nullable=False),
         pa.field("status", pa.string(), nullable=True),
         pa.field("tool_name", pa.string(), nullable=True),
@@ -59,10 +69,6 @@ def arrow_schema_to_sql_columns(schema: pa.Schema) -> str:
 
 
 def arrow_schema_to_field_specs(schema: pa.Schema) -> list[SchemaFieldSpec]:
-    # Local import avoids a module import cycle while still returning the
-    # shared comparison type defined in bootstrap.py.
-    from .bootstrap import SchemaFieldSpec
-
     field_specs: list[SchemaFieldSpec] = []
     for field in schema:
         field_specs.append(
@@ -99,7 +105,6 @@ def json_dumps_compact(value: object) -> str:
 
 def serialize_event_row(
     *,
-    conversation_id: str,
     run_key: str,
     task_name: str,
     event_index: int,
@@ -119,14 +124,14 @@ def serialize_event_row(
     if excerpt is not None:
         excerpt = excerpt[:_FINAL_RESPONSE_EXCERPT_LIMIT]
 
+    # Events are reconstructed by the per-run identity pair (run_key, event_index).
+    # We intentionally do not persist composite identifiers like event_id.
     return {
         "schema_version": SCHEMA_VERSION,
-        "conversation_id": conversation_id,
         "run_key": run_key,
         "task_name": task_name,
         "turn_index": turn_index,
         "event_index": event_index,
-        "event_id": f"{conversation_id}:{event_index}",
         "event_type": event_type,
         "status": status,
         "tool_name": tool_name,

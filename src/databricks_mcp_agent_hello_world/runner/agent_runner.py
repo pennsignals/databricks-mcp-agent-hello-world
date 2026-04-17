@@ -14,8 +14,8 @@ from ..models import (
     ToolSpec,
 )
 from ..providers.factory import get_tool_provider
-from ..storage.persistence_schema import safe_jsonable, serialize_event_row
-from ..storage.result_writer import ResultWriter
+from ..storage.schema import safe_jsonable, serialize_event_row
+from ..storage.write import write_event_rows
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,6 @@ class AgentRunner:
         self.settings = settings
         self.provider = get_tool_provider(settings)
         self.llm = DatabricksLLM(settings)
-        self.result_writer = ResultWriter(settings)
 
     def run(self, task: AgentTaskRequest) -> AgentRunRecord:
         discovered_tools = self.provider.list_tools()
@@ -43,7 +42,6 @@ class AgentRunner:
         discovered_tools: list[ToolSpec],
         inventory_hash: str | None,
     ) -> AgentRunRecord:
-        conversation_id = task.run_id
         run_key = task.run_id
         discovered_tools_by_name = {tool.tool_name: tool for tool in discovered_tools}
         # The runtime exposes the full discovered inventory to the model. Tool
@@ -83,7 +81,6 @@ class AgentRunner:
         ) -> None:
             nonlocal event_index
             row = serialize_event_row(
-                conversation_id=conversation_id,
                 run_key=run_key,
                 task_name=task.task_name,
                 turn_index=turn_index,
@@ -98,7 +95,7 @@ class AgentRunner:
                 error_message=error_message,
                 payload=payload,
             )
-            self.result_writer.write_event_rows([row])
+            write_event_rows(self.settings, [row])
             event_index += 1
 
         emit_event(

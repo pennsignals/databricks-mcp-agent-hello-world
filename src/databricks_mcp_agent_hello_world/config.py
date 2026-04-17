@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from .storage.spark_utils import get_spark_session
+from .storage.spark import get_spark_session
 
 DEFAULT_CONFIG_PATH = "workspace-config.yml"
 DEFAULT_PROMPT_DIR = Path(__file__).resolve().parent / "prompts"
