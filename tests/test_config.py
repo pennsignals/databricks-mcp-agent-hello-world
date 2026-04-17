@@ -148,7 +148,10 @@ def test_load_settings_accepts_managed_mcp(tmp_path: Path) -> None:
     assert settings.tool_provider_type == "managed_mcp"
 
 
-def test_provider_type_alias_loads_and_warns(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+def test_provider_type_alias_loads_and_warns(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     config_path = _write_config(tmp_path)
     config_path.write_text(
         config_path.read_text(encoding="utf-8").replace(
