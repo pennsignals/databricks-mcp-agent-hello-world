@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import re
 import tomllib
-from importlib.metadata import PackageNotFoundError, version as installed_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as installed_version
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -56,7 +57,12 @@ def read_installed_package_version(
         return fallback
 
 
-def sync_wheel_paths_in_text(contents: str, *, expected_path: str, project_name: str) -> tuple[str, int]:
+def sync_wheel_paths_in_text(
+    contents: str,
+    *,
+    expected_path: str,
+    project_name: str,
+) -> tuple[str, int]:
     distribution_name = distribution_name_for_wheel(project_name)
     pattern = re.compile(
         WHEEL_PATH_PATTERN_TEMPLATE.format(distribution=re.escape(distribution_name))

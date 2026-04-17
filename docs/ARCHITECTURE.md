@@ -35,6 +35,7 @@ examples/demo_run_task.json
   -> provider.list_tools(...)
   -> model receives the full discovered tool inventory
   -> generic runner loop
+  -> provider.call_tool(...)
   -> runtime emits execution events incrementally
   -> ResultWriter.write_event_rows(...)
 ```
@@ -45,7 +46,17 @@ The runtime loop in [`src/databricks_mcp_agent_hello_world/runner/agent_runner.p
 
 There is no compile step. There is no task-specific hard-coded allowlist. There is no deterministic prefilter layer. The model decides which tools to call, and the application only validates that a requested tool actually exists before executing it.
 
-This matches the standard tool-calling pattern where the model is given tools and can decide whether to call them.
+This matches the standard tool-calling pattern where the model is given tools and can decide whether to call them. The intended runtime model is provider-based discovery plus provider-based execution rather than split provider and executor routing.
+
+## Provider model
+
+There should be one canonical tool-provider resolution point in the runtime. `local_python` is the working runtime today. `managed_mcp` is retained as a near-term extension point and is intentionally present in the codebase, but it is not implemented yet.
+
+That means:
+
+- the provider advertises the discovered tool inventory
+- the provider boundary is also the execution seam for tool calls
+- unrelated modules should not branch separately on provider type
 
 ## Persistence model
 
@@ -134,12 +145,12 @@ The Databricks path is intentionally conservative. Catalogs must already exist, 
 ## Demo assets vs framework assets
 
 - Framework assets: `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`, `src/databricks_mcp_agent_hello_world/storage/result_writer.py`, `src/databricks_mcp_agent_hello_world/storage/result_repository.py`, `src/databricks_mcp_agent_hello_world/evals/harness.py`, `src/databricks_mcp_agent_hello_world/models.py`, `src/databricks_mcp_agent_hello_world/config.py`
-- Demo assets: `src/databricks_mcp_agent_hello_world/demo/tools.py`, `src/databricks_mcp_agent_hello_world/tools/registry.py`, `examples/demo_run_task.json`, `evals/sample_scenarios.json`, `databricks.yml`, `workspace-config.example.yml`, `resources/databricks_mcp_agent_hello_world_job.yml`
+- Demo assets: `src/databricks_mcp_agent_hello_world/demo/tools.py`, `src/databricks_mcp_agent_hello_world/demo/registry.py`, `examples/demo_run_task.json`, `evals/sample_scenarios.json`, `databricks.yml`, `workspace-config.example.yml`, `resources/databricks_mcp_agent_hello_world_job.yml`
 
 ## What downstream teams should customize
 
 - `src/databricks_mcp_agent_hello_world/demo/tools.py`
-- `src/databricks_mcp_agent_hello_world/tools/registry.py`
+- `src/databricks_mcp_agent_hello_world/demo/registry.py`
 - `examples/demo_run_task.json`
 - `evals/sample_scenarios.json`
 - `databricks.yml`

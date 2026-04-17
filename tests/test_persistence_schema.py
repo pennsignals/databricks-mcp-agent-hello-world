@@ -1,7 +1,6 @@
 import pyarrow as pa
 
-from databricks_mcp_agent_hello_world.storage import bootstrap
-from databricks_mcp_agent_hello_world.storage import persistence_schema
+from databricks_mcp_agent_hello_world.storage import bootstrap, persistence_schema
 
 
 def test_arrow_field_to_spark_sql_type_maps_supported_demo_types() -> None:

@@ -10,7 +10,7 @@ This template is intentionally:
 
 This repo is for **autonomous batch-style agent workflows**, not chat apps, Databricks Apps, or long-running interactive services.
 
-For the current MVP, **`local_python` is the only working tool runtime**. `managed_mcp` is reserved for a future extension path and is not part of the first-run flow.
+For the current MVP, **`local_python` is the only working tool runtime**. `managed_mcp` is retained as a near-term extension point and is intentionally present in the codebase, but it is not implemented yet.
 
 On a successful first pass, you should be able to authenticate locally to Databricks, configure a Databricks-hosted LLM endpoint, discover the demo tools, run the demo locally, verify that the model can choose and call tools at runtime, and deploy the same workflow as a Python wheel Job.
 
@@ -271,7 +271,7 @@ The deployed wheel tasks intentionally use **separate Databricks job entry point
 - local development keeps using `uv run run-agent-task ...`
 - remote storage bootstrap uses the package `run_init_storage` wrapper
 - the bundled Databricks job uses the package `run_agent_task` wrapper
-- `run_init_storage` loads settings, calls the shared bootstrap logic, and exits non-zero on mismatch without prompting
+- `run_init_storage` loads settings, calls the shared bootstrap logic, and exits non-zero on mismatch
 - the runtime job still passes `--config-path`, `--task-input-json`, and `--output` through `python_wheel_task.parameters`, and the wrapper forwards `sys.argv[1:]` into the existing `argparse` command handler
 
 The serverless environment dependency should reference the **built bundle artifact wheel**, not a wildcard path under synced workspace files. In this template, that means the job resource points at the concrete wheel under `${workspace.root_path}/artifacts/.internal/...whl` instead of `${workspace.file_path}/dist/*.whl`.
@@ -316,7 +316,7 @@ Replace these first in a downstream project:
 
 - [`examples/demo_run_task.json`](examples/demo_run_task.json)
 - [`src/databricks_mcp_agent_hello_world/demo/tools.py`](src/databricks_mcp_agent_hello_world/demo/tools.py)
-- [`src/databricks_mcp_agent_hello_world/tools/registry.py`](src/databricks_mcp_agent_hello_world/tools/registry.py)
+- [`src/databricks_mcp_agent_hello_world/demo/registry.py`](src/databricks_mcp_agent_hello_world/demo/registry.py)
 - [`evals/sample_scenarios.json`](evals/sample_scenarios.json)
 - [`databricks.yml`](databricks.yml)
 - [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/databricks_mcp_agent_hello_world_job.yml)
@@ -369,7 +369,7 @@ Also make sure the serving endpoint supports the tool/function-calling pattern t
 
 ### selected tools are wrong
 
-Check the wording in [`examples/demo_run_task.json`](examples/demo_run_task.json) and the metadata in [`src/databricks_mcp_agent_hello_world/tools/registry.py`](src/databricks_mcp_agent_hello_world/tools/registry.py). Task clarity and metadata quality directly affect runtime tool selection.
+Check the wording in [`examples/demo_run_task.json`](examples/demo_run_task.json) and the metadata in [`src/databricks_mcp_agent_hello_world/demo/registry.py`](src/databricks_mcp_agent_hello_world/demo/registry.py). Task clarity and metadata quality directly affect runtime tool selection.
 
 ### Local logs say Spark is unavailable
 
@@ -406,7 +406,7 @@ These are not part of the supported default flow for this template. This starter
 - precompiled tool-governance layers
 - manual tool allowlists such as `allowed_tools`
 - policy-based tool-call blocking
-- MCP-based runtime tooling
+- implemented `managed_mcp` runtime tooling
 
 Those can be useful later for larger tool inventories, governance-heavy deployments, and token-optimization work. If you outgrow the starter, these are good places to learn more:
 

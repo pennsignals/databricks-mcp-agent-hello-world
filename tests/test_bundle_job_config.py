@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+
 from databricks_mcp_agent_hello_world.versioning import (
     expected_bundle_wheel_path,
     read_project_name,
@@ -60,9 +61,15 @@ def test_job_uses_concrete_artifact_dependency_without_wildcards() -> None:
     assert "*" not in dependency
 
 
-def test_init_storage_job_uses_same_environment_pattern_as_runtime_job() -> None:
+def test_init_storage_job_uses_versioned_wheel_dependency() -> None:
     jobs = _load_job_resource()["resources"]["jobs"]
     init_environment = jobs["init_storage_job"]["environments"][0]
-    runtime_environment = jobs["run_agent_task_job"]["environments"][0]
+    dependency = init_environment["spec"]["dependencies"][0]
 
-    assert init_environment == runtime_environment
+    assert init_environment["spec"]["environment_version"] == "4"
+    assert dependency == expected_bundle_wheel_path(
+        read_project_version(),
+        read_project_name(),
+    )
+    assert "${workspace.file_path}/dist/*.whl" not in dependency
+    assert "*" not in dependency

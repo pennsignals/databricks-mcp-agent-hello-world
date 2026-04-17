@@ -1,13 +1,13 @@
 # databricks-mcp-agent-hello-world Operator Guide
 
-This is the internal maintainer guide for the template. It should track the same canonical flow as `README.md` and stay aligned with `REQUIREMENTS.md`.
+This is the internal maintainer guide for the template. It should track the same canonical flow as `README.md`.
 
 ## What this template is
 
 - a non-interactive LLM agent template
 - Databricks-only
 - local Python tools are the MVP runtime path today
-- `managed_mcp` is a future extension point only
+- `managed_mcp` is retained as a near-term extension point and is intentionally present in the codebase, but it is not implemented yet
 - a scheduled Job template, not a Databricks App
 
 ## Local development flow
@@ -83,7 +83,7 @@ The `workspace_onboarding_brief` flow is the starter contract this template must
 ## Adding or modifying tools
 
 - Demo tool implementations live in `src/databricks_mcp_agent_hello_world/demo/tools.py`.
-- Tool metadata and JSON schemas are registered in `src/databricks_mcp_agent_hello_world/tools/registry.py`.
+- Tool metadata and JSON schemas are registered in `src/databricks_mcp_agent_hello_world/demo/registry.py`.
 - Runtime orchestration lives in `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`.
 - Update eval expectations in `tests/test_evals.py` and related runtime tests when tool behavior changes.
 

@@ -11,6 +11,8 @@ The persistence layer is also intentional now: the template uses one canonical P
 
 Storage provisioning is explicit too, but only where it adds value. Local JSONL storage creates itself lazily on first write, while Databricks Delta storage is initialized by the dedicated `init_storage_job`. If your production fork needs stronger controls, replace that job with migrations or infrastructure-as-code rather than moving provisioning back into normal runtime execution.
 
+`managed_mcp` is retained as a near-term extension point and is intentionally present in the codebase, but it is not implemented yet. Build on the working `local_python` path unless you are intentionally taking on that implementation work.
+
 ## Step 1 — Rename the demo task family
 
 Edit these files:
@@ -25,7 +27,7 @@ Edit these files:
 Edit these files:
 
 - [`src/databricks_mcp_agent_hello_world/demo/tools.py`](../src/databricks_mcp_agent_hello_world/demo/tools.py)
-- [`src/databricks_mcp_agent_hello_world/tools/registry.py`](../src/databricks_mcp_agent_hello_world/tools/registry.py)
+- [`src/databricks_mcp_agent_hello_world/demo/registry.py`](../src/databricks_mcp_agent_hello_world/demo/registry.py)
 
 Populate `description`, `capability_tags`, `side_effect_level`, `data_domains`, and `example_uses` carefully.
 
