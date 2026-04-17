@@ -276,6 +276,8 @@ The deployed wheel tasks intentionally use **separate Databricks job entry point
 
 The serverless environment dependency should reference the **built bundle artifact wheel**, not a wildcard path under synced workspace files. In this template, that means the job resource points at the concrete wheel under `${workspace.root_path}/artifacts/.internal/...whl` instead of `${workspace.file_path}/dist/*.whl`.
 
+The package version is authored once in `pyproject.toml`. After a version bump, run `python scripts/sync_version_refs.py` before you build or deploy so the checked-in bundle wheel paths stay aligned with the new artifact name.
+
 When you change packaged job behavior, bump the package `version` in `pyproject.toml` before redeploying. Serverless environments can reuse cached custom-package environments, and updating the version is the safest way to ensure Databricks installs the new wheel content.
 
 `databricks.yml` also defines a default bundle variable named `task_input_json` for the runtime job. Downstream teams commonly replace that default payload with their own task family.

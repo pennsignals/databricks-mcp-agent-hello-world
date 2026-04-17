@@ -10,7 +10,16 @@
 - minimal framework complexity
 - LLM-driven tool selection
 - one canonical persistence contract across local and Databricks runtimes
+- one authored package version source in `pyproject.toml`
 - demo assets separated from reusable framework assets
+
+## Version source of truth
+
+The template authors the package version once in `pyproject.toml`.
+
+Runtime code reads the installed package version from metadata instead of duplicating a hardcoded `__version__` literal, and Databricks bundle wheel references are kept in sync with `python scripts/sync_version_refs.py`.
+
+That keeps the checked-in bundle YAML readable while avoiding manual version drift between package metadata, wheel artifact names, and tests.
 
 ## End-to-end flow
 
