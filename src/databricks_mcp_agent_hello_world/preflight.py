@@ -14,6 +14,7 @@ from .config import (
 )
 from .models import PreflightCheck, PreflightReport
 from .providers.factory import get_tool_provider
+from .storage.bootstrap import storage_table_exists
 from .storage.spark import get_spark_session
 
 
@@ -86,6 +87,10 @@ def run_preflight(config_path: str) -> PreflightReport:
     checks.append(_check_llm_endpoint_name(settings))
     provider_check, provider = _check_provider_factory(settings)
     checks.append(provider_check)
+    provider_runtime_status_check = _check_provider_runtime_status(settings)
+    if provider_runtime_status_check is not None:
+        checks.append(provider_runtime_status_check)
+        return _finalize_preflight_report(checks, settings)
     tool_check, _ = _check_tool_registry_nonempty(provider)
     checks.append(tool_check)
     checks.append(_check_persistence_target_names(settings))
@@ -191,6 +196,20 @@ def _check_tool_registry_nonempty(provider) -> tuple[PreflightCheck, int]:
         )
 
 
+def _check_provider_runtime_status(settings: Settings) -> PreflightCheck | None:
+    if settings.tool_provider_type != "managed_mcp":
+        return None
+    return PreflightCheck(
+        name="provider_runtime_status",
+        status="fail",
+        message="Configured provider 'managed_mcp' is a placeholder and is not implemented yet.",
+        details={
+            "tool_provider_type": "managed_mcp",
+            "next_step": "Implement managed_mcp or switch to local_python.",
+        },
+    )
+
+
 def _check_persistence_target_names(settings: Settings) -> PreflightCheck:
     local_data_dir = (settings.storage.local_data_dir or "").strip()
     if not local_data_dir:
@@ -237,6 +256,19 @@ def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
         table_name = (settings.storage.agent_events_table or "").strip()
         if not table_name:
             raise ValueError("agent_events_table is missing.")
+        if not storage_table_exists(spark, table_name):
+            return PreflightCheck(
+                name="persistence_reachability",
+                status="fail",
+                message=(
+                    "Configured Delta event store is not initialized yet. "
+                    "Run init_storage_job before the first Spark-backed workload run."
+                ),
+                details={
+                    "agent_events_table": table_name,
+                    "next_step": "init_storage_job",
+                },
+            )
         spark.table(table_name).limit(0).collect()
         return PreflightCheck(
             name="persistence_reachability",

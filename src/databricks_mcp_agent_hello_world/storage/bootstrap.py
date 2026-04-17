@@ -129,6 +129,11 @@ def table_exists(spark: Any, target: StorageTableName) -> bool:
     return any(getattr(row, "tableName", None) == target.table for row in rows)
 
 
+def storage_table_exists(spark: Any, table_name: str) -> bool:
+    target = parse_table_name(table_name)
+    return table_exists(spark, target)
+
+
 def compare_table_schema(spark: Any, target: StorageTableName) -> list[str] | None:
     expected_schema = expected_table_schema_fields(spark)
     actual_schema = actual_table_schema_fields(spark, target)
