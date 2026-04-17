@@ -5,12 +5,13 @@ from pathlib import Path
 from typing import Any
 
 from .config import load_settings, parse_task_input, parse_task_input_file
+from .discovery import discover_tools
 from .evals.harness import EvalSetupError, run_evals
 from .models import (
     AgentRunRecord,
     AgentTaskRequest,
 )
-from .ops import discover_tools, run_preflight
+from .preflight import run_preflight
 from .runner.agent_runner import AgentRunner
 from .storage.bootstrap import init_storage
 

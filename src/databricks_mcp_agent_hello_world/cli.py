@@ -15,11 +15,6 @@ from .commands import (
 from .config import DEFAULT_CONFIG_PATH
 from .evals.harness import EvalSetupError
 from .logging_utils import configure_logging
-from .ops import (
-    print_discovery_report,
-    print_json_report,
-    print_preflight_summary,
-)
 
 OUTPUT_CHOICES = ("text", "json")
 COMMAND_NAMES = (
@@ -179,6 +174,43 @@ def _print_eval_summary(summary) -> None:
             continue
         print(f"FAIL {result.scenario_id}: {'; '.join(result.failed_checks)}")
     print(f"Passed {summary.passed_scenarios}/{summary.total_scenarios} scenarios")
+
+
+def print_json_report(payload: Any) -> None:
+    print(payload.model_dump_json(indent=2))
+
+
+def print_preflight_summary(report) -> None:
+    print(f"Preflight: {report.overall_status}")
+    for check in report.checks:
+        print(f"- {check.name}: {check.status} - {check.message}")
+
+
+def print_discovery_report(report) -> None:
+    print(f"Provider type: {report.provider_type}")
+    print(f"Total tools: {report.tool_count}")
+    for tool in report.tools:
+        summary = _summarize_input_schema(tool.input_schema)
+        capability_tags = ", ".join(tool.capability_tags) or "-"
+        data_domains = ", ".join(tool.data_domains) or "-"
+        print(f"- {tool.tool_name}: {tool.description}")
+        print(f"  Input schema: {summary}")
+        print(f"  Side effect level: {tool.side_effect_level}")
+        print(f"  Tags: {capability_tags}")
+        print(f"  Domains: {data_domains}")
+
+
+def _summarize_input_schema(schema: dict[str, Any]) -> str:
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict) or not properties:
+        return "no parameters"
+    required = set(schema.get("required", []))
+    parts = []
+    for name, value in properties.items():
+        value_type = value.get("type", "any") if isinstance(value, dict) else "any"
+        suffix = "required" if name in required else "optional"
+        parts.append(f"{name}:{value_type} ({suffix})")
+    return ", ".join(parts)
 
 
 COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], CommandResult]] = {
