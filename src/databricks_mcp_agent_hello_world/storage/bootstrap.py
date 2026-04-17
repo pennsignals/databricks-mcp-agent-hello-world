@@ -53,7 +53,16 @@ def init_storage(
         created_dir = ensure_local_storage_dir(local_data_dir)
         return InitStorageReport(
             exit_code=0,
-            messages=[f"Local storage ready at {settings.storage.local_data_dir}"],
+            messages=[
+                (
+                    f"Local storage directory created at {settings.storage.local_data_dir}"
+                    if created_dir
+                    else (
+                        "Local storage directory already available at "
+                        f"{settings.storage.local_data_dir}"
+                    )
+                )
+            ],
             changed=created_dir,
         )
 
@@ -69,18 +78,6 @@ def init_storage(
         raise ValueError(f"Catalog {target.catalog} does not exist")
 
     if not schema_exists(spark, target):
-        if not _confirm(
-            f"Schema {target.schema_name} does not exist. Create it? [y/N]",
-            assume_yes=assume_yes,
-            prompt_fn=prompt_fn,
-        ):
-            return InitStorageReport(
-                exit_code=0,
-                messages=[
-                    f"Schema {target.schema_name} does not exist.",
-                    "No changes were made.",
-                ],
-            )
         create_schema(spark, target)
         changed = True
         messages.append(f"Schema {target.schema_name} created")
@@ -98,19 +95,8 @@ def init_storage(
 
     messages.append(f"Table {target.full_name} schema mismatch detected")
     messages.extend(schema_diff)
-
-    if not _confirm(
-        "Table schema does not match expected schema. Drop and recreate? [y/N]",
-        assume_yes=assume_yes,
-        prompt_fn=prompt_fn,
-    ):
-        messages.append("No changes were made.")
-        return InitStorageReport(exit_code=1, messages=messages, changed=changed)
-
-    recreate_table(spark, target)
-    changed = True
-    messages.append(f"Table {target.full_name} dropped and recreated")
-    return InitStorageReport(exit_code=0, messages=messages, changed=changed)
+    messages.append("Refusing to modify an existing table automatically.")
+    return InitStorageReport(exit_code=1, messages=messages, changed=changed)
 
 
 def parse_table_name(table_name: str) -> StorageTableName:
@@ -185,11 +171,6 @@ def create_table(spark: Any, target: StorageTableName) -> None:
     )
 
 
-def recreate_table(spark: Any, target: StorageTableName) -> None:
-    spark.sql(f"DROP TABLE {qualified_table_name(target)}")
-    create_table(spark, target)
-
-
 def format_schema_diff(
     expected_schema: list[SchemaFieldSpec], actual_schema: list[SchemaFieldSpec]
 ) -> list[str]:
@@ -236,12 +217,6 @@ def quote_name(name: str) -> str:
 
 def sql_literal(value: str) -> str:
     return value.replace("'", "''")
-
-
-def _confirm(prompt: str, *, assume_yes: bool, prompt_fn: PromptFn | None) -> bool:
-    if assume_yes:
-        return True
-    return prompt_yes_no(prompt, prompt_fn=prompt_fn)
 
 
 def _row_first_value(row: Any) -> Any:

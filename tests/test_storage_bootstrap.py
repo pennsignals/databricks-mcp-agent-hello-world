@@ -189,9 +189,30 @@ def test_init_storage_local_mode_creates_directory_without_jsonl(
 
     local_data_dir = Path(settings.storage.local_data_dir)
     assert report.exit_code == 0
-    assert report.messages == [f"Local storage ready at {settings.storage.local_data_dir}"]
+    assert report.messages == [
+        f"Local storage directory created at {settings.storage.local_data_dir}"
+    ]
     assert local_data_dir.exists()
     assert not (local_data_dir / "agent_events.jsonl").exists()
+
+
+def test_init_storage_local_mode_noops_when_directory_already_exists(
+    tmp_path: Path, monkeypatch
+) -> None:
+    settings = _settings(tmp_path)
+    Path(settings.storage.local_data_dir).mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
+        lambda: None,
+    )
+
+    report = bootstrap.init_storage(settings)
+
+    assert report.exit_code == 0
+    assert report.changed is False
+    assert report.messages == [
+        f"Local storage directory already available at {settings.storage.local_data_dir}"
+    ]
 
 
 def test_init_storage_fails_when_catalog_is_missing(tmp_path: Path, monkeypatch) -> None:
@@ -205,15 +226,13 @@ def test_init_storage_fails_when_catalog_is_missing(tmp_path: Path, monkeypatch)
         bootstrap.init_storage(_settings(tmp_path))
 
 
-def test_init_storage_creates_missing_schema_after_confirmation(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_init_storage_creates_missing_schema_automatically(tmp_path: Path, monkeypatch) -> None:
     spark = FakeSpark(expected_schema=_schema("schema_version"), catalogs={"main"})
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
         lambda: spark,
     )
-    report = bootstrap.init_storage(_settings(tmp_path), prompt_fn=lambda prompt: "y")
+    report = bootstrap.init_storage(_settings(tmp_path))
 
     assert report.exit_code == 0
     assert report.messages == [
@@ -268,9 +287,7 @@ def test_init_storage_noops_when_existing_table_matches_expected_schema(
     assert spark.dropped_tables == []
 
 
-def test_init_storage_returns_error_when_mismatch_is_declined(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_init_storage_returns_error_when_schema_mismatches(tmp_path: Path, monkeypatch) -> None:
     spark = FakeSpark(
         expected_schema=_schema("schema_version"),
         catalogs={"main"},
@@ -281,21 +298,21 @@ def test_init_storage_returns_error_when_mismatch_is_declined(
         "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
         lambda: spark,
     )
-    report = bootstrap.init_storage(_settings(tmp_path), prompt_fn=lambda prompt: "n")
+    report = bootstrap.init_storage(_settings(tmp_path))
 
     assert report.exit_code == 1
     assert report.messages[0] == "Table main.agent_demo.agent_events schema mismatch detected"
     assert "Expected schema:" in report.messages
     assert "Actual schema:" in report.messages
-    assert report.messages[-1] == "No changes were made."
+    assert report.messages[-1] == "Refusing to modify an existing table automatically."
     assert spark.saved_tables == []
     assert spark.dropped_tables == []
 
 
-def test_init_storage_recreates_table_when_mismatch_is_confirmed(
+def test_init_storage_yes_flag_does_not_change_non_destructive_behavior(
     tmp_path: Path, monkeypatch
 ) -> None:
-    spark = FakeSpark(
+    mismatching_spark = FakeSpark(
         expected_schema=_schema("schema_version"),
         catalogs={"main"},
         schemas={("main", "agent_demo")},
@@ -303,17 +320,18 @@ def test_init_storage_recreates_table_when_mismatch_is_confirmed(
     )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
-        lambda: spark,
+        lambda: mismatching_spark,
     )
-    report = bootstrap.init_storage(_settings(tmp_path), prompt_fn=lambda prompt: "yes")
 
-    assert report.exit_code == 0
-    assert report.messages[-1] == "Table main.agent_demo.agent_events dropped and recreated"
-    assert spark.dropped_tables == ["main.agent_demo.agent_events"]
-    assert spark.saved_tables == ["main.agent_demo.agent_events"]
+    report = bootstrap.init_storage(_settings(tmp_path), assume_yes=True)
+
+    assert report.exit_code == 1
+    assert report.messages[-1] == "Refusing to modify an existing table automatically."
+    assert mismatching_spark.dropped_tables == []
+    assert mismatching_spark.saved_tables == []
 
 
-def test_init_storage_yes_auto_approves_without_prompt(
+def test_init_storage_yes_flag_still_allows_automatic_create_paths(
     tmp_path: Path, monkeypatch
 ) -> None:
     spark = FakeSpark(expected_schema=_schema("schema_version"), catalogs={"main"})
