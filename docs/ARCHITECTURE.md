@@ -42,7 +42,7 @@ This matches the standard tool-calling pattern where the model is given tools an
 
 The persisted source of truth is an append-only event log with one row per execution event. Summary objects such as `AgentRunRecord` still exist as runtime conveniences for CLI output and evals, but they are no longer the authored storage contract.
 
-Storage bootstrap is also explicit now. The template expects operators to run `init-storage` before the first real workload that needs durable persistence, instead of letting normal workload execution create schemas or tables implicitly.
+Storage bootstrap is split by runtime now. Local JSONL stays lazy and implicit, while remote Delta bootstrap is explicit and runs only through the Databricks bundle job.
 
 ### Why event rows replaced run/output summary rows
 
@@ -68,16 +68,16 @@ This keeps the template aligned with two hard rules:
 - one authored schema only
 - no duplicated Spark `StructType` that can drift from the local contract
 
-### Why bootstrap is explicit instead of lazy
+### Why bootstrap is split by execution context
 
-The template treats storage provisioning as operator intent, not runtime side effect:
+The template keeps storage setup explicit where it matters, but removes ceremony where it does not:
 
-- local developers should be able to prepare storage without needing Spark
-- Databricks users should be able to inspect and approve namespace-creating or destructive actions
-- first workload runs should focus on doing work, not deciding whether to create infrastructure
+- local developers should not need an init command just to create `./.local_state`
+- Databricks users should initialize Delta storage inside Databricks, where Spark is actually present
+- first workload runs should focus on doing work, not on choosing whether to create storage objects
 - schema mismatches should be surfaced clearly instead of silently repaired
 
-That is why `init-storage` exists separately from `preflight` and `run-agent-task`. `preflight` stays read-only, and runtime execution stays focused on event writing.
+That is why local JSONL is created lazily during normal writes, while remote Delta provisioning happens through `init_storage_job`. `preflight` stays read-only, and runtime execution stays focused on event writing.
 
 ### Canonical event-log shape
 
@@ -115,12 +115,12 @@ Both backends use the same logical row shape:
 
 Because events are written incrementally, partial runs and failures still leave behind useful persisted history.
 
-Bootstrap behavior also follows the same split:
+Bootstrap behavior follows a clear split:
 
-- local mode without Spark creates `storage.local_data_dir` and stops there
-- Databricks or Spark mode checks the configured `catalog.schema.table`, creates a missing schema only after confirmation, creates a missing table automatically once the schema exists, and compares an existing table against the canonical schema exactly
+- local mode without Spark lets the normal JSONL writer create `storage.local_data_dir` lazily on first write
+- the Databricks bootstrap job checks the configured `catalog.schema.table`, creates a missing schema automatically, creates a missing table automatically, and compares an existing table against the canonical schema exactly
 
-The Databricks path is intentionally conservative. Catalogs must already exist, prompts default to `No`, and a mismatched table is only dropped and recreated after confirmation or when `--yes` is supplied for automation.
+The Databricks path is intentionally conservative. Catalogs must already exist, the job never prompts, and a mismatched table fails with a readable schema diff instead of dropping or recreating data automatically.
 
 ## Demo assets vs framework assets
 

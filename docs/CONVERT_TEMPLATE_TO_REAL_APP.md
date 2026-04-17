@@ -9,7 +9,7 @@ Tool selection stays LLM-driven in this template. Customize the demo assets firs
 
 The persistence layer is also intentional now: the template uses one canonical PyArrow-backed event-log schema shared by local JSONL and Databricks Delta. Downstream teams should extend that event schema carefully instead of reintroducing separate local and Spark persistence contracts.
 
-Storage provisioning is explicit too. The template expects `init-storage` to prepare local directories or Databricks schema and table targets before the first real workload run. If your production fork needs stronger controls, replace that bootstrap step with migrations or infrastructure-as-code rather than moving provisioning back into normal runtime execution.
+Storage provisioning is explicit too, but only where it adds value. Local JSONL storage creates itself lazily on first write, while Databricks Delta storage is initialized by the dedicated `init_storage_job`. If your production fork needs stronger controls, replace that job with migrations or infrastructure-as-code rather than moving provisioning back into normal runtime execution.
 
 ## Step 1 — Rename the demo task family
 
@@ -102,17 +102,16 @@ The right extension point is usually:
 
 That preserves one canonical schema while letting the runtime evolve.
 
-### Keep `init-storage` interactive unless automation really needs otherwise
+### Keep the template bootstrap path simple and safe
 
-The template's bootstrap flow is intentionally operator-friendly:
+The template's bootstrap flow is intentionally minimal:
 
-- local mode creates `storage.local_data_dir` and does not create an empty JSONL file eagerly
-- Databricks or Spark mode can create a missing schema, create a missing table, and repair a mismatched table
-- schema creation and table drop-and-recreate require confirmation unless `--yes` is supplied
+- local mode creates `storage.local_data_dir` lazily and does not create an empty JSONL file eagerly
+- the Databricks `init_storage_job` creates a missing schema automatically
+- the Databricks `init_storage_job` creates a missing table automatically
+- a mismatched table fails with a schema diff and no mutation
 
-Keep those prompts in place if humans are running setup manually. They make namespace creation and destructive repair explicit.
-
-Use `uv run init-storage --config-path workspace-config.yml --yes` only in trusted automation, CI, or deployment workflows where you have already decided those actions are acceptable.
+That makes the default template automation-friendly without turning the runtime itself into a provisioning tool.
 
 If your production fork has stricter controls, the next step is usually:
 
@@ -138,7 +137,7 @@ If payload size grows quickly, add targeted truncation or redaction rules around
 Use this checklist:
 
 1. run preflight locally
-2. run `init-storage` for the environment you are validating
+2. if you are validating Databricks persistence, run `databricks bundle run --target <target> init_storage_job`
 3. discover tools locally
 4. run the agent locally
 5. run evals locally
@@ -151,7 +150,7 @@ Inspect the single event store rather than looking for separate run and output t
 - local: `.local_state/agent_events.jsonl`
 - Databricks: `storage.agent_events_table`
 
-If you are validating a fresh environment, include `init-storage` before the first local or Databricks workload run so storage readiness is explicit and repeatable.
+If you are validating a fresh Databricks environment, include `init_storage_job` before the first remote workload run so storage readiness is explicit and repeatable. Local JSONL does not need a bootstrap command.
 
 ## Definition of done
 

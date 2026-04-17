@@ -125,22 +125,28 @@ storage:
 
 The template uses the same event-log shape in both runtimes: local runs append JSONL under `./.local_state`, and Databricks runs append to Delta. For real Databricks runs, change `agent_events_table` to a **catalog and schema you can create and write to**.
 
-### 5) Initialize storage explicitly
+### 5) Decide how each runtime bootstraps storage
 
-Run `init-storage` before your first real workload run:
+The template now has one explicit rule:
 
-```bash
-uv run init-storage --config-path workspace-config.yml
-```
+- local JSONL storage is created lazily on first write under `storage.local_data_dir`
+- remote Delta storage is initialized only by the bundled Databricks job
 
-- local mode prepares `storage.local_data_dir`
-- Databricks or Spark mode inspects `storage.agent_events_table`, creates a missing schema only after confirmation, creates a missing table automatically once the schema exists, and prompts before destructive repair
+That means there is no local `uv run init-storage ...` setup step anymore.
 
-For non-interactive setup, use:
+Before your first remote Databricks workload run, initialize the target Delta table inside Databricks:
 
 ```bash
-uv run init-storage --config-path workspace-config.yml --yes
+databricks bundle run --target dev init_storage_job
 ```
+
+The remote bootstrap job is non-interactive and safe by default:
+
+- missing catalog: fail
+- missing schema: create automatically
+- missing table: create automatically
+- matching table: no-op success
+- mismatched table: fail with a readable schema diff and do not mutate
 
 ### 6) Ignore the SQL section for the demo
 
@@ -197,15 +203,7 @@ uv run discover-tools --config-path workspace-config.yml
 
 For the built-in demo, you should see **5 tools**. The discovery output may also show metadata such as side-effect level, tags, and domains for each tool.
 
-### Step 4: initialize storage
-
-```bash
-uv run init-storage --config-path workspace-config.yml
-```
-
-In local mode this prepares `./.local_state`. In Databricks or Spark mode it prepares or validates `storage.agent_events_table`. For CI or other non-interactive environments, add `--yes`.
-
-### Step 5: run the demo task
+### Step 4: run the demo task
 
 Use the runtime task file:
 
@@ -232,7 +230,9 @@ uv run run-agent-task \
   --output json
 ```
 
-### Step 6: validate locally
+Local JSONL state is created lazily on the first write under `./.local_state`, so no separate local bootstrap command is required.
+
+### Step 5: validate locally
 
 Fast local tests:
 
@@ -256,7 +256,6 @@ A healthy first pass looks like this:
 
 - `preflight` passes
 - `discover-tools` shows **5** tools
-- `init-storage` completes successfully for your active runtime
 - `run-agent-task` completes successfully
 - local artifacts appear under `./.local_state`
 
@@ -264,8 +263,9 @@ A healthy first pass looks like this:
 
 Do this only after the local flow is green.
 
-This repo deploys **one Python wheel job**:
+This repo deploys **two Python wheel jobs**:
 
+- `init_storage_job`
 - `run_agent_task_job`
 
 ### Deploy commands
@@ -273,16 +273,19 @@ This repo deploys **one Python wheel job**:
 ```bash
 databricks bundle validate --target dev
 databricks bundle deploy --target dev
+databricks bundle run --target dev init_storage_job
 databricks bundle run --target dev run_agent_task_job
 ```
 
-The deployed job reads the workspace copy of `workspace-config.yml` from `${workspace.file_path}/workspace-config.yml`, so keep that deployed config aligned with the local config you validated.
+Both deployed jobs read the workspace copy of `workspace-config.yml` from `${workspace.file_path}/workspace-config.yml`, so keep that deployed config aligned with the local config you validated.
 
-The deployed wheel task intentionally uses a **separate Databricks job entry point** from the local CLI command:
+The deployed wheel tasks intentionally use **separate Databricks job entry points** from the local CLI commands:
 
 - local development keeps using `uv run run-agent-task ...`
+- remote storage bootstrap uses the package `run_init_storage` wrapper
 - the bundled Databricks job uses the package `run_agent_task` wrapper
-- the bundle passes `--config-path`, `--task-input-json`, and `--output` through `python_wheel_task.parameters`, and the wrapper forwards `sys.argv[1:]` into the existing `argparse` command handler
+- `run_init_storage` loads settings, calls the shared bootstrap logic, and exits non-zero on mismatch without prompting
+- the runtime job still passes `--config-path`, `--task-input-json`, and `--output` through `python_wheel_task.parameters`, and the wrapper forwards `sys.argv[1:]` into the existing `argparse` command handler
 
 The serverless environment dependency should reference the **built bundle artifact wheel**, not a wildcard path under synced workspace files. In this template, that means the job resource points at the concrete wheel under `${workspace.root_path}/artifacts/.internal/...whl` instead of `${workspace.file_path}/dist/*.whl`.
 
@@ -306,6 +309,7 @@ When Spark is unavailable, the project falls back to local persistence under:
 ```
 
 Each line is one execution event.
+The directory and JSONL file appear lazily on the first write.
 
 ### Databricks runs
 
@@ -313,7 +317,7 @@ When Spark is available, the project uses the Delta event store configured in `w
 
 - `storage.agent_events_table`
 
-Before you rely on deployed runs, make sure `storage.agent_events_table` points to a writable location.
+Before you rely on deployed runs, make sure `storage.agent_events_table` points to a writable location, then run `databricks bundle run --target dev init_storage_job`.
 
 ## Persistence model
 
@@ -385,6 +389,12 @@ Check the wording in [`examples/demo_run_task.json`](examples/demo_run_task.json
 That is normal during local development.
 
 The project will use `./.local_state` instead of Delta when Spark is not available.
+
+### The remote init job fails with a schema mismatch
+
+That means the existing Delta table does not match the canonical Arrow event schema.
+
+Fix: inspect the schema diff from `init_storage_job`, then decide whether to migrate the table, replace it intentionally, or point `storage.agent_events_table` at a fresh target. The template does not drop or recreate tables automatically.
 
 ### Deployed job run fails during compute provisioning
 
