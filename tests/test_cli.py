@@ -1,8 +1,6 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 from databricks_mcp_agent_hello_world.cli import (
     EvalSetupError,
     _print_run_summary,
@@ -10,7 +8,6 @@ from databricks_mcp_agent_hello_world.cli import (
     run_named_command,
 )
 from databricks_mcp_agent_hello_world.models import PreflightReport
-from databricks_mcp_agent_hello_world.storage.bootstrap import InitStorageReport
 
 
 def _write_config(tmp_path: Path) -> Path:
@@ -30,8 +27,6 @@ def _write_config(tmp_path: Path) -> Path:
 def test_parsers_accept_documented_flags() -> None:
     preflight_args = build_parser("preflight", prog="preflight").parse_args([])
     discover_args = build_parser("discover-tools", prog="discover-tools").parse_args([])
-    init_storage_args = build_parser("init-storage", prog="init-storage").parse_args([])
-    init_storage_yes_args = build_parser("init-storage", prog="init-storage").parse_args(["--yes"])
     run_task_args = build_parser("run-agent-task", prog="run-agent-task").parse_args(
         ["--task-input-json", "{}"]
     )
@@ -42,13 +37,9 @@ def test_parsers_accept_documented_flags() -> None:
 
     assert preflight_args.config_path == "workspace-config.yml"
     assert discover_args.output == "text"
-    assert init_storage_args.yes is False
-    assert init_storage_yes_args.yes is True
     assert run_task_args.task_input_json == "{}"
     assert run_evals_default_args.scenario_file == "evals/sample_scenarios.json"
     assert run_evals_args.scenario_file == "evals/custom.json"
-    with pytest.raises(SystemExit):
-        build_parser("init-storage", prog="init-storage").parse_args(["--output", "json"])
 
 
 def test_main_rejects_unknown_command(capsys) -> None:
@@ -59,6 +50,17 @@ def test_main_rejects_unknown_command(capsys) -> None:
 
     assert exit_code == 2
     assert "not-a-real-command" in output
+    assert "Expected one of" in output
+
+
+def test_main_rejects_removed_init_storage_command(capsys) -> None:
+    from databricks_mcp_agent_hello_world.cli import main
+
+    exit_code = main(["init-storage"])
+    output = capsys.readouterr().err
+
+    assert exit_code == 2
+    assert "init-storage" in output
     assert "Expected one of" in output
 
 
@@ -175,51 +177,6 @@ def test_run_agent_task_uses_cli_file_source(tmp_path: Path, monkeypatch) -> Non
 
     assert exit_code == 0
     assert parse_calls == [str(task_file)]
-
-
-def test_init_storage_uses_cli_settings_and_yes_flag(monkeypatch, capsys) -> None:
-    settings = SimpleNamespace(storage=SimpleNamespace())
-    recorded: dict[str, object] = {}
-
-    def _load_settings(config_path):
-        recorded["config_path"] = config_path
-        return settings
-
-    def _set_runtime_settings(loaded_settings):
-        recorded["runtime_settings"] = loaded_settings
-
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.load_settings",
-        _load_settings,
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.set_runtime_settings",
-        _set_runtime_settings,
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.init_storage",
-        lambda loaded_settings, assume_yes=False: (
-            recorded.update({"settings": loaded_settings, "assume_yes": assume_yes})
-            or InitStorageReport(
-                exit_code=0,
-                messages=["Schema main.agent created", "Table main.agent.agent_events created"],
-            )
-        ),
-    )
-
-    exit_code = run_named_command(
-        "init-storage",
-        ["--config-path", "workspace-config.yml", "--yes"],
-    )
-    output = capsys.readouterr().out
-
-    assert exit_code == 0
-    assert recorded["config_path"] == "workspace-config.yml"
-    assert recorded["runtime_settings"] is settings
-    assert recorded["settings"] is settings
-    assert recorded["assume_yes"] is True
-    assert "Schema main.agent created" in output
-    assert "Table main.agent.agent_events created" in output
 
 
 def test_run_agent_task_fails_when_required_task_fields_are_missing(monkeypatch, capsys) -> None:

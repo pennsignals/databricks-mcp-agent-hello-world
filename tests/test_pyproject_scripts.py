@@ -9,10 +9,7 @@ def test_databricks_job_script_entry_point_is_absent() -> None:
     scripts = pyproject["project"]["scripts"]
 
     assert "run-agent-task-job" not in scripts
-    assert (
-        scripts["init-storage"]
-        == "databricks_mcp_agent_hello_world.cli:init_storage_entrypoint"
-    )
+    assert "init-storage" not in scripts
     assert (
         scripts["run-agent-task"]
         == "databricks_mcp_agent_hello_world.cli:run_agent_task_entrypoint"
