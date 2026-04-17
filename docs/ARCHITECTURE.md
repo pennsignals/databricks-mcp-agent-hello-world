@@ -42,6 +42,8 @@ This matches the standard tool-calling pattern where the model is given tools an
 
 The persisted source of truth is an append-only event log with one row per execution event. Summary objects such as `AgentRunRecord` still exist as runtime conveniences for CLI output and evals, but they are no longer the authored storage contract.
 
+Storage bootstrap is also explicit now. The template expects operators to run `init-storage` before the first real workload that needs durable persistence, instead of letting normal workload execution create schemas or tables implicitly.
+
 ### Why event rows replaced run/output summary rows
 
 The old summary-row model was easy to start with, but it was a poor template pattern:
@@ -59,11 +61,23 @@ The template defines one authored `pyarrow.Schema` and uses it in both runtimes:
 
 - locally, rows are validated before appending to `agent_events.jsonl`
 - on Databricks, rows are validated before Spark creates a DataFrame from the Arrow table and appends to Delta
+- during bootstrap, the same schema is used to construct an empty Arrow table so Spark can create the Delta table from the canonical shape
 
 This keeps the template aligned with two hard rules:
 
 - one authored schema only
 - no duplicated Spark `StructType` that can drift from the local contract
+
+### Why bootstrap is explicit instead of lazy
+
+The template treats storage provisioning as operator intent, not runtime side effect:
+
+- local developers should be able to prepare storage without needing Spark
+- Databricks users should be able to inspect and approve namespace-creating or destructive actions
+- first workload runs should focus on doing work, not deciding whether to create infrastructure
+- schema mismatches should be surfaced clearly instead of silently repaired
+
+That is why `init-storage` exists separately from `preflight` and `run-agent-task`. `preflight` stays read-only, and runtime execution stays focused on event writing.
 
 ### Canonical event-log shape
 
@@ -100,6 +114,13 @@ Both backends use the same logical row shape:
 - Databricks execution appends validated rows to `storage.agent_events_table`
 
 Because events are written incrementally, partial runs and failures still leave behind useful persisted history.
+
+Bootstrap behavior also follows the same split:
+
+- local mode without Spark creates `storage.local_data_dir` and stops there
+- Databricks or Spark mode checks the configured `catalog.schema.table`, creates a missing schema only after confirmation, creates a missing table automatically once the schema exists, and compares an existing table against the canonical schema exactly
+
+The Databricks path is intentionally conservative. Catalogs must already exist, prompts default to `No`, and a mismatched table is only dropped and recreated after confirmation or when `--yes` is supplied for automation.
 
 ## Demo assets vs framework assets
 

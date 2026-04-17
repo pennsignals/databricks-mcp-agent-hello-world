@@ -9,6 +9,8 @@ Tool selection stays LLM-driven in this template. Customize the demo assets firs
 
 The persistence layer is also intentional now: the template uses one canonical PyArrow-backed event-log schema shared by local JSONL and Databricks Delta. Downstream teams should extend that event schema carefully instead of reintroducing separate local and Spark persistence contracts.
 
+Storage provisioning is explicit too. The template expects `init-storage` to prepare local directories or Databricks schema and table targets before the first real workload run. If your production fork needs stronger controls, replace that bootstrap step with migrations or infrastructure-as-code rather than moving provisioning back into normal runtime execution.
+
 ## Step 1 — Rename the demo task family
 
 Edit these files:
@@ -100,6 +102,26 @@ The right extension point is usually:
 
 That preserves one canonical schema while letting the runtime evolve.
 
+### Keep `init-storage` interactive unless automation really needs otherwise
+
+The template's bootstrap flow is intentionally operator-friendly:
+
+- local mode creates `storage.local_data_dir` and does not create an empty JSONL file eagerly
+- Databricks or Spark mode can create a missing schema, create a missing table, and repair a mismatched table
+- schema creation and table drop-and-recreate require confirmation unless `--yes` is supplied
+
+Keep those prompts in place if humans are running setup manually. They make namespace creation and destructive repair explicit.
+
+Use `uv run init-storage --config-path workspace-config.yml --yes` only in trusted automation, CI, or deployment workflows where you have already decided those actions are acceptable.
+
+If your production fork has stricter controls, the next step is usually:
+
+- provision catalogs and schemas with platform IaC
+- manage table evolution with formal migrations
+- keep runtime writes and bootstrap checks aligned to the same canonical Arrow schema
+
+Avoid reintroducing a second authored Spark schema just to support provisioning. The point of the current design is that local validation, Databricks writes, and bootstrap all derive from one Arrow contract.
+
 ### Plan for redaction and truncation when payloads become sensitive or large
 
 `payload_json` is intentionally high-fidelity, which is useful but comes with governance implications. When you fork this template for production, decide:
@@ -116,17 +138,20 @@ If payload size grows quickly, add targeted truncation or redaction rules around
 Use this checklist:
 
 1. run preflight locally
-2. discover tools locally
-3. run the agent locally
-4. run evals locally
-5. deploy the bundle
-6. run the Databricks job
-7. inspect persisted artifacts
+2. run `init-storage` for the environment you are validating
+3. discover tools locally
+4. run the agent locally
+5. run evals locally
+6. deploy the bundle
+7. run the Databricks job
+8. inspect persisted artifacts
 
 Inspect the single event store rather than looking for separate run and output tables. The intended storage artifacts are:
 
 - local: `.local_state/agent_events.jsonl`
 - Databricks: `storage.agent_events_table`
+
+If you are validating a fresh environment, include `init-storage` before the first local or Databricks workload run so storage readiness is explicit and repeatable.
 
 ## Definition of done
 

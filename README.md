@@ -129,7 +129,34 @@ For real Databricks runs, change `agent_events_table` to a **catalog and schema 
 
 For local runs, Spark is usually unavailable, so the project automatically falls back to local files under `./.local_state`.
 
-### 5) Ignore the SQL section for the demo
+### 5) Initialize storage explicitly
+
+Run `init-storage` before your first real workload run:
+
+```bash
+uv run init-storage --config-path workspace-config.yml
+```
+
+This command is the explicit storage bootstrap step for the template. Normal workload runs should write event rows, not provision storage as a side effect.
+
+Behavior depends on the active runtime:
+
+- local mode without Spark: create `storage.local_data_dir` if needed and report that local storage is ready
+- Databricks or Spark mode: inspect `storage.agent_events_table`, create a missing schema only after confirmation, create a missing table automatically once the schema exists, and verify that an existing table matches the canonical schema
+
+Local bootstrap does **not** create an empty `agent_events.jsonl` file ahead of time. The directory is enough.
+
+Databricks bootstrap is intentionally Arrow-schema-driven. The command uses the same canonical `pyarrow.Schema` used for runtime persistence, builds an empty Arrow table from it, and lets Spark create the Delta table from that shape. There is no second authored Spark schema to keep in sync.
+
+Use `--yes` when you need non-interactive setup:
+
+```bash
+uv run init-storage --config-path workspace-config.yml --yes
+```
+
+With `--yes`, the command auto-approves schema creation and mismatched table drop-and-recreate. Without it, prompts default to `No`.
+
+### 6) Ignore the SQL section for the demo
 
 The `sql:` block in `workspace-config.example.yml` is for future SQL-backed tools. It is **not required** for the current `local_python` demo flow.
 
@@ -184,7 +211,26 @@ uv run discover-tools --config-path workspace-config.yml
 
 For the built-in demo, you should see **5 tools**. The discovery output may also show metadata such as side-effect level, tags, and domains for each tool.
 
-### Step 4: run the demo task
+### Step 4: initialize storage
+
+```bash
+uv run init-storage --config-path workspace-config.yml
+```
+
+Expected behavior:
+
+- local mode: create `./.local_state` if needed and stop there
+- Databricks or Spark mode: inspect the configured `catalog.schema.table`, prompt before creating a missing schema, create a missing table automatically, and prompt before dropping and recreating a mismatched table
+
+Prompts accept `y` or `yes`. Anything else is treated as `no`.
+
+For CI or other non-interactive environments, run:
+
+```bash
+uv run init-storage --config-path workspace-config.yml --yes
+```
+
+### Step 5: run the demo task
 
 Use the runtime task file:
 
@@ -211,7 +257,7 @@ uv run run-agent-task \
   --output json
 ```
 
-### Step 5: validate locally
+### Step 6: validate locally
 
 Fast local tests:
 
@@ -235,8 +281,9 @@ A healthy first pass looks like this:
 
 - `preflight` passes
 - `discover-tools` shows **5** tools
+- `init-storage` completes successfully for your active runtime
 - `run-agent-task` completes successfully
-- local artifacts appear in `./.local_state`
+- local artifacts appear under `./.local_state`
 
 ## Deploying to Databricks
 
