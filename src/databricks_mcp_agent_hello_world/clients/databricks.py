@@ -13,8 +13,8 @@ if TYPE_CHECKING:
 
 def _workspace_client_config_kwargs(settings: Settings) -> dict[str, str]:
     kwargs: dict[str, str] = {}
-    if settings.databricks_cli_profile:
-        kwargs["profile"] = settings.databricks_cli_profile
+    if settings.databricks_config_profile:
+        kwargs["profile"] = settings.databricks_config_profile
     if settings.workspace_host:
         kwargs["host"] = settings.workspace_host
     return kwargs

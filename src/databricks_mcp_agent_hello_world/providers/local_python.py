@@ -47,11 +47,6 @@ class LocalPythonToolProvider(ToolProvider):
         try:
             fn = get_tool_function(tool_call.tool_name)
             content = fn(**tool_call.arguments)
-            backend_mode = (
-                getattr(self.settings, "local_tool_backend_mode", "auto")
-                if self.settings
-                else "unknown"
-            )
             logger.info("Executed local tool %s", tool_call.tool_name)
             return ToolResult(
                 tool_name=tool_call.tool_name,
@@ -59,16 +54,10 @@ class LocalPythonToolProvider(ToolProvider):
                 content=content,
                 metadata={
                     "provider_type": "local_python",
-                    "backend_mode": backend_mode,
                     "request_id": tool_call.request_id,
                 },
             )
         except Exception as exc:  # noqa: BLE001
-            backend_mode = (
-                getattr(self.settings, "local_tool_backend_mode", "auto")
-                if self.settings
-                else "unknown"
-            )
             logger.exception("Local tool execution failed for %s", tool_call.tool_name)
             return ToolResult(
                 tool_name=tool_call.tool_name,
@@ -76,7 +65,6 @@ class LocalPythonToolProvider(ToolProvider):
                 content={},
                 metadata={
                     "provider_type": "local_python",
-                    "backend_mode": backend_mode,
                     "request_id": tool_call.request_id,
                 },
                 error=str(exc),

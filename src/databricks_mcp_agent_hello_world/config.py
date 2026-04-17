@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -18,25 +19,43 @@ FORBIDDEN_LOCAL_DOTENV_KEYS = {
     "DATABRICKS_CLIENT_SECRET",
 }
 SUPPORTED_TOOL_PROVIDER_TYPES = {"local_python", "managed_mcp"}
-SQL_OPTIONAL_PROVIDER_TYPES = {"local_python"}
+DEPRECATED_CONFIG_ALIASES = {
+    "provider_type": "tool_provider_type",
+    "databricks_cli_profile": "databricks_config_profile",
+}
+ALLOWED_TOP_LEVEL_CONFIG_KEYS = {
+    "tool_provider_type",
+    "provider_type",
+    "llm_endpoint_name",
+    "max_agent_steps",
+    "storage",
+    "prompts",
+    "agent_system_prompt_path",
+    "databricks_config_profile",
+    "databricks_cli_profile",
+    "workspace_host",
+    "log_level",
+}
+ALLOWED_NESTED_CONFIG_KEYS = {
+    "storage": {"agent_events_table", "local_data_dir"},
+    "prompts": {"agent_system_prompt"},
+}
+IGNORED_TOP_LEVEL_CONFIG_KEYS = {"auth_mode", "local_tool_backend_mode", "sql"}
+IGNORED_NESTED_CONFIG_KEYS = {
+    "storage": {"agent_runs_table", "agent_output_table"},
+}
+REMOVED_DOTENV_KEYS = {
+    "AUTH_MODE",
+    "LOCAL_TOOL_BACKEND_MODE",
+}
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
 class StorageConfig:
     agent_events_table: str | None
     local_data_dir: str = "./.local_state"
-
-
-@dataclass(slots=True)
-class SqlToolConfig:
-    warehouse_id: str | None = None
-    catalog: str | None = None
-    schema: str | None = None
-    incident_kb_table: str | None = None
-    runbook_table: str | None = None
-    customer_summary_table: str | None = None
-    service_incidents_table: str | None = None
-    service_dependencies_table: str | None = None
 
 
 @dataclass(slots=True)
@@ -52,26 +71,15 @@ class Settings:
     max_agent_steps: int
     storage: StorageConfig
     prompts: PromptConfig
-    databricks_cli_profile: str | None = None
+    databricks_config_profile: str | None = None
     workspace_host: str | None = None
-    local_tool_backend_mode: str = "auto"
-    auth_mode: str = "local-dev"
     log_level: str = "INFO"
     config_path: str | None = None
     dotenv_path: str | None = None
-    sql: SqlToolConfig = field(default_factory=SqlToolConfig)
 
     @property
     def provider_type(self) -> str:
         return self.tool_provider_type
-
-    @property
-    def sql_config_is_optional(self) -> bool:
-        return self.tool_provider_type in SQL_OPTIONAL_PROVIDER_TYPES
-
-    @property
-    def sql_config_required(self) -> bool:
-        return not self.sql_config_is_optional
 
 
 def resolve_config_path(config_path: str | None = None) -> str:
@@ -105,6 +113,61 @@ def load_dotenv_values(config_path: str | None = None) -> tuple[str | None, dict
     return str(dotenv_path), values
 
 
+def collect_config_warnings(raw_config: dict[str, Any]) -> list[str]:
+    warnings_by_path: dict[str, str] = {}
+
+    for alias_key, canonical_key in DEPRECATED_CONFIG_ALIASES.items():
+        if alias_key in raw_config:
+            warnings_by_path[alias_key] = (
+                f"Deprecated config key '{alias_key}' used; use '{canonical_key}' instead."
+            )
+
+    for key in sorted(raw_config):
+        if key in IGNORED_TOP_LEVEL_CONFIG_KEYS:
+            warnings_by_path[key] = (
+                f"Unused config key '{key}' is ignored by the current runtime."
+            )
+            continue
+        if key not in ALLOWED_TOP_LEVEL_CONFIG_KEYS:
+            warnings_by_path[key] = (
+                f"Unused config key '{key}' is ignored by the current runtime."
+            )
+            continue
+
+        allowed_nested_keys = ALLOWED_NESTED_CONFIG_KEYS.get(key)
+        if not allowed_nested_keys:
+            continue
+        section = raw_config.get(key)
+        if not isinstance(section, dict):
+            continue
+        ignored_nested_keys = IGNORED_NESTED_CONFIG_KEYS.get(key, set())
+        for nested_key in sorted(section):
+            nested_path = f"{key}.{nested_key}"
+            if nested_key in ignored_nested_keys or nested_key not in allowed_nested_keys:
+                warnings_by_path[nested_path] = (
+                    f"Unused config key '{nested_path}' is ignored by the current runtime."
+                )
+
+    return [warnings_by_path[path] for path in sorted(warnings_by_path)]
+
+
+def collect_dotenv_warnings(dotenv_values: dict[str, str]) -> list[str]:
+    warnings_by_key = {
+        key: f"Unused .env key '{key}' is ignored by the current runtime."
+        for key in REMOVED_DOTENV_KEYS
+        if key in dotenv_values
+    }
+    return [warnings_by_key[key] for key in sorted(warnings_by_key)]
+
+
+def resolve_deprecated_config_aliases(raw_config: dict[str, Any]) -> dict[str, Any]:
+    resolved = dict(raw_config)
+    for alias_key, canonical_key in DEPRECATED_CONFIG_ALIASES.items():
+        if canonical_key not in resolved and alias_key in raw_config:
+            resolved[canonical_key] = raw_config[alias_key]
+    return resolved
+
+
 def build_settings(
     raw: dict[str, Any],
     *,
@@ -123,7 +186,7 @@ def build_settings(
     return Settings(
         tool_provider_type=(
             _resolve_value(
-                yaml_value=raw.get("tool_provider_type", raw.get("provider_type")),
+                yaml_value=raw.get("tool_provider_type"),
                 dotenv_values=dotenv_values,
                 dotenv_key="TOOL_PROVIDER_TYPE",
                 default="local_python",
@@ -175,8 +238,8 @@ def build_settings(
                 ),
             ),
         ),
-        databricks_cli_profile=_resolve_value(
-            yaml_value=raw.get("databricks_config_profile") or raw.get("databricks_cli_profile"),
+        databricks_config_profile=_resolve_value(
+            yaml_value=raw.get("databricks_config_profile"),
             dotenv_values=dotenv_values,
             dotenv_key="DATABRICKS_CONFIG_PROFILE",
         ),
@@ -184,24 +247,6 @@ def build_settings(
             yaml_value=raw.get("workspace_host"),
             dotenv_values=dotenv_values,
             dotenv_key="DATABRICKS_HOST",
-        ),
-        local_tool_backend_mode=(
-            _resolve_value(
-                yaml_value=raw.get("local_tool_backend_mode"),
-                dotenv_values=dotenv_values,
-                dotenv_key="LOCAL_TOOL_BACKEND_MODE",
-                default="auto",
-            )
-            or "auto"
-        ),
-        auth_mode=(
-            _resolve_value(
-                yaml_value=raw.get("auth_mode"),
-                dotenv_values=dotenv_values,
-                dotenv_key="AUTH_MODE",
-                default="local-dev",
-            )
-            or "local-dev"
         ),
         log_level=(
             _resolve_value(
@@ -214,48 +259,6 @@ def build_settings(
         ),
         config_path=resolve_config_path(config_path),
         dotenv_path=dotenv_path,
-        sql=SqlToolConfig(
-            warehouse_id=_resolve_value(
-                yaml_value=_deep_get(raw, "sql", "warehouse_id"),
-                dotenv_values=dotenv_values,
-                dotenv_key="DATABRICKS_SQL_WAREHOUSE_ID",
-            ),
-            catalog=_resolve_value(
-                yaml_value=_deep_get(raw, "sql", "catalog"),
-                dotenv_values=dotenv_values,
-                dotenv_key="DATABRICKS_SQL_CATALOG",
-            ),
-            schema=_resolve_value(
-                yaml_value=_deep_get(raw, "sql", "schema"),
-                dotenv_values=dotenv_values,
-                dotenv_key="DATABRICKS_SQL_SCHEMA",
-            ),
-            incident_kb_table=_resolve_value(
-                yaml_value=_deep_get(raw, "sql", "incident_kb_table"),
-                dotenv_values=dotenv_values,
-                dotenv_key="INCIDENT_KB_TABLE",
-            ),
-            runbook_table=_resolve_value(
-                yaml_value=_deep_get(raw, "sql", "runbook_table"),
-                dotenv_values=dotenv_values,
-                dotenv_key="RUNBOOK_TABLE",
-            ),
-            customer_summary_table=_resolve_value(
-                yaml_value=_deep_get(raw, "sql", "customer_summary_table"),
-                dotenv_values=dotenv_values,
-                dotenv_key="CUSTOMER_SUMMARY_TABLE",
-            ),
-            service_incidents_table=_resolve_value(
-                yaml_value=_deep_get(raw, "sql", "service_incidents_table"),
-                dotenv_values=dotenv_values,
-                dotenv_key="SERVICE_INCIDENTS_TABLE",
-            ),
-            service_dependencies_table=_resolve_value(
-                yaml_value=_deep_get(raw, "sql", "service_dependencies_table"),
-                dotenv_values=dotenv_values,
-                dotenv_key="SERVICE_DEPENDENCIES_TABLE",
-            ),
-        ),
     )
 
 
@@ -284,12 +287,16 @@ def validate_settings(settings: Settings) -> None:
 def load_settings(config_path: str | None = None, *, validate: bool = True) -> Settings:
     raw = load_yaml_config(config_path)
     dotenv_path, dotenv_values = load_dotenv_values(config_path)
+    warnings = collect_config_warnings(raw) + collect_dotenv_warnings(dotenv_values)
+    resolved_raw = resolve_deprecated_config_aliases(raw)
     settings = build_settings(
-        raw,
+        resolved_raw,
         config_path=config_path,
         dotenv_path=dotenv_path,
         dotenv_values=dotenv_values,
     )
+    for warning in warnings:
+        logger.warning(warning)
     if validate:
         validate_settings(settings)
     return settings
