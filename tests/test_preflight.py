@@ -85,6 +85,29 @@ def test_preflight_persistence_checks_cover_event_store_runtime_shape(
     }
 
 
+def test_preflight_local_mode_still_reports_local_jsonl_fallback(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_config(tmp_path)
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
+        lambda: None,
+    )
+
+    report = run_preflight(str(config_path))
+    reachability_check = next(
+        check for check in report.checks if check.name == "persistence_reachability"
+    )
+
+    assert reachability_check.status == "pass"
+    assert "local JSONL" in reachability_check.message
+
+
 def test_preflight_requires_agent_events_table_when_spark_is_available(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -152,6 +175,10 @@ def test_preflight_checks_event_store_reachability_with_spark(
         "databricks_mcp_agent_hello_world.preflight.get_spark_session",
         lambda: StubSpark(),
     )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.storage_table_exists",
+        lambda spark, table_name: True,
+    )
 
     report = run_preflight(str(config_path))
     reachability_check = next(
@@ -161,6 +188,128 @@ def test_preflight_checks_event_store_reachability_with_spark(
     assert reachability_check.status == "pass"
     assert reachability_check.details == {"agent_events_table": "main.agent.agent_events"}
     assert spark_calls == ["main.agent.agent_events"]
+
+
+def test_preflight_reports_uninitialized_delta_storage_with_init_storage_job_next_step(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_config(tmp_path)
+    spark = SimpleNamespace()
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
+        lambda: spark,
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.storage_table_exists",
+        lambda actual_spark, table_name: False,
+    )
+
+    report = run_preflight(str(config_path))
+    reachability_check = next(
+        check for check in report.checks if check.name == "persistence_reachability"
+    )
+
+    assert reachability_check.status == "fail"
+    assert (
+        reachability_check.message
+        == "Configured Delta event store is not initialized yet. "
+        "Run init_storage_job before the first Spark-backed workload run."
+    )
+    assert reachability_check.details["agent_events_table"] == "main.agent.agent_events"
+    assert reachability_check.details["next_step"] == "init_storage_job"
+    assert report.overall_status == "fail"
+
+
+def test_preflight_reports_generic_read_failure_when_table_exists_but_probe_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_config(tmp_path)
+
+    class StubTable:
+        def limit(self, value):
+            assert value == 0
+            return self
+
+        def collect(self):
+            raise RuntimeError("permission denied")
+
+    class StubSpark:
+        def table(self, table_name):
+            assert table_name == "main.agent.agent_events"
+            return StubTable()
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
+        lambda: StubSpark(),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.storage_table_exists",
+        lambda spark, table_name: True,
+    )
+
+    report = run_preflight(str(config_path))
+    reachability_check = next(
+        check for check in report.checks if check.name == "persistence_reachability"
+    )
+
+    assert reachability_check.status == "fail"
+    assert reachability_check.message.startswith(
+        "Unable to read the configured Delta event store."
+    )
+    assert "permission denied" in reachability_check.message
+    assert "not initialized yet" not in reachability_check.message
+    assert "init_storage_job" not in reachability_check.message
+
+
+def test_preflight_managed_mcp_fails_with_placeholder_status_and_skips_unrelated_checks(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = tmp_path / "workspace-config.yml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "llm_endpoint_name: endpoint-a",
+                "tool_provider_type: managed_mcp",
+                "storage:",
+                "  agent_events_table: main.agent.agent_events",
+                "  local_data_dir: ./.local_state",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
+        lambda: None,
+    )
+
+    report = run_preflight(str(config_path))
+    runtime_status_check = next(
+        check for check in report.checks if check.name == "provider_runtime_status"
+    )
+
+    assert runtime_status_check.status == "fail"
+    assert (
+        runtime_status_check.message
+        == "Configured provider 'managed_mcp' is a placeholder and is not implemented yet."
+    )
+    assert not any(check.name == "tool_registry_nonempty" for check in report.checks)
+    assert not any(check.name == "persistence_targets" for check in report.checks)
+    assert not any(check.name == "persistence_reachability" for check in report.checks)
+    assert report.overall_status == "fail"
 
 
 def test_preflight_json_output_omits_deprecated_profile_fields(
