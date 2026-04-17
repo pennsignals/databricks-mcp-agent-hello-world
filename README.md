@@ -103,9 +103,9 @@ storage:
 
 For your first local run, you usually do not need to change either value. When Spark is unavailable, the template automatically falls back to local JSONL under `./.local_state`.
 
-### 4) Ignore the SQL section for the demo
+### 4) Ignore the commented SQL example for the demo
 
-The `sql:` block in `workspace-config.example.yml` is for future SQL-backed tools. It is **not required** for the current `local_python` demo flow.
+The commented `sql:` block in `workspace-config.example.yml` is a future/example section only. It is **not used by the current runtime**.
 
 ## Quickstart: first successful local run
 
@@ -145,12 +145,15 @@ This checks that:
 
 - `workspace-config.yml` loads
 - `.env` parses
+- deprecated or unused config keys are surfaced as warnings instead of load failures
 - the Databricks CLI profile resolves
 - the Databricks client initializes
 - `llm_endpoint_name` is present
 - the tool provider can be created
 - the tool registry is non-empty
 - persistence is configured for the active runtime
+
+If `workspace-config.yml` or `.env` still contains deprecated or stale keys such as `provider_type`, `databricks_cli_profile`, `auth_mode`, or `local_tool_backend_mode`, config loading still succeeds and preflight reports warnings so you can clean them up without blocking the run.
 
 ### Step 3: discover tools
 

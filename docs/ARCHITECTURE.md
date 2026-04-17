@@ -58,6 +58,17 @@ That means:
 - the provider boundary is also the execution seam for tool calls
 - unrelated modules should not branch separately on provider type
 
+## Config loading contract
+
+`src/databricks_mcp_agent_hello_world/config.py` is the single source of truth for runtime config validity.
+
+- `tool_provider_type` and `databricks_config_profile` are the canonical YAML keys
+- `provider_type` and `databricks_cli_profile` are accepted as deprecated aliases and produce warnings
+- deprecated, stale, or unknown config keys do not fail config load by themselves
+- `preflight` consumes the same config warning list instead of maintaining a second set of config rules
+
+The commented `sql:` block in `workspace-config.example.yml` is documentation for a future extension path only. It is not part of the active runtime config surface today.
+
 ## Persistence model
 
 The persisted source of truth is an append-only event log with one row per execution event. Summary objects such as `AgentRunRecord` still exist as runtime conveniences for CLI output and evals, but they are no longer the authored storage contract.

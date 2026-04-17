@@ -14,15 +14,14 @@ storage:
   # Local runs fall back to JSONL event logs here when Spark is unavailable.
   local_data_dir: ./.local_state
 
-# Optional future SQL-backed tool configuration.
-# Not required for the current local Python template flow, and separate from the
-# future MCP extension point.
-sql:
-  warehouse_id: your-sql-warehouse-id
-  catalog: main
-  schema: agent_demo
-  incident_kb_table: main.agent_demo.incident_kb
-  runbook_table: main.agent_demo.runbook_sections
-  customer_summary_table: main.agent_demo.customer_summaries
-  service_incidents_table: main.agent_demo.service_incidents
-  service_dependencies_table: main.agent_demo.service_dependencies
+# The sql section below is an example for future extensions and is not used by the current runtime.
+# It remains here as a fully commented future/example block only.
+# sql:
+#   warehouse_id: your-sql-warehouse-id
+#   catalog: main
+#   schema: agent_demo
+#   incident_kb_table: main.agent_demo.incident_kb
+#   runbook_table: main.agent_demo.runbook_sections
+#   customer_summary_table: main.agent_demo.customer_summaries
+#   service_incidents_table: main.agent_demo.service_incidents
+#   service_dependencies_table: main.agent_demo.service_dependencies

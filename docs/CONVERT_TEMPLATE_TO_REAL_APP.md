@@ -63,6 +63,15 @@ Edit these files:
 - [`workspace-config.example.yml`](../workspace-config.example.yml)
 - [`src/databricks_mcp_agent_hello_world/config.py`](../src/databricks_mcp_agent_hello_world/config.py) only if you are making a true platform-level config change
 
+When you extend config, keep `src/databricks_mcp_agent_hello_world/config.py` as the only place that decides:
+
+- which keys are canonical
+- which aliases are deprecated
+- which stale or unknown keys should warn
+- which fields are truly required at runtime
+
+The current canonical keys include `tool_provider_type` and `databricks_config_profile`. The commented `sql:` block in the example config is a future/example note only and is not part of the active runtime surface.
+
 ## Persistence extension guidance
 
 Keep the event-log architecture intact unless your domain truly needs a different storage model.
