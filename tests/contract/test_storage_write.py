@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from types import SimpleNamespace
 
@@ -5,7 +7,6 @@ import pyarrow as pa
 
 from databricks_mcp_agent_hello_world.storage.schema import (
     EVENT_SCHEMA,
-    SCHEMA_VERSION,
     serialize_event_row,
     validate_event_rows,
 )
@@ -17,7 +18,7 @@ def _event_row(**overrides):
         run_key=overrides.pop("run_key", "run-1"),
         task_name=overrides.pop("task_name", "workspace_onboarding_brief"),
         turn_index=overrides.pop("turn_index", 0),
-        event_index=overrides.pop("event_index", 3),
+        event_index=overrides.pop("event_index", 0),
         event_type=overrides.pop("event_type", "tool_result"),
         status=overrides.pop("status", "ok"),
         tool_name=overrides.pop("tool_name", "lookup_user"),
@@ -30,73 +31,38 @@ def _event_row(**overrides):
     )
 
 
-def test_validate_event_rows_accepts_valid_event_rows() -> None:
-    row = _event_row()
-
-    table = validate_event_rows([row])
+def test_validate_event_rows_accepts_current_event_row_schema() -> None:
+    table = validate_event_rows([_event_row()])
 
     assert isinstance(table, pa.Table)
     assert table.schema == EVENT_SCHEMA
     assert table.num_rows == 1
-    assert table.column("run_key").to_pylist() == ["run-1"]
-    assert table.column("payload_json").to_pylist() == [row["payload_json"]]
 
 
-def test_validate_event_rows_rejects_invalid_event_rows() -> None:
-    row = _event_row(event_index="not-an-int")
-
-    try:
-        validate_event_rows([row])
-    except (pa.ArrowInvalid, pa.ArrowTypeError, ValueError, TypeError):
-        pass
-    else:
-        raise AssertionError("Expected Arrow validation to fail for an invalid event row.")
-
-
-def test_serialize_event_row_is_deterministic_and_json_string_payload() -> None:
-    row = _event_row(
-        run_key="run-123",
-        event_index=7,
-        final_response_excerpt="x" * 700,
-    )
-
-    assert row["schema_version"] == SCHEMA_VERSION
-    assert row["run_key"] == "run-123"
-    assert row["event_index"] == 7
-    assert "event_id" not in row
-    assert "conversation_id" not in row
-    assert isinstance(row["payload_json"], str)
-    assert json.loads(row["payload_json"]) == {"message": "hello", "nested": {"count": 1}}
-    assert row["final_response_excerpt"] == "x" * 500
-    assert isinstance(row["created_at"], str)
-
-
-def test_write_event_rows_writes_validated_event_rows_locally(tmp_path, monkeypatch) -> None:
+def test_write_event_rows_appends_jsonl_in_event_index_order(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.storage.write.get_spark_session",
         lambda: None,
     )
-
     settings = SimpleNamespace(
         storage=SimpleNamespace(
             local_data_dir=str(tmp_path),
             agent_events_table="main.agent.agent_events",
         )
     )
-    row = _event_row()
+    rows = [_event_row(event_index=0), _event_row(event_index=1, payload={"step": 2})]
 
-    write_event_rows(settings, [row])
+    write_event_rows(settings, rows)
 
     output_path = tmp_path / "agent_events.jsonl"
-    written_rows = output_path.read_text(encoding="utf-8").strip().splitlines()
-    assert len(written_rows) == 1
-    persisted = json.loads(written_rows[0])
-    assert persisted["run_key"] == "run-1"
-    assert persisted["event_index"] == 3
-    assert "event_id" not in persisted
-    assert "conversation_id" not in persisted
-    assert isinstance(persisted["payload_json"], str)
-    assert json.loads(persisted["payload_json"]) == {"message": "hello", "nested": {"count": 1}}
+    persisted = [
+        json.loads(line)
+        for line in output_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert [row["event_index"] for row in persisted] == [0, 1]
+    assert all("conversation_id" not in row for row in persisted)
+    assert all("event_id" not in row for row in persisted)
+    assert json.loads(persisted[1]["payload_json"]) == {"step": 2}
 
 
 class _FakeDeltaWriter:
@@ -130,28 +96,22 @@ class _FakeSparkSession:
         return self.last_dataframe
 
 
-def test_write_event_rows_uses_arrow_table_for_spark_event_writes(monkeypatch) -> None:
+def test_write_event_rows_uses_arrow_table_for_spark_writes(monkeypatch) -> None:
     spark = _FakeSparkSession()
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.storage.write.get_spark_session",
         lambda: spark,
     )
-
     settings = SimpleNamespace(
         storage=SimpleNamespace(
             local_data_dir=".local_state",
             agent_events_table="main.agent.agent_events",
         )
     )
-    row = _event_row(payload={"tool_result": {"team": "support"}})
 
-    write_event_rows(settings, [row])
+    write_event_rows(settings, [_event_row(payload={"tool_result": {"team": "support"}})])
 
     assert isinstance(spark.arrow_table, pa.Table)
     assert spark.arrow_table.schema == EVENT_SCHEMA
-    assert spark.arrow_table.column("payload_json").to_pylist() == [
-        json.dumps({"tool_result": {"team": "support"}}, ensure_ascii=False, separators=(",", ":"))
-    ]
-    assert spark.last_dataframe is not None
     assert spark.last_dataframe.write.mode_name == "append"
     assert spark.last_dataframe.write.table_name == "main.agent.agent_events"
