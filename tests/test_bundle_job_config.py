@@ -10,7 +10,7 @@ from databricks_mcp_agent_hello_world.versioning import (
     read_project_version,
 )
 
-JOB_RESOURCE_PATH = Path("resources/databricks_mcp_agent_hello_world_job.yml")
+JOB_RESOURCE_PATH = Path("resources/jobs.yml")
 
 
 def _load_job_resource() -> dict:

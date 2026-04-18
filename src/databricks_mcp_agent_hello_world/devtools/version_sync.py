@@ -10,7 +10,7 @@ from databricks_mcp_agent_hello_world.versioning import (
     sync_wheel_paths_in_text,
 )
 
-BUNDLE_RESOURCE_PATH = Path("resources/databricks_mcp_agent_hello_world_job.yml")
+BUNDLE_RESOURCE_PATH = Path("resources/jobs.yml")
 
 
 @dataclass(frozen=True)
