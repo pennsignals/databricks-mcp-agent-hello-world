@@ -3,8 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from databricks_mcp_agent_hello_world.cli import (
-    _print_run_summary,
     build_parser,
+    print_run_summary,
     run_named_command,
 )
 from databricks_mcp_agent_hello_world.commands import CommandResult
@@ -116,7 +116,7 @@ def test_print_run_summary_prints_status_and_final_answer(capsys) -> None:
         result={"final_response": "All set"},
     )
 
-    _print_run_summary(record)
+    print_run_summary(record)
     output = capsys.readouterr().out
 
     assert "Run status: success" in output

@@ -134,7 +134,7 @@ def _render_command_result(
     text_renderers: dict[str, Callable[[Any], None]] = {
         "preflight": print_preflight_summary,
         "discover-tools": print_discovery_report,
-        "run-agent-task": _print_run_summary,
+        "run-agent-task": print_run_summary,
         "run-evals": _print_eval_summary,
     }
     _render_output(
@@ -156,7 +156,7 @@ def _render_output(
     text_renderer(payload)
 
 
-def _print_run_summary(record) -> None:
+def print_run_summary(record) -> None:
     print(f"Run status: {record.status}")
     print(f"Run id: {record.run_id}")
     print(f"Task name: {record.task_name}")
