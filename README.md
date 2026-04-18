@@ -12,7 +12,7 @@ This repo is for **autonomous batch-style agent workflows**, not chat apps, Data
 
 For the current MVP, **`local_python` is the only working tool runtime**. `managed_mcp` is retained as a near-term extension point and is intentionally present in the codebase, but it is not implemented yet.
 
-On a successful first pass, you should be able to authenticate locally to Databricks, configure a Databricks-hosted LLM endpoint, discover the demo tools, run the demo locally, verify that the model can choose and call tools at runtime, and deploy the same workflow as a Python wheel Job.
+On a successful first pass, you should be able to authenticate locally to Databricks, configure a Databricks-hosted LLM endpoint, discover the built-in example app tools, run the example app locally, verify that the model can choose and call tools at runtime, and deploy the same workflow as a Python wheel Job.
 
 See the deeper docs when you are ready to customize the template:
 
@@ -32,7 +32,7 @@ Tool selection is **LLM-driven**. At runtime, the application discovers the full
 
 This template intentionally does **not** implement precompiled tool-governance layers, manual tool allowlists such as `allowed_tools`, or policy-based tool blocking. Those are advanced patterns for larger inventories, governance-heavy deployments, or token-optimization work, and are intentionally out of scope for this starter.
 
-For the built-in demo, the current inventory contains **five** tools:
+For the built-in example app, the current inventory contains **five** tools:
 
 - `get_user_profile`
 - `search_onboarding_docs`
@@ -40,7 +40,7 @@ For the built-in demo, the current inventory contains **five** tools:
 - `list_recent_job_runs`
 - `create_support_ticket`
 
-The built-in demo task is a **read-only onboarding brief**. The model is expected to choose the relevant tools for the task, and the template does not pre-filter the inventory before runtime.
+The canonical sample task in [`examples/demo_run_task.json`](examples/demo_run_task.json) is a **read-only onboarding brief**. The model is expected to choose the relevant tools for the task, and the template does not pre-filter the inventory before runtime.
 
 ## Prerequisites
 
@@ -163,7 +163,7 @@ When Spark is unavailable locally, `preflight` reports that local JSONL fallback
 uv run discover-tools --config-path workspace-config.yml
 ```
 
-For the built-in demo, you should see **5 tools**. The discovery output may also show metadata such as side-effect level, tags, and domains for each tool.
+For the built-in example app, you should see **5 tools**. The discovery output may also show metadata such as side-effect level, tags, and domains for each tool.
 
 ### Step 4: run the demo task
 
@@ -322,8 +322,8 @@ The only supported per-event identity pair is `run_key + event_index`. The runti
 Replace these first in a downstream project:
 
 - [`examples/demo_run_task.json`](examples/demo_run_task.json)
-- [`src/databricks_mcp_agent_hello_world/demo/tools.py`](src/databricks_mcp_agent_hello_world/demo/tools.py)
-- [`src/databricks_mcp_agent_hello_world/demo/registry.py`](src/databricks_mcp_agent_hello_world/demo/registry.py)
+- [`src/databricks_mcp_agent_hello_world/app/tools.py`](src/databricks_mcp_agent_hello_world/app/tools.py)
+- [`src/databricks_mcp_agent_hello_world/app/registry.py`](src/databricks_mcp_agent_hello_world/app/registry.py)
 - [`evals/sample_scenarios.json`](evals/sample_scenarios.json)
 - [`databricks.yml`](databricks.yml)
 - [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/databricks_mcp_agent_hello_world_job.yml)
@@ -377,7 +377,7 @@ Also make sure the serving endpoint supports the tool/function-calling pattern t
 
 ### selected tools are wrong
 
-Check the wording in [`examples/demo_run_task.json`](examples/demo_run_task.json) and the metadata in [`src/databricks_mcp_agent_hello_world/demo/registry.py`](src/databricks_mcp_agent_hello_world/demo/registry.py). Task clarity and metadata quality directly affect runtime tool selection.
+Check the wording in [`examples/demo_run_task.json`](examples/demo_run_task.json) and the metadata in [`src/databricks_mcp_agent_hello_world/app/registry.py`](src/databricks_mcp_agent_hello_world/app/registry.py). Task clarity and metadata quality directly affect runtime tool selection.
 
 ### Local logs say Spark is unavailable
 

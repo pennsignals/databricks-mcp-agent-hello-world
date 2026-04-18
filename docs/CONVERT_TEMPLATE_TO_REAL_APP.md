@@ -5,7 +5,7 @@
 
 ## Before you start
 
-Tool selection stays LLM-driven in this template. Customize the demo assets first instead of forking the framework core.
+Tool selection stays LLM-driven in this template. Customize the example app assets first instead of forking the framework core.
 
 The persistence layer is also intentional now: the template uses one canonical PyArrow-backed event-log schema shared by local JSONL and Databricks Delta. Downstream teams should extend that event schema carefully instead of reintroducing separate local and Spark persistence contracts.
 
@@ -22,12 +22,12 @@ Edit these files:
 - [`databricks.yml`](../databricks.yml)
 - [`resources/databricks_mcp_agent_hello_world_job.yml`](../resources/databricks_mcp_agent_hello_world_job.yml)
 
-## Step 2 — Replace the demo tools
+## Step 2 — Replace the example app tools
 
 Edit these files:
 
-- [`src/databricks_mcp_agent_hello_world/demo/tools.py`](../src/databricks_mcp_agent_hello_world/demo/tools.py)
-- [`src/databricks_mcp_agent_hello_world/demo/registry.py`](../src/databricks_mcp_agent_hello_world/demo/registry.py)
+- [`src/databricks_mcp_agent_hello_world/app/tools.py`](../src/databricks_mcp_agent_hello_world/app/tools.py)
+- [`src/databricks_mcp_agent_hello_world/app/registry.py`](../src/databricks_mcp_agent_hello_world/app/registry.py)
 
 Populate `description`, `capability_tags`, `side_effect_level`, `data_domains`, and `example_uses` carefully.
 
@@ -45,7 +45,7 @@ Only edit [`src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt
 
 ## Step 5 — Replace eval scenarios
 
-Edit [`evals/sample_scenarios.json`](../evals/sample_scenarios.json).
+Edit [`evals/sample_scenarios.json`](../evals/sample_scenarios.json). You can point scenarios at the canonical sample task file with `task_input_file` instead of duplicating the full JSON payload inline.
 
 Create scenarios that cover:
 
@@ -167,7 +167,7 @@ If you are validating a fresh Databricks environment, include `init_storage_job`
 
 Success means:
 
-- demo assets fully replaced
+- example app assets fully replaced
 - framework core unchanged except where the domain truly requires it
 - LLM-driven tool selection preserved
 - single-schema event-log persistence preserved or intentionally extended

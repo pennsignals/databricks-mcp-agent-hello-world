@@ -82,8 +82,8 @@ The `workspace_onboarding_brief` flow is the starter contract this template must
 
 ## Adding or modifying tools
 
-- Demo tool implementations live in `src/databricks_mcp_agent_hello_world/demo/tools.py`.
-- Tool metadata and JSON schemas are registered in `src/databricks_mcp_agent_hello_world/demo/registry.py`.
+- Example app tool implementations live in `src/databricks_mcp_agent_hello_world/app/tools.py`.
+- Tool metadata and JSON schemas are registered in `src/databricks_mcp_agent_hello_world/app/registry.py`.
 - Runtime orchestration lives in `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`.
 - Update eval expectations in `tests/test_evals.py` and related runtime tests when tool behavior changes.
 

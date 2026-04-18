@@ -11,7 +11,7 @@
 - LLM-driven tool selection
 - one canonical persistence contract across local and Databricks runtimes
 - one authored package version source in `pyproject.toml`
-- demo assets separated from reusable framework assets
+- example app assets separated from reusable framework assets
 
 ## Version source of truth
 
@@ -157,12 +157,12 @@ The Databricks path is intentionally conservative. Catalogs must already exist, 
 ## Demo assets vs framework assets
 
 - Framework assets: `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`, `src/databricks_mcp_agent_hello_world/storage/write.py`, `src/databricks_mcp_agent_hello_world/storage/schema.py`, `src/databricks_mcp_agent_hello_world/storage/bootstrap.py`, `src/databricks_mcp_agent_hello_world/evals/harness.py`, `src/databricks_mcp_agent_hello_world/models.py`, `src/databricks_mcp_agent_hello_world/config.py`
-- Demo assets: `src/databricks_mcp_agent_hello_world/demo/tools.py`, `src/databricks_mcp_agent_hello_world/demo/registry.py`, `examples/demo_run_task.json`, `evals/sample_scenarios.json`, `databricks.yml`, `workspace-config.example.yml`, `resources/databricks_mcp_agent_hello_world_job.yml`
+- Example app assets: `src/databricks_mcp_agent_hello_world/app/tools.py`, `src/databricks_mcp_agent_hello_world/app/registry.py`, `examples/demo_run_task.json`, `evals/sample_scenarios.json`, `databricks.yml`, `workspace-config.example.yml`, `resources/databricks_mcp_agent_hello_world_job.yml`
 
 ## What downstream teams should customize
 
-- `src/databricks_mcp_agent_hello_world/demo/tools.py`
-- `src/databricks_mcp_agent_hello_world/demo/registry.py`
+- `src/databricks_mcp_agent_hello_world/app/tools.py`
+- `src/databricks_mcp_agent_hello_world/app/registry.py`
 - `examples/demo_run_task.json`
 - `evals/sample_scenarios.json`
 - `databricks.yml`
