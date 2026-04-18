@@ -103,6 +103,7 @@ def test_load_eval_scenarios_uses_canonical_demo_task_file(repo_root: Path) -> N
     scenarios = load_eval_scenarios(str(repo_root / "evals" / "sample_scenarios.json"))
 
     assert scenarios[0].task_input is not None
+    assert scenarios[0].task_input_file is None
     assert scenarios[0].task_input.task_name == "workspace_onboarding_brief"
     assert scenarios[0].task_input.payload["required_fields"] == [
         "display_name",
@@ -133,7 +134,29 @@ def test_load_eval_scenarios_resolves_task_input_file_relative_to_scenario_file(
     scenarios = load_eval_scenarios(scenario_file)
 
     assert scenarios[0].task_input is not None
+    assert scenarios[0].task_input_file is None
     assert scenarios[0].task_input.task_name == demo_task_input["task_name"]
+
+
+def test_load_eval_scenarios_keeps_inline_task_input_when_authored_inline(
+    tmp_path: Path,
+    demo_task_input: dict[str, object],
+) -> None:
+    scenario_file = _write_scenarios(
+        tmp_path,
+        [
+            {
+                "scenario_id": "inline",
+                "description": "Loads inline task input",
+                "task_input": demo_task_input,
+            }
+        ],
+    )
+
+    scenarios = load_eval_scenarios(scenario_file)
+
+    assert scenarios[0].task_input is not None
+    assert scenarios[0].task_input_file is None
 
 
 def test_load_eval_scenarios_rejects_duplicate_scenario_ids(

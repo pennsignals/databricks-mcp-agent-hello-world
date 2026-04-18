@@ -2,13 +2,7 @@
   {
     "scenario_id": "missing_required_result_keys",
     "description": "Fails when the run result is missing required keys.",
-    "task_input": {
-      "task_name": "workspace_onboarding_brief",
-      "instructions": "Write the onboarding brief.",
-      "payload": {
-        "user_id": "usr_ada_01"
-      }
-    },
+    "task_input_file": "../../../examples/demo_run_task.json",
     "required_result_keys": [
       "final_response",
       "available_tools",

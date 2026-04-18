@@ -2,13 +2,7 @@
   {
     "scenario_id": "below_min_tool_calls",
     "description": "Fails when too few tools are called.",
-    "task_input": {
-      "task_name": "workspace_onboarding_brief",
-      "instructions": "Write the onboarding brief.",
-      "payload": {
-        "user_id": "usr_ada_01"
-      }
-    },
+    "task_input_file": "../../../examples/demo_run_task.json",
     "min_tool_calls": 2
   }
 ]

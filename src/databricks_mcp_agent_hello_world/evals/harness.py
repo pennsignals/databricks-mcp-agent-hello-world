@@ -92,7 +92,7 @@ def _load_scenario(raw_scenario: object, scenario_dir: Path) -> EvalScenario:
     task_input = AgentTaskRequest.model_validate(
         json.loads(task_input_path.read_text(encoding="utf-8"))
     )
-    return scenario.model_copy(update={"task_input": task_input})
+    return scenario.model_copy(update={"task_input": task_input, "task_input_file": None})
 
 
 def _score_scenario(scenario: EvalScenario, run_record: AgentRunRecord) -> EvalScenarioResult:

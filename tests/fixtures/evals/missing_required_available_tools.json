@@ -2,13 +2,7 @@
   {
     "scenario_id": "missing_required_available_tools",
     "description": "Fails when a required available tool is absent.",
-    "task_input": {
-      "task_name": "workspace_onboarding_brief",
-      "instructions": "Write the onboarding brief.",
-      "payload": {
-        "user_id": "usr_ada_01"
-      }
-    },
+    "task_input_file": "../../../examples/demo_run_task.json",
     "required_available_tools": [
       "get_user_profile",
       "search_onboarding_docs"
