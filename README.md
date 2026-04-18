@@ -141,8 +141,7 @@ uv run preflight --config-path workspace-config.yml
 
 This checks that:
 
-- `workspace-config.yml` loads
-- `.env` parses
+- `workspace-config.yml` and optional `.env` load through the shared runtime config path
 - deprecated or unused config keys are surfaced as warnings instead of load failures
 - the Databricks CLI profile resolves
 - the Databricks client initializes

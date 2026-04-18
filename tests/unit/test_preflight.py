@@ -29,8 +29,7 @@ def test_preflight_returns_expected_checks_for_local_mode(
 
     assert report.overall_status == "pass"
     assert [check.name for check in report.checks] == [
-        "config_file",
-        "dotenv",
+        "config",
         "databricks_client",
         "llm_endpoint_name",
         "provider_factory",
@@ -68,6 +67,62 @@ def test_preflight_reports_local_event_store_targets(tmp_path: Path, monkeypatch
         "local_data_dir": "./.local_state",
         "spark_available": False,
     }
+
+
+def test_preflight_surfaces_shared_config_validation_failures(tmp_path: Path) -> None:
+    config_path = write_workspace_config(tmp_path, llm_endpoint_name="''")
+
+    report = run_preflight(str(config_path))
+
+    assert report.overall_status == "fail"
+    assert report.checks[0].name == "config"
+    assert "llm_endpoint_name" in report.checks[0].message
+
+
+def test_preflight_warns_for_stale_keys_without_failing(tmp_path: Path, monkeypatch) -> None:
+    config_path = write_workspace_config(tmp_path, extra_lines=["auth_mode: local-dev"])
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
+        lambda: None,
+    )
+
+    report = run_preflight(str(config_path))
+
+    assert report.overall_status == "pass"
+    warning_check = next(check for check in report.checks if check.name == "config_warnings")
+    assert warning_check.status == "warn"
+    assert any("auth_mode" in warning for warning in warning_check.details["warnings"])
+
+
+def test_preflight_managed_mcp_fails_for_placeholder_readiness_not_config(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    config_path = write_workspace_config(tmp_path, tool_provider_type="managed_mcp")
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
+        lambda: None,
+    )
+
+    report = run_preflight(str(config_path))
+
+    config_check = report.checks[0]
+    provider_runtime_check = next(
+        check for check in report.checks if check.name == "provider_runtime_status"
+    )
+    assert config_check.status == "pass"
+    assert provider_runtime_check.status == "fail"
+    assert "placeholder" in provider_runtime_check.message
 
 
 def test_preflight_requires_agent_events_table_when_spark_is_available(

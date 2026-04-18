@@ -5,12 +5,7 @@ from pathlib import Path
 from .clients.databricks import get_workspace_client
 from .config import (
     Settings,
-    build_settings,
-    collect_config_warnings,
-    collect_dotenv_warnings,
-    load_dotenv_values,
-    load_yaml_config,
-    resolve_deprecated_config_aliases,
+    load_settings_bundle,
 )
 from .models import PreflightCheck, PreflightReport
 from .providers.factory import get_tool_provider
@@ -22,19 +17,11 @@ def run_preflight(config_path: str) -> PreflightReport:
     checks: list[PreflightCheck] = []
 
     try:
-        raw_config = load_yaml_config(config_path)
-        checks.append(
-            PreflightCheck(
-                name="config_file",
-                status="pass",
-                message="Config file exists and parsed successfully.",
-                details={"config_path": str(Path(config_path))},
-            )
-        )
+        loaded = load_settings_bundle(config_path)
     except Exception as exc:  # noqa: BLE001
         checks.append(
             PreflightCheck(
-                name="config_file",
+                name="config",
                 status="fail",
                 message=str(exc),
                 details={"config_path": str(Path(config_path))},
@@ -42,46 +29,29 @@ def run_preflight(config_path: str) -> PreflightReport:
         )
         return _finalize_preflight_report(checks)
 
-    try:
-        dotenv_path, dotenv_values = load_dotenv_values(config_path)
-        checks.append(
-            PreflightCheck(
-                name="dotenv",
-                status="pass",
-                message="Optional .env parsed successfully."
-                if dotenv_path
-                else "No .env file present.",
-                details={"dotenv_path": dotenv_path},
-            )
-        )
-    except Exception as exc:  # noqa: BLE001
-        checks.append(
-            PreflightCheck(
-                name="dotenv",
-                status="fail",
-                message=str(exc),
-                details={"dotenv_path": str(Path(config_path).resolve().parent / ".env")},
-            )
-        )
-        return _finalize_preflight_report(checks)
+    settings = loaded.settings
 
-    config_warnings = collect_config_warnings(raw_config) + collect_dotenv_warnings(dotenv_values)
-    if config_warnings:
+    checks.append(
+        PreflightCheck(
+            name="config",
+            status="pass",
+            message="Config loaded successfully through the shared runtime validation path.",
+            details={
+                "config_path": str(Path(settings.config_path or config_path)),
+                "dotenv_path": settings.dotenv_path,
+            },
+        )
+    )
+
+    if loaded.warnings:
         checks.append(
             PreflightCheck(
                 name="config_warnings",
                 status="warn",
                 message="Config contains deprecated or unused keys.",
-                details={"warnings": config_warnings},
+                details={"warnings": loaded.warnings},
             )
         )
-
-    settings = build_settings(
-        resolve_deprecated_config_aliases(raw_config),
-        config_path=config_path,
-        dotenv_path=dotenv_path,
-        dotenv_values=dotenv_values,
-    )
 
     checks.append(_check_databricks_client(settings))
     checks.append(_check_llm_endpoint_name(settings))

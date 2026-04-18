@@ -82,6 +82,12 @@ class Settings:
         return self.tool_provider_type
 
 
+@dataclass(frozen=True, slots=True)
+class LoadedSettings:
+    settings: Settings
+    warnings: list[str]
+
+
 def resolve_config_path(config_path: str | None = None) -> str:
     return str(Path(config_path or DEFAULT_CONFIG_PATH))
 
@@ -284,7 +290,11 @@ def validate_settings(settings: Settings) -> None:
         raise ValueError("max_agent_steps must be at least 1.")
 
 
-def load_settings(config_path: str | None = None, *, validate: bool = True) -> Settings:
+def load_settings_bundle(
+    config_path: str | None = None,
+    *,
+    validate: bool = True,
+) -> LoadedSettings:
     raw = load_yaml_config(config_path)
     dotenv_path, dotenv_values = load_dotenv_values(config_path)
     warnings = collect_config_warnings(raw) + collect_dotenv_warnings(dotenv_values)
@@ -299,7 +309,11 @@ def load_settings(config_path: str | None = None, *, validate: bool = True) -> S
         logger.warning(warning)
     if validate:
         validate_settings(settings)
-    return settings
+    return LoadedSettings(settings=settings, warnings=warnings)
+
+
+def load_settings(config_path: str | None = None, *, validate: bool = True) -> Settings:
+    return load_settings_bundle(config_path, validate=validate).settings
 
 
 def parse_task_input(task_input_json: str | None) -> dict[str, Any]:
