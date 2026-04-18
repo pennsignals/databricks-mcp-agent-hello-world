@@ -1,6 +1,11 @@
 .venv/
 .uv-cache/
+.pytest_cache/
 __pycache__/
 *.pyc
 .local_state/
 .env
+dist/
+build/
+*.egg-info/
+.coverage
