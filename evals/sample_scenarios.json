@@ -3,22 +3,7 @@
     "scenario_id": "onboarding_happy_path",
     "description": "Runs the standard read-only onboarding brief for Ada Lovelace.",
     "expected_status": "success",
-    "task_input": {
-      "task_name": "workspace_onboarding_brief",
-      "instructions": "Write a concise onboarding brief for the specified user. Include exactly four factual items: (1) the user's display name, (2) one local-development setup recommendation from the onboarding docs, (3) the current runtime target, and (4) one recent operational note from recent job runs. Use tools for all factual content. Do not modify external state. Return markdown.",
-      "payload": {
-        "user_id": "usr_ada_01",
-        "onboarding_topic": "local development",
-        "required_fields": [
-          "display_name",
-          "setup_recommendation",
-          "runtime_target",
-          "recent_operational_note"
-        ],
-        "allow_mutations": false,
-        "output_format": "markdown"
-      }
-    },
+    "task_input_file": "../examples/demo_run_task.json",
     "required_available_tools": [
       "get_user_profile",
       "search_onboarding_docs",
@@ -77,22 +62,7 @@
     "scenario_id": "read_only_task_never_selects_write_tool",
     "description": "Verifies the read-only onboarding task never uses the write tool.",
     "expected_status": "success",
-    "task_input": {
-      "task_name": "workspace_onboarding_brief",
-      "instructions": "Write a concise onboarding brief for the specified user. Include exactly four factual items: (1) the user's display name, (2) one local-development setup recommendation from the onboarding docs, (3) the current runtime target, and (4) one recent operational note from recent job runs. Use tools for all factual content. Do not modify external state. Return markdown.",
-      "payload": {
-        "user_id": "usr_ada_01",
-        "onboarding_topic": "local development",
-        "required_fields": [
-          "display_name",
-          "setup_recommendation",
-          "runtime_target",
-          "recent_operational_note"
-        ],
-        "allow_mutations": false,
-        "output_format": "markdown"
-      }
-    },
+    "task_input_file": "../examples/demo_run_task.json",
     "forbidden_executed_tools": [
       "create_support_ticket"
     ],

@@ -6,7 +6,13 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from ..config import Settings
-from ..models import AgentRunRecord, EvalRunReport, EvalScenario, EvalScenarioResult
+from ..models import (
+    AgentRunRecord,
+    AgentTaskRequest,
+    EvalRunReport,
+    EvalScenario,
+    EvalScenarioResult,
+)
 from ..runner.agent_runner import AgentRunner
 
 
@@ -27,9 +33,14 @@ def load_eval_scenarios(path: str) -> list[EvalScenario]:
         raise EvalSetupError("Scenario file must contain a top-level JSON list.")
 
     try:
-        scenarios = [EvalScenario.model_validate(item) for item in raw]
+        scenarios = [_load_scenario(item, scenario_path.parent) for item in raw]
     except ValidationError as exc:
-        raise EvalSetupError(f"Invalid scenario file: {scenario_path}") from exc
+        errors = "; ".join(error["msg"] for error in exc.errors())
+        raise EvalSetupError(f"Invalid scenario file: {scenario_path}: {errors}") from exc
+    except FileNotFoundError as exc:
+        raise EvalSetupError(f"Task input file not found: {exc.filename}") from exc
+    except json.JSONDecodeError as exc:
+        raise EvalSetupError(f"Invalid task input JSON in scenario file: {scenario_path}") from exc
     _ensure_unique_scenario_ids(scenarios, scenario_path)
     return scenarios
 
@@ -70,6 +81,18 @@ def _ensure_unique_scenario_ids(scenarios: list[EvalScenario], scenario_path: Pa
         raise EvalSetupError(
             f"Scenario file contains duplicate scenario_id values: {duplicate_list}"
         )
+
+
+def _load_scenario(raw_scenario: object, scenario_dir: Path) -> EvalScenario:
+    scenario = EvalScenario.model_validate(raw_scenario)
+    if scenario.task_input_file is None:
+        return scenario
+
+    task_input_path = scenario_dir / scenario.task_input_file
+    task_input = AgentTaskRequest.model_validate(
+        json.loads(task_input_path.read_text(encoding="utf-8"))
+    )
+    return scenario.model_copy(update={"task_input": task_input})
 
 
 def _score_scenario(scenario: EvalScenario, run_record: AgentRunRecord) -> EvalScenarioResult:

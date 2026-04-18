@@ -134,7 +134,8 @@ class PreflightReport(BaseModel):
 class EvalScenario(BaseModel):
     scenario_id: str
     description: str
-    task_input: AgentTaskRequest
+    task_input: AgentTaskRequest | None = None
+    task_input_file: str | None = None
 
     expected_status: Literal["success", "error", "max_steps_exceeded"] = "success"
     required_available_tools: list[str] = Field(default_factory=list)
@@ -151,6 +152,8 @@ class EvalScenario(BaseModel):
 
     @model_validator(mode="after")
     def validate_tool_call_bounds(self) -> "EvalScenario":
+        if (self.task_input is None) == (self.task_input_file is None):
+            raise ValueError("exactly one of task_input or task_input_file must be provided")
         if (
             self.min_tool_calls is not None
             and self.max_tool_calls is not None

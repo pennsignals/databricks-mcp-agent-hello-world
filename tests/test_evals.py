@@ -82,6 +82,7 @@ def _record(
 
 def _write_scenarios(tmp_path: Path, scenarios: list[dict]) -> str:
     path = tmp_path / "scenarios.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(scenarios, indent=2), encoding="utf-8")
     return str(path)
 
@@ -116,6 +117,67 @@ def test_load_eval_scenarios_rejects_duplicate_scenario_ids(tmp_path: Path) -> N
     )
 
     with pytest.raises(EvalSetupError, match="duplicate scenario_id"):
+        load_eval_scenarios(scenario_file)
+
+
+def test_load_eval_scenarios_resolves_task_input_file_relative_to_scenario_file(
+    tmp_path: Path,
+) -> None:
+    task_file = tmp_path / "examples" / "task.json"
+    task_file.parent.mkdir(parents=True, exist_ok=True)
+    task_file.write_text(
+        json.dumps(
+            {
+                "task_name": "workspace_onboarding_brief",
+                "instructions": "Write the onboarding brief.",
+                "payload": {"user_id": "usr_ada_01"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    scenario_file = _write_scenarios(
+        tmp_path / "evals",
+        [
+            {
+                "scenario_id": "file-backed",
+                "description": "Loads task input from file",
+                "task_input_file": "../examples/task.json",
+            }
+        ],
+    )
+
+    scenarios = load_eval_scenarios(scenario_file)
+
+    assert scenarios[0].task_input is not None
+    assert scenarios[0].task_input.task_name == "workspace_onboarding_brief"
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        {
+            "scenario_id": "missing-both",
+            "description": "Missing task input",
+        },
+        {
+            "scenario_id": "present-both",
+            "description": "Too many task inputs",
+            "task_input": {
+                "task_name": "workspace_onboarding_brief",
+                "instructions": "Write the onboarding brief.",
+                "payload": {"user_id": "usr_ada_01"},
+            },
+            "task_input_file": "../examples/demo_run_task.json",
+        },
+    ],
+)
+def test_load_eval_scenarios_rejects_invalid_task_input_source_combinations(
+    tmp_path: Path,
+    scenario: dict,
+) -> None:
+    scenario_file = _write_scenarios(tmp_path, [scenario])
+
+    with pytest.raises(EvalSetupError, match="exactly one of task_input or task_input_file"):
         load_eval_scenarios(scenario_file)
 
 

@@ -139,3 +139,27 @@ def test_eval_scenario_rejects_min_tool_calls_above_max_tool_calls() -> None:
             min_tool_calls=3,
             max_tool_calls=2,
         )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "scenario_id": "missing-task-input",
+            "description": "Invalid scenario",
+        },
+        {
+            "scenario_id": "duplicate-task-input",
+            "description": "Invalid scenario",
+            "task_input": {
+                "task_name": "workspace_onboarding_brief",
+                "instructions": "Write the onboarding brief.",
+                "payload": {"user_id": "usr_ada_01"},
+            },
+            "task_input_file": "../examples/demo_run_task.json",
+        },
+    ],
+)
+def test_eval_scenario_requires_exactly_one_task_input_source(payload: dict) -> None:
+    with pytest.raises(ValidationError, match="exactly one of task_input or task_input_file"):
+        EvalScenario(**payload)
