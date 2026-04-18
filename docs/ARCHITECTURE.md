@@ -3,6 +3,8 @@
 [Back to README](../README.md)  
 [Next: Convert the template into a real app](./CONVERT_TEMPLATE_TO_REAL_APP.md)
 
+Use this document for runtime, provider, config, and storage design. For setup, first run, and troubleshooting, go back to the [README](../README.md). For downstream edits, use [Convert the template into a real app](./CONVERT_TEMPLATE_TO_REAL_APP.md).
+
 ## Design goals
 
 - single-agent architecture
@@ -40,6 +42,8 @@ examples/demo_run_task.json
   -> write_event_rows(...)
 ```
 
+The canonical sample task lives at [`examples/demo_run_task.json`](../examples/demo_run_task.json).
+
 ## Runtime tool selection
 
 The runtime loop in [`src/databricks_mcp_agent_hello_world/runner/agent_runner.py`](../src/databricks_mcp_agent_hello_world/runner/agent_runner.py) exposes the full discovered tool inventory to the model for each run.
@@ -73,7 +77,10 @@ The commented `sql:` block in `workspace-config.example.yml` is documentation fo
 
 The persisted source of truth is an append-only event log with one row per execution event. Summary objects such as `AgentRunRecord` still exist as runtime conveniences for CLI output and evals, but they are no longer the authored storage contract.
 
-Storage bootstrap is split by runtime now. Local JSONL stays lazy and implicit, while remote Delta bootstrap is explicit and runs only through the Databricks bundle job.
+Storage bootstrap is split by runtime:
+
+- local JSONL is created lazily on first write
+- remote Delta bootstrap is explicit and runs through `init_storage_job`
 
 ### Why event rows replaced run/output summary rows
 
@@ -98,17 +105,6 @@ This keeps the template aligned with two hard rules:
 
 - one authored schema only
 - no duplicated Spark `StructType` that can drift from the local contract
-
-### Why bootstrap is split by execution context
-
-The template keeps storage setup explicit where it matters, but removes ceremony where it does not:
-
-- local developers should not need an init command just to create `./.local_state`
-- Databricks users should initialize Delta storage inside Databricks, where Spark is actually present
-- first workload runs should focus on doing work, not on choosing whether to create storage objects
-- schema mismatches should be surfaced clearly instead of silently repaired
-
-That is why local JSONL is created lazily during normal writes, while remote Delta provisioning happens through `init_storage_job`. `preflight` stays read-only, and runtime execution stays focused on event writing.
 
 ### Canonical event-log shape
 
@@ -147,11 +143,6 @@ Both backends use the same logical row shape:
 
 Because events are written incrementally, partial runs and failures still leave behind useful persisted history.
 
-Bootstrap behavior follows a clear split:
-
-- local mode without Spark lets the normal JSONL writer create `storage.local_data_dir` lazily on first write
-- the Databricks bootstrap job checks the configured `catalog.schema.table`, creates a missing schema automatically, creates a missing table automatically, and compares an existing table against the canonical schema exactly
-
 The Databricks path is intentionally conservative. Catalogs must already exist, the job never prompts, and a mismatched table fails with a readable schema diff instead of dropping or recreating data automatically.
 
 ## Demo assets vs framework assets
@@ -159,16 +150,9 @@ The Databricks path is intentionally conservative. Catalogs must already exist, 
 - Framework assets: `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`, `src/databricks_mcp_agent_hello_world/storage/write.py`, `src/databricks_mcp_agent_hello_world/storage/schema.py`, `src/databricks_mcp_agent_hello_world/storage/bootstrap.py`, `src/databricks_mcp_agent_hello_world/evals/harness.py`, `src/databricks_mcp_agent_hello_world/models.py`, `src/databricks_mcp_agent_hello_world/config.py`
 - Example app assets: `src/databricks_mcp_agent_hello_world/app/tools.py`, `src/databricks_mcp_agent_hello_world/app/registry.py`, `examples/demo_run_task.json`, `evals/sample_scenarios.json`, `databricks.yml`, `workspace-config.example.yml`, `resources/jobs.yml`
 
-## What downstream teams should customize
+## Customization boundary
 
-- `src/databricks_mcp_agent_hello_world/app/tools.py`
-- `src/databricks_mcp_agent_hello_world/app/registry.py`
-- `examples/demo_run_task.json`
-- `evals/sample_scenarios.json`
-- `databricks.yml`
-- `workspace-config.example.yml`
-- `resources/jobs.yml`
-- `src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt` only if the domain genuinely needs it
+Downstream teams usually replace the example app assets and keep the framework core intact. Use [Convert the template into a real app](./CONVERT_TEMPLATE_TO_REAL_APP.md) for the actual edit sequence and file-by-file customization checklist.
 
 ## Advanced concepts
 
