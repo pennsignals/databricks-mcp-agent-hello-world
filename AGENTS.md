@@ -99,4 +99,10 @@ The runtime provides the discovered tool set to the model, and the LLM chooses w
 - Local development may fall back to local persistence when Spark is unavailable.
 - On Databricks compute, Delta-backed persistence is the normal deployed path.
 
-For deployment changes, keep the bundle flow and job names in sync with `databricks.yml` and `resources/databricks_mcp_agent_hello_world_job.yml`.
+For deployment changes, keep the bundle flow and job names in sync with `databricks.yml` and `resources/jobs.yml`.
+
+## Repo hygiene
+
+Do not commit caches, local state, or build artifacts. These paths are transient development or packaging artifacts and are not part of the template's authored source.
+
+Before commit, verify no `.pytest_cache/`, `__pycache__/`, `.local_state/`, `dist/`, `build/`, `*.egg-info/`, or `.coverage` content is staged.

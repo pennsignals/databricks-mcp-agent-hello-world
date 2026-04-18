@@ -251,7 +251,7 @@ In `workspace-config.yml`, change `storage.agent_events_table` to a **catalog an
 
 You need permission to deploy bundles and run jobs in your target workspace.
 
-The default deployed job definition in this repo uses **serverless job environments**. If your workspace does not support that pattern, edit [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/databricks_mcp_agent_hello_world_job.yml) before deploying.
+The default deployed job definition in this repo uses **serverless job environments**. If your workspace does not support that pattern, edit [`resources/jobs.yml`](resources/jobs.yml) before deploying.
 
 This repo deploys **two Python wheel jobs**:
 
@@ -326,7 +326,7 @@ Replace these first in a downstream project:
 - [`src/databricks_mcp_agent_hello_world/app/registry.py`](src/databricks_mcp_agent_hello_world/app/registry.py)
 - [`evals/sample_scenarios.json`](evals/sample_scenarios.json)
 - [`databricks.yml`](databricks.yml)
-- [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/databricks_mcp_agent_hello_world_job.yml)
+- [`resources/jobs.yml`](resources/jobs.yml)
 
 Usually keep these framework files intact unless you are intentionally changing the core runtime:
 
@@ -407,7 +407,7 @@ Fix: inspect the schema diff from `init_storage_job`, then decide whether to mig
 
 Your workspace may not support the default serverless job path in the current resource file.
 
-Fix: update [`resources/databricks_mcp_agent_hello_world_job.yml`](resources/databricks_mcp_agent_hello_world_job.yml) to use the compute pattern your workspace allows.
+Fix: update [`resources/jobs.yml`](resources/jobs.yml) to use the compute pattern your workspace allows.
 
 ### Deployed runtime cannot read or write the configured Delta tables
 

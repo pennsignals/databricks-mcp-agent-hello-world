@@ -157,7 +157,7 @@ The Databricks path is intentionally conservative. Catalogs must already exist, 
 ## Demo assets vs framework assets
 
 - Framework assets: `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`, `src/databricks_mcp_agent_hello_world/storage/write.py`, `src/databricks_mcp_agent_hello_world/storage/schema.py`, `src/databricks_mcp_agent_hello_world/storage/bootstrap.py`, `src/databricks_mcp_agent_hello_world/evals/harness.py`, `src/databricks_mcp_agent_hello_world/models.py`, `src/databricks_mcp_agent_hello_world/config.py`
-- Example app assets: `src/databricks_mcp_agent_hello_world/app/tools.py`, `src/databricks_mcp_agent_hello_world/app/registry.py`, `examples/demo_run_task.json`, `evals/sample_scenarios.json`, `databricks.yml`, `workspace-config.example.yml`, `resources/databricks_mcp_agent_hello_world_job.yml`
+- Example app assets: `src/databricks_mcp_agent_hello_world/app/tools.py`, `src/databricks_mcp_agent_hello_world/app/registry.py`, `examples/demo_run_task.json`, `evals/sample_scenarios.json`, `databricks.yml`, `workspace-config.example.yml`, `resources/jobs.yml`
 
 ## What downstream teams should customize
 
@@ -167,7 +167,7 @@ The Databricks path is intentionally conservative. Catalogs must already exist, 
 - `evals/sample_scenarios.json`
 - `databricks.yml`
 - `workspace-config.example.yml`
-- `resources/databricks_mcp_agent_hello_world_job.yml`
+- `resources/jobs.yml`
 - `src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt` only if the domain genuinely needs it
 
 ## Advanced concepts

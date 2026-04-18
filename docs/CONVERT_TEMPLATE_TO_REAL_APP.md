@@ -20,7 +20,7 @@ Edit these files:
 - [`examples/demo_run_task.json`](../examples/demo_run_task.json)
 - [`evals/sample_scenarios.json`](../evals/sample_scenarios.json)
 - [`databricks.yml`](../databricks.yml)
-- [`resources/databricks_mcp_agent_hello_world_job.yml`](../resources/databricks_mcp_agent_hello_world_job.yml)
+- [`resources/jobs.yml`](../resources/jobs.yml)
 
 ## Step 2 — Replace the example app tools
 
@@ -59,7 +59,7 @@ Create scenarios that cover:
 Edit these files:
 
 - [`databricks.yml`](../databricks.yml)
-- [`resources/databricks_mcp_agent_hello_world_job.yml`](../resources/databricks_mcp_agent_hello_world_job.yml)
+- [`resources/jobs.yml`](../resources/jobs.yml)
 - [`workspace-config.example.yml`](../workspace-config.example.yml)
 - [`src/databricks_mcp_agent_hello_world/config.py`](../src/databricks_mcp_agent_hello_world/config.py) only if you are making a true platform-level config change
 
