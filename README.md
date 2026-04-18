@@ -28,9 +28,7 @@ The runtime flow is intentionally small:
 3. run the real task with the full discovered tool inventory exposed
 4. persist an append-only event log locally or to Delta
 
-Tool selection is **LLM-driven**. At runtime, the application discovers the full tool inventory for the configured provider and passes that full discovered tool set to the model. The LLM decides which tools to call for each input based on the task instructions and the tool definitions.
-
-This template intentionally does **not** implement precompiled tool-governance layers, manual tool allowlists such as `allowed_tools`, or policy-based tool blocking. Those are advanced patterns for larger inventories, governance-heavy deployments, or token-optimization work, and are intentionally out of scope for this starter.
+Tool selection is **LLM-driven**. The model receives the discovered tool inventory and decides what to call at runtime. For the provider boundary and tool-selection rules, see [Architecture](docs/ARCHITECTURE.md).
 
 For the built-in example app, the current inventory contains **five** tools:
 
@@ -313,11 +311,16 @@ Before you rely on deployed runs, make sure `storage.agent_events_table` points 
 
 ## Persistence model
 
-The template uses one append-only event store shared across local JSONL and Databricks Delta. Each row is one execution event. Stable identifiers and queryable metadata stay in top-level columns, and event-specific detail stays in `payload_json`.
+The template uses one append-only event store shared across local JSONL and Databricks Delta. Operator-facing paths are:
 
-The only supported per-event identity pair is `run_key + event_index`. The runtime does not persist `conversation_id` or a composite `event_id`.
+- local: `.local_state/agent_events.jsonl`
+- remote: `storage.agent_events_table`
+
+For the event schema, `run_key + event_index` identity model, and `payload_json` rationale, see [Architecture](docs/ARCHITECTURE.md).
 
 ## What you should customize vs keep
+
+For the full downstream customization guide, use [Convert the template into a real app](docs/CONVERT_TEMPLATE_TO_REAL_APP.md).
 
 Replace these first in a downstream project:
 
@@ -417,21 +420,4 @@ Fix: update `storage.agent_events_table` in `workspace-config.yml` to a writable
 
 ### Databricks job runs but output is empty
 
-Inspect `storage.agent_events_table`, then confirm the runtime task JSON is valid. The persisted rows are event records, so query by `run_key`, `event_index`, `event_type`, or `tool_name` instead of expecting separate summary tables.
-
-## Advanced concepts and additional resources
-
-These are not part of the supported default flow for this template. This starter intentionally does not implement the following patterns:
-
-- precompiled tool-governance layers
-- manual tool allowlists such as `allowed_tools`
-- policy-based tool-call blocking
-- implemented `managed_mcp` runtime tooling
-
-Those can be useful later for larger tool inventories, governance-heavy deployments, and token-optimization work. If you outgrow the starter, these are good places to learn more:
-
-- [OpenAI function calling guide](https://developers.openai.com/api/docs/guides/function-calling)
-- [OpenAI tools guide](https://developers.openai.com/api/docs/guides/tools)
-- [OpenAI practical guide to building agents](https://openai.com/business/guides-and-resources/a-practical-guide-to-building-ai-agents/)
-- [Anthropic tool use overview](https://docs.anthropic.com/en/docs/build-with-claude/tool-use/overview)
-- [Databricks Python wheel task for Jobs](https://docs.databricks.com/aws/en/jobs/python-wheel)
+Inspect `storage.agent_events_table`, then confirm the runtime task JSON is valid. For the canonical event model and queryable fields, see [Architecture](docs/ARCHITECTURE.md).
