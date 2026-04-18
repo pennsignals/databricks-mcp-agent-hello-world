@@ -16,7 +16,6 @@ PYPROJECT_PATH = Path("pyproject.toml")
 
 def test_read_project_version_from_pyproject() -> None:
     pyproject = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
-
     assert read_project_version() == pyproject["project"]["version"]
 
 
@@ -38,7 +37,6 @@ def test_runtime_version_returns_installed_package_metadata(monkeypatch) -> None
         "databricks_mcp_agent_hello_world.versioning.installed_version",
         lambda distribution_name: "9.9.9",
     )
-
     assert read_installed_package_version(read_project_name()) == "9.9.9"
 
 
@@ -49,5 +47,4 @@ def test_runtime_version_falls_back_when_package_metadata_is_missing(monkeypatch
         raise PackageNotFoundError
 
     monkeypatch.setattr("databricks_mcp_agent_hello_world.versioning.installed_version", _raise)
-
     assert read_installed_package_version(read_project_name()) == "0+unknown"

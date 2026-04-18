@@ -19,7 +19,6 @@ class StubProvider:
     def __init__(self, tools: list[ToolSpec], inventory_hash: str = "inventory-hash") -> None:
         self.tools = tools
         self._inventory_hash = inventory_hash
-        self.calls = []
 
     def list_tools(self) -> list[ToolSpec]:
         return list(self.tools)
@@ -28,7 +27,6 @@ class StubProvider:
         return self._inventory_hash
 
     def call_tool(self, tool_call):
-        self.calls.append(tool_call)
         return ToolResult(
             tool_name=tool_call.tool_name,
             status="ok",
@@ -43,6 +41,7 @@ class StubLLM:
         self.calls = 0
 
     def tool_step(self, messages, tools, tool_choice=None):
+        del messages, tools, tool_choice
         response = self.responses[self.calls]
         self.calls += 1
         return response
@@ -113,7 +112,11 @@ def test_get_spark_session_logs_local_fallback_once(caplog, monkeypatch) -> None
     assert [record.message for record in caplog.records].count(EXPECTED_SPARK_FALLBACK_MESSAGE) == 1
 
 
-def test_unknown_tool_call_does_not_emit_blocked_logs(tmp_path: Path, caplog, monkeypatch) -> None:
+def test_unknown_tool_call_logs_warning_without_old_blocked_language(
+    tmp_path: Path,
+    caplog,
+    monkeypatch,
+) -> None:
     runner = _runner(
         tmp_path,
         StubLLM(
@@ -139,8 +142,8 @@ def test_unknown_tool_call_does_not_emit_blocked_logs(tmp_path: Path, caplog, mo
 
     assert record.result["tool_calls"][0]["status"] == "error"
     assert any(
-        record.levelno == logging.WARNING
-        and record.message == "Unknown tool call: create_support_ticket"
-        for record in caplog.records
+        logged.levelno == logging.WARNING
+        and logged.message == "Unknown tool call: create_support_ticket"
+        for logged in caplog.records
     )
-    assert not any("Blocked disallowed tool call" in record.message for record in caplog.records)
+    assert not any("Blocked disallowed tool call" in logged.message for logged in caplog.records)

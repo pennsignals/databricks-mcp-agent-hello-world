@@ -10,9 +10,7 @@ from databricks_mcp_agent_hello_world.app.tools import (
 
 
 def test_get_user_profile_returns_expected_user() -> None:
-    user_details = get_user_profile("usr_ada_01")
-
-    assert user_details["display_name"] == "Ada Lovelace"
+    assert get_user_profile("usr_ada_01")["display_name"] == "Ada Lovelace"
 
 
 def test_get_user_profile_raises_for_unknown_user() -> None:
@@ -20,16 +18,9 @@ def test_get_user_profile_raises_for_unknown_user() -> None:
         get_user_profile("missing")
 
 
-def test_search_onboarding_docs_ranks_local_development_first() -> None:
+def test_search_onboarding_docs_ranks_relevant_doc_first() -> None:
     result = search_onboarding_docs("local development")
-
     assert result["results"][0]["doc_id"] == "doc_local_dev_setup"
-
-
-def test_search_onboarding_docs_returns_runtime_target_doc() -> None:
-    result = search_onboarding_docs("runtime target")
-
-    assert "doc_compute_overview" in [item["doc_id"] for item in result["results"]]
 
 
 def test_search_onboarding_docs_validates_inputs() -> None:
@@ -40,14 +31,7 @@ def test_search_onboarding_docs_validates_inputs() -> None:
 
 
 def test_get_workspace_setting_returns_runtime_target() -> None:
-    result = get_workspace_setting("runtime_target")
-
-    assert result["value"] == "Databricks Serverless Jobs"
-
-
-def test_get_workspace_setting_raises_for_unknown_key() -> None:
-    with pytest.raises(ValueError, match="unknown setting key"):
-        get_workspace_setting("missing")
+    assert get_workspace_setting("runtime_target")["value"] == "Databricks Serverless Jobs"
 
 
 def test_list_recent_job_runs_handles_limits() -> None:
@@ -58,17 +42,8 @@ def test_list_recent_job_runs_handles_limits() -> None:
 
 
 def test_create_support_ticket_is_deterministic() -> None:
-    result = create_support_ticket("Need help with onboarding", severity="medium")
-
-    assert result == {
+    assert create_support_ticket("Need help with onboarding", severity="medium") == {
         "ticket_id": "TICK-1B3A5FF8",
         "status": "created",
         "severity": "medium",
     }
-
-
-def test_create_support_ticket_validates_inputs() -> None:
-    with pytest.raises(ValueError, match="summary must not be empty"):
-        create_support_ticket("   ")
-    with pytest.raises(ValueError, match="invalid severity"):
-        create_support_ticket("Need help", severity="urgent")

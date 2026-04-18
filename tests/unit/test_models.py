@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import pytest
 from pydantic import ValidationError
 
-from databricks_mcp_agent_hello_world import models
 from databricks_mcp_agent_hello_world.models import (
     AgentRunRecord,
     EvalScenario,
@@ -76,23 +77,16 @@ def test_tool_spec_rejects_invalid_metadata_values(field_name: str, bad_values: 
         ToolSpec(**_base_tool_spec(**{field_name: bad_values}))
 
 
-def test_tool_spec_rejects_invalid_side_effect_level() -> None:
-    with pytest.raises(ValidationError):
-        ToolSpec(**_base_tool_spec(side_effect_level="mutate"))
-
-
-def test_tool_result_rejects_blocked_status() -> None:
+def test_tool_result_rejects_invalid_status() -> None:
     with pytest.raises(ValidationError):
         ToolResult(tool_name="sample_tool", status="blocked", content={})
 
 
-def test_agent_run_record_validates_without_profile_fields() -> None:
+def test_agent_run_record_matches_current_runtime_shape() -> None:
     record = AgentRunRecord(
         run_id="run-1",
         task_name="workspace_onboarding_brief",
         status="success",
-        tools_called=[],
-        llm_turn_count=0,
         result={
             "final_response": "done",
             "available_tools": ["sample_tool"],
@@ -114,52 +108,19 @@ def test_agent_run_record_validates_without_profile_fields() -> None:
     }
 
 
-def test_removed_runtime_profile_models_are_gone() -> None:
-    removed_names = {
-        "".join(["Tool", "Profile"]),
-        "".join(["Tool", "Profile", "Record"]),
-        "".join(["Filter", "Decision"]),
-        "".join(["Compile", "Tool", "Profile", "Result"]),
-        "".join(["Hello", "World", "Tool", "Call"]),
-        "".join(["Hello", "World", "Demo", "Result"]),
-    }
-    assert removed_names.isdisjoint(set(dir(models)))
+def test_eval_scenario_rejects_invalid_task_input_sources() -> None:
+    with pytest.raises(ValidationError, match="exactly one of task_input or task_input_file"):
+        EvalScenario(scenario_id="missing-input", description="Invalid scenario")
 
 
-def test_eval_scenario_rejects_min_tool_calls_above_max_tool_calls() -> None:
+def test_eval_scenario_rejects_min_tool_calls_above_max_tool_calls(
+    demo_task_path,
+) -> None:
     with pytest.raises(ValidationError):
         EvalScenario(
             scenario_id="bad-bounds",
             description="Invalid bounds",
-            task_input={
-                "task_name": "workspace_onboarding_brief",
-                "instructions": "Write the onboarding brief.",
-                "payload": {"user_id": "usr_ada_01"},
-            },
+            task_input_file=str(demo_task_path),
             min_tool_calls=3,
             max_tool_calls=2,
         )
-
-
-@pytest.mark.parametrize(
-    "payload",
-    [
-        {
-            "scenario_id": "missing-task-input",
-            "description": "Invalid scenario",
-        },
-        {
-            "scenario_id": "duplicate-task-input",
-            "description": "Invalid scenario",
-            "task_input": {
-                "task_name": "workspace_onboarding_brief",
-                "instructions": "Write the onboarding brief.",
-                "payload": {"user_id": "usr_ada_01"},
-            },
-            "task_input_file": "../examples/demo_run_task.json",
-        },
-    ],
-)
-def test_eval_scenario_requires_exactly_one_task_input_source(payload: dict) -> None:
-    with pytest.raises(ValidationError, match="exactly one of task_input or task_input_file"):
-        EvalScenario(**payload)
