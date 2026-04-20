@@ -77,6 +77,8 @@ DATABRICKS_CONFIG_PROFILE=DEFAULT
 ```
 
 If you use a different profile name, put that value here instead.
+`DATABRICKS_CONFIG_PROFILE` is the canonical runtime setting for selecting your
+Databricks CLI profile.
 
 ### 2) Set the main runtime config in `workspace-config.yml`
 
