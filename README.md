@@ -44,8 +44,7 @@ The canonical sample task in [`examples/demo_run_task.json`](examples/demo_run_t
 
 Before you start, make sure you have:
 
-- **Python 3.11+**
-- **[`uv`](https://docs.astral.sh/uv/)**
+- **Python 3.11**
 - the **Databricks CLI** installed
 - a Databricks workspace you can authenticate to locally
 - a **Databricks model serving endpoint** to use as `llm_endpoint_name`
@@ -54,12 +53,15 @@ The serving endpoint should support the **function-calling / tool-calling patter
 
 Deployment-specific requirements are covered later in [Deploying to Databricks](#deploying-to-databricks).
 
-## First-time setup
+## First-time setup (venv + pip)
 
 From the repo root:
 
 ```bash
-uv sync
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
 cp workspace-config.example.yml workspace-config.yml
 cp .env.example .env
 ```
@@ -138,7 +140,7 @@ databricks auth profiles
 ### Step 2: run preflight
 
 ```bash
-uv run preflight --config-path workspace-config.yml
+preflight --config-path workspace-config.yml
 ```
 
 This checks that:
@@ -159,7 +161,7 @@ When Spark is unavailable locally, `preflight` reports that local JSONL fallback
 ### Step 3: discover tools
 
 ```bash
-uv run discover-tools --config-path workspace-config.yml
+discover-tools --config-path workspace-config.yml
 ```
 
 For the built-in example app, you should see **5 tools**. The discovery output may also show metadata such as side-effect level, tags, and domains for each tool.
@@ -169,7 +171,7 @@ For the built-in example app, you should see **5 tools**. The discovery output m
 Use the runtime task file:
 
 ```bash
-uv run run-agent-task \
+run-agent-task \
   --config-path workspace-config.yml \
   --task-input-file examples/demo_run_task.json
 ```
@@ -185,7 +187,7 @@ A successful run shows that the project can:
 If you want machine-readable output:
 
 ```bash
-uv run run-agent-task \
+run-agent-task \
   --config-path workspace-config.yml \
   --task-input-file examples/demo_run_task.json \
   --output json
@@ -198,10 +200,10 @@ Local JSONL state is created lazily on the first write under `./.local_state`, s
 Fast local tests:
 
 ```bash
-uv run pytest
+pytest
 ```
 
-Coverage is configured centrally in `pyproject.toml`, so a normal `uv run pytest` measures only
+Coverage is configured centrally in `pyproject.toml`, so a normal `pytest` measures only
 the package under `src/databricks_mcp_agent_hello_world`, prints missing lines, writes
 `coverage.xml`, and fails if package coverage drops below 100%. Use the missing-lines output to
 find any untested package behavior before committing.
@@ -209,7 +211,7 @@ find any untested package behavior before committing.
 Live integration evals against the configured Databricks endpoint:
 
 ```bash
-uv run run-evals \
+run-evals \
   --config-path workspace-config.yml \
   --scenario-file evals/sample_scenarios.json
 ```
@@ -279,7 +281,7 @@ The default deployed sample job also reads the workspace copy of [`examples/demo
 
 The deployed wheel tasks intentionally use **separate Databricks job entry points** from the local CLI commands:
 
-- local development keeps using `uv run run-agent-task ...`
+- local development keeps using `run-agent-task ...`
 - remote storage bootstrap uses the package `run_init_storage` wrapper
 - the bundled Databricks job uses the package `run_agent_task` wrapper
 - `run_init_storage` loads settings, calls the shared bootstrap logic, and exits non-zero on mismatch

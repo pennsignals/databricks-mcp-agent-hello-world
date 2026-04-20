@@ -23,7 +23,7 @@ This is the internal maintainer guide for the template. For setup, first run, da
 Command:
 
 ```bash
-uv run pytest
+pytest
 ```
 
 Definition:
@@ -38,7 +38,7 @@ Definition:
 Command:
 
 ```bash
-uv run run-evals --config-path workspace-config.yml
+run-evals --config-path workspace-config.yml
 ```
 
 Definition:
@@ -53,7 +53,7 @@ Definition:
 Command:
 
 ```bash
-uv run run-agent-task --config-path workspace-config.yml --task-input-file examples/demo_run_task.json
+run-agent-task --config-path workspace-config.yml --task-input-file examples/demo_run_task.json
 ```
 
 Definition:

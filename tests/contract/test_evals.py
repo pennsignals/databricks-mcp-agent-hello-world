@@ -6,7 +6,6 @@ from typing import Literal
 
 import pytest
 
-from tests.helpers import make_settings
 from databricks_mcp_agent_hello_world.app.data import DEMO_USERS
 from databricks_mcp_agent_hello_world.evals.harness import (
     EvalSetupError,
@@ -14,6 +13,7 @@ from databricks_mcp_agent_hello_world.evals.harness import (
     run_evals,
 )
 from databricks_mcp_agent_hello_world.models import AgentRunRecord, EvalRunReport
+from tests.helpers import make_settings
 
 
 class StubRunner:
@@ -40,7 +40,9 @@ def _settings(tmp_path: Path):
 def _record(
     *,
     status: Literal["success", "error", "max_steps_exceeded"] = "success",
-    final_response: str = "Ada Lovelace uses uv sync on Databricks Serverless Jobs.",
+    final_response: str = (
+        "Ada Lovelace uses python3.11 -m venv plus pip on Databricks Serverless Jobs."
+    ),
     available_tools: list[str] | None = None,
     tool_calls: list[dict] | None = None,
     result_overrides: dict | None = None,
@@ -303,7 +305,7 @@ def test_run_evals_records_detailed_failure_diagnostics(
         ],
         [
             _record(
-                final_response="Ada Lovelace uses uv sync.",
+                final_response="Ada Lovelace uses python3.11 -m venv plus pip.",
                 available_tools=["get_user_profile", "create_support_ticket"],
                 tool_calls=[
                     {

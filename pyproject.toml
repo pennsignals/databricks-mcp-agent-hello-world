@@ -3,7 +3,7 @@ name = "databricks-mcp-agent-hello-world"
 version = "0.1.0"
 description = "Provider-agnostic, non-interactive Databricks LLM agent template with local code tools and future MCP compatibility."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 dependencies = [
   "databricks-sdk>=0.60.0",
   "databricks-openai>=0.4.0",
@@ -12,12 +12,13 @@ dependencies = [
   "PyYAML>=6.0.2",
 ]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
   "coverage[toml]>=7.13.5",
   "pytest>=8.3.0",
   "pytest-cov>=7.1.0",
   "ruff>=0.8.0",
+  "build>=1.2.0",
 ]
 
 [project.scripts]
@@ -73,6 +74,3 @@ source = [
   "src/databricks_mcp_agent_hello_world",
   "*/site-packages/databricks_mcp_agent_hello_world",
 ]
-
-[tool.uv]
-cache-dir = ".uv-cache"
