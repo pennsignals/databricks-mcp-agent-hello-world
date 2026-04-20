@@ -1,7 +1,7 @@
 [
   {
     "scenario_id": "onboarding_happy_path",
-    "description": "Runs the standard read-only onboarding brief for Ada Lovelace.",
+    "description": "Runs the standard read-only onboarding brief for Grace Hopper.",
     "expected_status": "success",
     "task_input_file": "../examples/demo_run_task.json",
     "required_available_tools": [
@@ -18,7 +18,7 @@
     ],
     "min_tool_calls": 4,
     "required_output_substrings": [
-      "Ada Lovelace",
+      "Grace Hopper",
       "uv sync",
       "Databricks Serverless Jobs"
     ]
@@ -68,7 +68,7 @@
     ],
     "min_tool_calls": 1,
     "required_output_substrings": [
-      "Ada Lovelace"
+      "Grace Hopper"
     ]
   }
 ]

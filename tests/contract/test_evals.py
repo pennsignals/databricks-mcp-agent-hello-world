@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from databricks_mcp_agent_hello_world.app.data import DEMO_USERS
 from databricks_mcp_agent_hello_world.evals.harness import (
     EvalSetupError,
     load_eval_scenarios,
@@ -111,6 +112,27 @@ def test_load_eval_scenarios_uses_canonical_demo_task_file(repo_root: Path) -> N
         "runtime_target",
         "recent_operational_note",
     ]
+
+
+def test_file_backed_sample_scenarios_expect_demo_task_display_name(repo_root: Path) -> None:
+    scenarios = load_eval_scenarios(str(repo_root / "evals" / "sample_scenarios.json"))
+
+    for scenario in scenarios:
+        if scenario.task_input is None:
+            continue
+
+        user_id = scenario.task_input.payload.get("user_id")
+        if not isinstance(user_id, str):
+            continue
+
+        expected_display_name = DEMO_USERS[user_id]["display_name"]
+        if expected_display_name in scenario.required_output_substrings:
+            continue
+
+        pytest.fail(
+            f"Scenario {scenario.scenario_id} must require display name "
+            f"{expected_display_name!r} to match its resolved task input."
+        )
 
 
 def test_load_eval_scenarios_resolves_task_input_file_relative_to_scenario_file(
