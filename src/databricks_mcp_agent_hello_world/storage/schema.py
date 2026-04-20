@@ -20,15 +20,15 @@ _UNSUPPORTED_SERIALIZER = object()
 
 
 class _SupportsModelDump(Protocol):
-    def model_dump(self, *, mode: str = "python") -> object: ...
+    def model_dump(self, *, mode: str = "python") -> object: ...  # pragma: no cover
 
 
 class _SupportsAsDict(Protocol):
-    def as_dict(self) -> object: ...
+    def as_dict(self) -> object: ...  # pragma: no cover
 
 
 class _SupportsDict(Protocol):
-    def dict(self) -> object: ...
+    def dict(self) -> object: ...  # pragma: no cover
 
 
 @dataclass(frozen=True, slots=True)
