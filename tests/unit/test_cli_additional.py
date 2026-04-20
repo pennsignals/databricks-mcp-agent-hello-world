@@ -222,8 +222,16 @@ def test_run_command_helpers_delegate_to_command_layer(monkeypatch) -> None:
     run_task_result = CommandResult(exit_code=0, payload={})
     evals_result = CommandResult(exit_code=0, payload={})
 
-    monkeypatch.setattr(cli, "run_preflight_command", lambda path: preflight_result if path == "demo.yml" else None)
-    monkeypatch.setattr(cli, "run_discover_tools_command", lambda path: discover_result if path == "demo.yml" else None)
+    monkeypatch.setattr(
+        cli,
+        "run_preflight_command",
+        lambda path: preflight_result if path == "demo.yml" else None,
+    )
+    monkeypatch.setattr(
+        cli,
+        "run_discover_tools_command",
+        lambda path: discover_result if path == "demo.yml" else None,
+    )
     monkeypatch.setattr(
         cli,
         "run_agent_task_command",

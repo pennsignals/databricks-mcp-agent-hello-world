@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 from databricks_mcp_agent_hello_world import config
-from tests.helpers import make_settings
 from tests.conftest import write_workspace_config
+from tests.helpers import make_settings
 
 
 def test_settings_provider_type_property_reflects_tool_provider_type() -> None:
@@ -33,7 +33,10 @@ def test_load_dotenv_values_returns_empty_when_no_env_file(tmp_path: Path) -> No
 
 
 def test_validate_settings_rejects_remaining_invalid_shapes(monkeypatch) -> None:
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.config.get_spark_session", lambda: None)
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.config.get_spark_session",
+        lambda: None,
+    )
 
     with pytest.raises(ValueError, match="storage.local_data_dir"):
         config.validate_settings(make_settings(storage={"local_data_dir": "   "}))
@@ -46,7 +49,10 @@ def test_validate_settings_rejects_remaining_invalid_shapes(monkeypatch) -> None
 
 
 def test_validate_settings_requires_remote_table_when_spark_is_available(monkeypatch) -> None:
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.config.get_spark_session", lambda: object())
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.config.get_spark_session",
+        lambda: object(),
+    )
 
     with pytest.raises(ValueError, match="storage.agent_events_table"):
         config.validate_settings(make_settings(storage={"agent_events_table": "  "}))
@@ -73,11 +79,44 @@ def test_parse_task_input_variants(tmp_path: Path) -> None:
 
 
 def test_internal_config_helpers_cover_fallback_paths(tmp_path: Path) -> None:
-    assert config._deep_get({"outer": "not-a-dict"}, "outer", "inner", default="fallback") == "fallback"
-    assert config._resolve_value(yaml_value="yaml", dotenv_values={"KEY": "env"}, dotenv_key="KEY") == "yaml"
-    assert config._resolve_value(yaml_value=None, dotenv_values={"KEY": "env"}, dotenv_key="KEY") == "env"
-    assert config._resolve_value(yaml_value=None, dotenv_values={}, dotenv_key="KEY", default="default") == "default"
-    assert config._read_prompt(str(tmp_path / "missing.txt"), "fallback prompt") == "fallback prompt"
+    assert (
+        config._deep_get(
+            {"outer": "not-a-dict"},
+            "outer",
+            "inner",
+            default="fallback",
+        )
+        == "fallback"
+    )
+    assert (
+        config._resolve_value(
+            yaml_value="yaml",
+            dotenv_values={"KEY": "env"},
+            dotenv_key="KEY",
+        )
+        == "yaml"
+    )
+    assert (
+        config._resolve_value(
+            yaml_value=None,
+            dotenv_values={"KEY": "env"},
+            dotenv_key="KEY",
+        )
+        == "env"
+    )
+    assert (
+        config._resolve_value(
+            yaml_value=None,
+            dotenv_values={},
+            dotenv_key="KEY",
+            default="default",
+        )
+        == "default"
+    )
+    assert (
+        config._read_prompt(str(tmp_path / "missing.txt"), "fallback prompt")
+        == "fallback prompt"
+    )
 
 
 def test_parse_dotenv_rejects_invalid_lines_and_coerce_int_rejects_non_int(tmp_path: Path) -> None:

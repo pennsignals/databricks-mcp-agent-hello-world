@@ -4,13 +4,13 @@ import json
 
 import pyarrow as pa
 
-from tests.helpers import make_settings
 from databricks_mcp_agent_hello_world.storage.schema import (
     EVENT_SCHEMA,
     serialize_event_row,
     validate_event_rows,
 )
 from databricks_mcp_agent_hello_world.storage.write import write_event_rows
+from tests.helpers import make_settings
 
 
 def _event_row(**overrides):

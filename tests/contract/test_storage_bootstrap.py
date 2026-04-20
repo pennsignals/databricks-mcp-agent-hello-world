@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from tests.helpers import make_settings
 from databricks_mcp_agent_hello_world.storage import bootstrap
+from tests.helpers import make_settings
 
 
 @dataclass(frozen=True)

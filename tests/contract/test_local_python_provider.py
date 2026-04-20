@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from tests.helpers import make_settings
 from databricks_mcp_agent_hello_world.models import ToolCall
 from databricks_mcp_agent_hello_world.providers.factory import get_tool_provider
 from databricks_mcp_agent_hello_world.providers.local_python import LocalPythonToolProvider
 from databricks_mcp_agent_hello_world.providers.managed_mcp import ManagedMCPToolProvider
+from tests.helpers import make_settings
 
 
 def test_local_python_provider_injects_provider_metadata_and_matches_authored_registry() -> None:

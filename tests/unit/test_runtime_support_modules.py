@@ -145,7 +145,11 @@ def test_logging_utils_sets_level_with_and_without_existing_handlers(monkeypatch
 
         root_logger.handlers = []
         basic_config_calls: list[dict[str, object]] = []
-        monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: basic_config_calls.append(kwargs))
+        monkeypatch.setattr(
+            logging,
+            "basicConfig",
+            lambda **kwargs: basic_config_calls.append(kwargs),
+        )
         monkeypatch.setenv("LOG_LEVEL", "warning")
         logging_utils.configure_logging()
         assert basic_config_calls[0]["level"] == logging.WARNING
@@ -183,7 +187,10 @@ def test_commands_additional_branches(tmp_path: Path, monkeypatch) -> None:
     assert run_preflight_command(str(config_path)).exit_code == 1
     assert run_discover_tools_command(str(config_path)).payload == {"settings": "settings"}
     assert run_init_storage_command(str(config_path)).payload.messages == ["done"]
-    assert _load_task_payload(task_input_json=None, task_input_file=str(task_file))["task_name"] == "demo"
+    assert _load_task_payload(
+        task_input_json=None,
+        task_input_file=str(task_file),
+    )["task_name"] == "demo"
     assert _build_agent_task_request(
         {
             "task_name": "demo",
@@ -198,8 +205,15 @@ def test_commands_additional_branches(tmp_path: Path, monkeypatch) -> None:
         "databricks_mcp_agent_hello_world.commands.load_settings",
         lambda path: (_ for _ in ()).throw(FileNotFoundError(path)),
     )
-    with pytest.raises(RuntimeError, match="Create workspace-config.yml and rerun run_agent_task_job"):
-        _load_settings_for_command(str(config_path), "run-agent-task", next_step="run_agent_task_job")
+    with pytest.raises(
+        RuntimeError,
+        match="Create workspace-config.yml and rerun run_agent_task_job",
+    ):
+        _load_settings_for_command(
+            str(config_path),
+            "run-agent-task",
+            next_step="run_agent_task_job",
+        )
     with pytest.raises(RuntimeError, match="Missing config file"):
         _load_settings_for_command(str(config_path), "discover-tools")
 
@@ -210,7 +224,10 @@ def test_commands_additional_branches(tmp_path: Path, monkeypatch) -> None:
     with pytest.raises(EvalSetupError, match="Unable to load config"):
         run_evals_command(str(config_path))
 
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.commands.load_settings", lambda path: "settings")
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.load_settings",
+        lambda path: "settings",
+    )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.commands.run_evals",
         lambda settings, scenario_file: (_ for _ in ()).throw(RuntimeError("eval boom")),
@@ -323,7 +340,10 @@ def test_eval_harness_additional_branches(tmp_path: Path, monkeypatch) -> None:
         all_passed=True,
         results=[],
     )
-    harness._write_latest_eval_report(make_settings(storage={"local_data_dir": str(tmp_path)}), report)
+    harness._write_latest_eval_report(
+        make_settings(storage={"local_data_dir": str(tmp_path)}),
+        report,
+    )
     saved_report = tmp_path / "evals" / "latest_eval_report.json"
     assert saved_report.exists()
 
@@ -334,7 +354,13 @@ def test_provider_storage_and_runner_support_branches(tmp_path: Path, monkeypatc
         "databricks_mcp_agent_hello_world.providers.local_python.get_tool_function",
         lambda name: (_ for _ in ()).throw(RuntimeError(f"boom: {name}")),
     )
-    result = provider.call_tool(ToolCall(tool_name="get_user_profile", arguments={}, request_id="req-1"))
+    result = provider.call_tool(
+        ToolCall(
+            tool_name="get_user_profile",
+            arguments={},
+            request_id="req-1",
+        )
+    )
     assert result.status == "error"
     assert result.error == "boom: get_user_profile"
 
@@ -411,23 +437,70 @@ def test_provider_storage_and_runner_support_branches(tmp_path: Path, monkeypatc
         "arrow_schema_to_field_specs",
         lambda event_schema: [],
     )
-    assert bootstrap.compare_table_schema(matching_spark, bootstrap.StorageTableName("main", "demo", "events")) is None
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session", lambda: object())
+    assert (
+        bootstrap.compare_table_schema(
+            matching_spark,
+            bootstrap.StorageTableName("main", "demo", "events"),
+        )
+        is None
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
+        lambda: object(),
+    )
     with pytest.raises(ValueError, match="storage.agent_events_table must be configured"):
-        bootstrap.init_storage(make_settings(storage={"agent_events_table": "   ", "local_data_dir": str(tmp_path)}))
+        bootstrap.init_storage(
+            make_settings(
+                storage={
+                    "agent_events_table": "   ",
+                    "local_data_dir": str(tmp_path),
+                }
+            )
+        )
     same_schema_spark = SimpleNamespace(
-        sql=lambda query: SimpleNamespace(collect=lambda: [SimpleNamespace(tableName="events")] if query.startswith("SHOW TABLES") else [SimpleNamespace()] ),
+        sql=lambda query: SimpleNamespace(
+            collect=lambda: (
+                [SimpleNamespace(tableName="events")]
+                if query.startswith("SHOW TABLES")
+                else [SimpleNamespace()]
+            )
+        ),
         table=lambda name: SimpleNamespace(schema=SimpleNamespace(fields=[])),
     )
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.storage.bootstrap.catalog_exists", lambda spark_obj, name: True)
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.storage.bootstrap.schema_exists", lambda spark_obj, target_obj: True)
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.storage.bootstrap.table_exists", lambda spark_obj, target_obj: True)
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.storage.bootstrap.compare_table_schema", lambda spark_obj, target_obj: None)
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session", lambda: same_schema_spark)
-    matched = bootstrap.init_storage(make_settings(storage={"agent_events_table": "main.demo.events", "local_data_dir": str(tmp_path)}))
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.storage.bootstrap.catalog_exists",
+        lambda spark_obj, name: True,
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.storage.bootstrap.schema_exists",
+        lambda spark_obj, target_obj: True,
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.storage.bootstrap.table_exists",
+        lambda spark_obj, target_obj: True,
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.storage.bootstrap.compare_table_schema",
+        lambda spark_obj, target_obj: None,
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
+        lambda: same_schema_spark,
+    )
+    matched = bootstrap.init_storage(
+        make_settings(
+            storage={
+                "agent_events_table": "main.demo.events",
+                "local_data_dir": str(tmp_path),
+            }
+        )
+    )
     assert matched.exit_code == 0
     assert matched.messages == ["Table main.demo.events already exists and matches expected schema"]
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.storage.bootstrap.table_exists", lambda spark_obj, target_obj: True)
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.storage.bootstrap.table_exists",
+        lambda spark_obj, target_obj: True,
+    )
     assert bootstrap.storage_table_exists(object(), "main.demo.events") is True
 
     spark._logged_local_fallback = False
@@ -455,9 +528,18 @@ def test_provider_storage_and_runner_support_branches(tmp_path: Path, monkeypatc
     assert len([message for message in caplog.messages if "Local mode" in message]) == 1
 
     assert write._event_rows_jsonl_path(str(tmp_path)).name == "agent_events.jsonl"
-    assert write.write_event_rows(make_settings(storage={"local_data_dir": str(tmp_path)}), []) is None
+    assert (
+        write.write_event_rows(
+            make_settings(storage={"local_data_dir": str(tmp_path)}),
+            [],
+        )
+        is None
+    )
 
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.storage.write.get_spark_session", lambda: object())
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.storage.write.get_spark_session",
+        lambda: object(),
+    )
     with pytest.raises(ValueError, match="storage.agent_events_table must be configured"):
         write.write_event_rows(
             make_settings(storage={"agent_events_table": "   ", "local_data_dir": str(tmp_path)}),
@@ -481,17 +563,29 @@ def test_provider_storage_and_runner_support_branches(tmp_path: Path, monkeypatc
         def createDataFrame(self, arrow_table):
             return FakeDataFrame()
 
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.storage.write.validate_event_rows", lambda rows: "arrow-table")
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.storage.write.validate_event_rows",
+        lambda rows: "arrow-table",
+    )
     write._append_delta_event_rows(FakeSpark(), "main.demo.events", [{"schema_version": "1"}])
     assert save_calls == ["main.demo.events"]
 
     runner = AgentRunner.__new__(AgentRunner)
-    runner.provider = SimpleNamespace(call_tool=lambda tool_call: {"tool_name": tool_call.tool_name})
+    runner.provider = SimpleNamespace(
+        call_tool=lambda tool_call: {"tool_name": tool_call.tool_name}
+    )
     assert AgentRunner._parse_tool_arguments({}) == ({}, None)
     assert AgentRunner._parse_tool_arguments({"a": 1}) == ({"a": 1}, None)
     assert AgentRunner._parse_tool_arguments(5)[1] is not None
-    assert AgentRunner._parse_tool_arguments("[]") == ({}, "Tool call arguments must decode to a JSON object.")
-    assert AgentRunner._build_result_payload(final_response="done", discovered_tools=[], tool_calls=[]) == {
+    assert AgentRunner._parse_tool_arguments("[]") == (
+        {},
+        "Tool call arguments must decode to a JSON object.",
+    )
+    assert AgentRunner._build_result_payload(
+        final_response="done",
+        discovered_tools=[],
+        tool_calls=[],
+    ) == {
         "final_response": "done",
         "available_tools": [],
         "available_tools_count": 0,

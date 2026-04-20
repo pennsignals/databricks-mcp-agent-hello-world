@@ -8,10 +8,14 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 import databricks_mcp_agent_hello_world as package_root
-from databricks_mcp_agent_hello_world.devtools.version_sync import SyncResult, format_sync_result, sync_version_refs
+from databricks_mcp_agent_hello_world.config import collect_config_warnings, load_yaml_config
+from databricks_mcp_agent_hello_world.devtools.version_sync import (
+    SyncResult,
+    format_sync_result,
+    sync_version_refs,
+)
 from databricks_mcp_agent_hello_world.models import ToolSpec
 from databricks_mcp_agent_hello_world.storage import schema
-from databricks_mcp_agent_hello_world.config import collect_config_warnings, load_yaml_config
 from databricks_mcp_agent_hello_world.versioning import sync_wheel_paths_in_text
 
 
@@ -23,7 +27,10 @@ def test_package_root_run_init_storage_success(capsys, monkeypatch) -> None:
             payload=SimpleNamespace(messages=["created"]),
         ),
     )
-    monkeypatch.setattr("sys.argv", ["run_init_storage", "--config-path", "workspace-config.yml"])
+    monkeypatch.setattr(
+        "sys.argv",
+        ["run_init_storage", "--config-path", "workspace-config.yml"],
+    )
 
     package_root.run_init_storage()
     assert "created" in capsys.readouterr().out
