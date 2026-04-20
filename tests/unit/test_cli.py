@@ -3,13 +3,19 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from databricks_mcp_agent_hello_world.cli import (
+    _print_eval_summary,
     build_parser,
     print_run_summary,
     run_named_command,
 )
 from databricks_mcp_agent_hello_world.commands import CommandResult
 from databricks_mcp_agent_hello_world.evals.harness import EvalSetupError
-from databricks_mcp_agent_hello_world.models import DiscoveryReport, PreflightReport
+from databricks_mcp_agent_hello_world.models import (
+    DiscoveryReport,
+    EvalRunReport,
+    EvalScenarioResult,
+    PreflightReport,
+)
 
 
 def test_parsers_accept_supported_flags() -> None:
@@ -123,3 +129,82 @@ def test_print_run_summary_prints_status_and_final_answer(capsys) -> None:
     assert "Tools called: 1" in output
     assert "Final answer:" in output
     assert "All set" in output
+
+
+def test_print_eval_summary_renders_detailed_failure_block(capsys) -> None:
+    summary = EvalRunReport(
+        scenario_file="evals/sample_scenarios.json",
+        total_scenarios=1,
+        passed_scenarios=0,
+        failed_scenarios=1,
+        all_passed=False,
+        results=[
+            EvalScenarioResult(
+                scenario_id="onboarding_happy_path",
+                passed=False,
+                failed_checks=[
+                    "missing_required_output_substrings",
+                    "missing_required_executed_tools",
+                    "status_mismatch",
+                    "missing_required_result_keys",
+                ],
+                expected_status="success",
+                actual_status="error",
+                available_tools=["get_user_profile", "search_onboarding_docs"],
+                executed_tools=["get_user_profile"],
+                tool_call_count=1,
+                final_response_excerpt="Grace Hopper uses uv sync.",
+                task_name="workspace_onboarding_brief",
+                run_record_id="run-123",
+                missing_required_output_substrings=["Ada Lovelace"],
+                missing_required_executed_tools=["list_recent_job_runs"],
+                missing_required_result_keys=["summary_markdown"],
+                actual_result_keys=["available_tools", "final_response", "tool_calls"],
+            )
+        ],
+    )
+
+    _print_eval_summary(summary)
+    output = capsys.readouterr().out
+
+    assert "FAIL onboarding_happy_path" in output
+    assert (
+        "Checks failed: missing_required_output_substrings, "
+        "missing_required_executed_tools, status_mismatch, "
+        "missing_required_result_keys" in output
+    )
+    assert "Task name: workspace_onboarding_brief" in output
+    assert "Run id: run-123" in output
+    assert "Expected status: success" in output
+    assert "Actual status: error" in output
+    assert "Missing output substrings: Ada Lovelace" in output
+    assert "Missing executed tools: list_recent_job_runs" in output
+    assert "Executed tools: get_user_profile" in output
+    assert "Missing result keys: summary_markdown" in output
+    assert "Actual result keys: available_tools, final_response, tool_calls" in output
+    assert "Final response excerpt: Grace Hopper uses uv sync." in output
+    assert "Passed 0/1 scenarios" in output
+
+
+def test_print_eval_summary_keeps_pass_output_concise(capsys) -> None:
+    summary = EvalRunReport(
+        scenario_file="evals/sample_scenarios.json",
+        total_scenarios=1,
+        passed_scenarios=1,
+        failed_scenarios=0,
+        all_passed=True,
+        results=[
+            EvalScenarioResult(
+                scenario_id="happy",
+                passed=True,
+                failed_checks=[],
+                expected_status="success",
+                task_name="workspace_onboarding_brief",
+            )
+        ],
+    )
+
+    _print_eval_summary(summary)
+    output = capsys.readouterr().out
+
+    assert output == "PASS happy\nPassed 1/1 scenarios\n"

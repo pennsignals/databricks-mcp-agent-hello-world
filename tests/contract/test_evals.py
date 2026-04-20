@@ -260,3 +260,110 @@ def test_run_evals_marks_status_mismatch_and_missing_output_substrings(
         "status_mismatch",
         "missing_required_output_substrings",
     }
+    assert report.results[0].missing_required_output_substrings == [
+        "Databricks Serverless Jobs"
+    ]
+    assert report.results[0].final_response_excerpt == "short"
+    assert report.results[0].actual_result_keys == [
+        "available_tools",
+        "final_response",
+        "tool_calls",
+    ]
+
+
+def test_run_evals_records_detailed_failure_diagnostics(
+    tmp_path: Path,
+    monkeypatch,
+    demo_task_input: dict[str, object],
+) -> None:
+    report = _run_report(
+        tmp_path,
+        monkeypatch,
+        [
+            {
+                "scenario_id": "diagnostics",
+                "description": "Captures detailed scoring diagnostics",
+                "task_input_file": "../examples/demo_run_task.json",
+                "required_available_tools": ["get_user_profile", "list_recent_job_runs"],
+                "forbidden_available_tools": ["create_support_ticket"],
+                "required_executed_tools": ["list_recent_job_runs"],
+                "forbidden_executed_tools": ["create_support_ticket"],
+                "required_result_keys": [
+                    "final_response",
+                    "available_tools",
+                    "tool_calls",
+                    "summary_markdown",
+                ],
+                "required_output_substrings": ["Grace Hopper"],
+                "forbidden_output_substrings": ["Ada Lovelace"],
+                "min_tool_calls": 2,
+                "max_tool_calls": 2,
+            }
+        ],
+        [
+            _record(
+                final_response="Ada Lovelace uses uv sync.",
+                available_tools=["get_user_profile", "create_support_ticket"],
+                tool_calls=[
+                    {
+                        "tool_name": "create_support_ticket",
+                        "arguments": {"summary": "bad"},
+                        "status": "ok",
+                        "error": None,
+                    }
+                ],
+            )
+        ],
+        demo_task_input=demo_task_input,
+    )
+
+    result = report.results[0]
+
+    assert result.passed is False
+    assert set(result.failed_checks) == {
+        "missing_required_result_keys",
+        "missing_required_available_tools",
+        "forbidden_available_tools_present",
+        "missing_required_executed_tools",
+        "forbidden_executed_tools_present",
+        "below_min_tool_calls",
+        "missing_required_output_substrings",
+        "forbidden_output_substrings_present",
+    }
+    assert result.missing_required_result_keys == ["summary_markdown"]
+    assert result.actual_result_keys == ["available_tools", "final_response", "tool_calls"]
+    assert result.missing_required_available_tools == ["list_recent_job_runs"]
+    assert result.present_forbidden_available_tools == ["create_support_ticket"]
+    assert result.missing_required_executed_tools == ["list_recent_job_runs"]
+    assert result.present_forbidden_executed_tools == ["create_support_ticket"]
+    assert result.missing_required_output_substrings == ["Grace Hopper"]
+    assert result.found_forbidden_output_substrings == ["Ada Lovelace"]
+    assert result.expected_min_tool_calls == 2
+    assert result.expected_max_tool_calls == 2
+    assert result.tool_call_count == 1
+
+
+def test_run_evals_records_execution_error_message(
+    tmp_path: Path,
+    monkeypatch,
+    demo_task_input: dict[str, object],
+) -> None:
+    report = _run_report(
+        tmp_path,
+        monkeypatch,
+        [
+            {
+                "scenario_id": "execution-error",
+                "description": "Execution error is surfaced in diagnostics",
+                "task_input_file": "../examples/demo_run_task.json",
+            }
+        ],
+        [RuntimeError("LLM unavailable")],
+        demo_task_input=demo_task_input,
+    )
+
+    result = report.results[0]
+
+    assert result.passed is False
+    assert result.failed_checks == ["scenario_execution_error"]
+    assert result.scenario_execution_error_message == "LLM unavailable"

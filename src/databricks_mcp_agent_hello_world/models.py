@@ -175,6 +175,17 @@ class EvalScenarioResult(BaseModel):
     final_response_excerpt: str = ""
     task_name: str
     run_record_id: str | None = None
+    missing_required_output_substrings: list[str] = Field(default_factory=list)
+    found_forbidden_output_substrings: list[str] = Field(default_factory=list)
+    missing_required_available_tools: list[str] = Field(default_factory=list)
+    present_forbidden_available_tools: list[str] = Field(default_factory=list)
+    missing_required_executed_tools: list[str] = Field(default_factory=list)
+    present_forbidden_executed_tools: list[str] = Field(default_factory=list)
+    missing_required_result_keys: list[str] = Field(default_factory=list)
+    actual_result_keys: list[str] = Field(default_factory=list)
+    expected_min_tool_calls: int | None = None
+    expected_max_tool_calls: int | None = None
+    scenario_execution_error_message: str | None = None
 
 
 class EvalRunReport(BaseModel):
