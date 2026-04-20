@@ -201,6 +201,11 @@ Fast local tests:
 uv run pytest
 ```
 
+Coverage is configured centrally in `pyproject.toml`, so a normal `uv run pytest` measures only
+the package under `src/databricks_mcp_agent_hello_world`, prints missing lines, writes
+`coverage.xml`, and fails if package coverage drops below 100%. Use the missing-lines output to
+find any untested package behavior before committing.
+
 Live integration evals against the configured Databricks endpoint:
 
 ```bash
