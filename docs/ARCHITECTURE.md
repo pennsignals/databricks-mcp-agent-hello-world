@@ -42,7 +42,7 @@ examples/demo_run_task.json
   -> write_event_rows(...)
 ```
 
-The canonical sample task lives at [`examples/demo_run_task.json`](../examples/demo_run_task.json).
+The canonical sample task lives at [`examples/demo_run_task.json`](../examples/demo_run_task.json). The default local CLI flow and the default deployed Databricks job both point at that same authored file.
 
 ## Runtime tool selection
 

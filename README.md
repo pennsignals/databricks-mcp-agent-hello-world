@@ -38,7 +38,7 @@ For the built-in example app, the current inventory contains **five** tools:
 - `list_recent_job_runs`
 - `create_support_ticket`
 
-The canonical sample task in [`examples/demo_run_task.json`](examples/demo_run_task.json) is a **read-only onboarding brief**. The model is expected to choose the relevant tools for the task, and the template does not pre-filter the inventory before runtime.
+The canonical sample task in [`examples/demo_run_task.json`](examples/demo_run_task.json) is a **read-only onboarding brief**. The model is expected to choose the relevant tools for the task, and the template does not pre-filter the inventory before runtime. The sample app uses that same file by default both locally and in the deployed Databricks job.
 
 ## Prerequisites
 
@@ -270,13 +270,15 @@ Run `init_storage_job` only after the bundle has been deployed. It initializes t
 
 Both deployed jobs read the workspace copy of `workspace-config.yml` from `${workspace.file_path}/workspace-config.yml`, so keep that deployed config aligned with the local config you validated.
 
+The default deployed sample job also reads the workspace copy of [`examples/demo_run_task.json`](examples/demo_run_task.json), so the sample app runs the same canonical task locally and when deployed.
+
 The deployed wheel tasks intentionally use **separate Databricks job entry points** from the local CLI commands:
 
 - local development keeps using `uv run run-agent-task ...`
 - remote storage bootstrap uses the package `run_init_storage` wrapper
 - the bundled Databricks job uses the package `run_agent_task` wrapper
 - `run_init_storage` loads settings, calls the shared bootstrap logic, and exits non-zero on mismatch
-- the runtime job still passes `--config-path`, `--task-input-json`, and `--output` through `python_wheel_task.parameters`, and the wrapper forwards `sys.argv[1:]` into the existing `argparse` command handler
+- the runtime job passes `--config-path`, `--task-input-file`, and `--output` through `python_wheel_task.parameters`, and the wrapper forwards `sys.argv[1:]` into the existing `argparse` command handler
 
 The serverless environment dependency should reference the **built bundle artifact wheel**, not a wildcard path under synced workspace files. In this template, that means the job resource points at the concrete wheel under `${workspace.root_path}/artifacts/.internal/...whl` instead of `${workspace.file_path}/dist/*.whl`.
 
@@ -284,7 +286,7 @@ The package version is authored once in `pyproject.toml`. After a version bump, 
 
 When you change packaged job behavior, bump the package `version` in `pyproject.toml` before redeploying. Serverless environments can reuse cached custom-package environments, and updating the version is the safest way to ensure Databricks installs the new wheel content.
 
-`databricks.yml` also defines a default bundle variable named `task_input_json` for the runtime job. Downstream teams commonly replace that default payload with their own task family.
+If you want the deployed job to use a different task contract later, update [`resources/jobs.yml`](resources/jobs.yml) on purpose. The starter keeps the default deployed path pointed at the same canonical sample task file used locally.
 
 This starter is intentionally **not scheduled by default**. Get the on-demand flow working first, then add a schedule in a downstream project.
 

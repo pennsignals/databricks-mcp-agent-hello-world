@@ -29,7 +29,9 @@ Do not replace LLM-driven tool selection with manual Python-side filtering or de
 
 Edit [`examples/demo_run_task.json`](../examples/demo_run_task.json).
 
-This file carries the per-run payload the job will execute. Keep references to the sample task pointed at that file instead of copying the payload into other docs or eval prose.
+This file carries the per-run payload the sample app executes by default. The local demo flow and the default deployed Databricks job both point at this same file, so replace it here instead of creating a second deployment-only sample task.
+
+If you intentionally want deployed behavior to use a different task contract later, change [`resources/jobs.yml`](../resources/jobs.yml) on purpose.
 
 ## Step 4 — Update prompts only if needed
 
