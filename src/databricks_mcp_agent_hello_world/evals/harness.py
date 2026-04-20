@@ -52,7 +52,7 @@ def run_evals(settings: Settings, scenario_file: str) -> EvalRunReport:
 
     for scenario in scenarios:
         try:
-            run_record = runner.run(scenario.task_input)
+            run_record = runner.run(_require_task_input(scenario))
             results.append(_score_scenario(scenario, run_record))
         except Exception as exc:  # noqa: BLE001
             results.append(_execution_error_result(scenario, exc))
@@ -96,6 +96,7 @@ def _load_scenario(raw_scenario: object, scenario_dir: Path) -> EvalScenario:
 
 
 def _score_scenario(scenario: EvalScenario, run_record: AgentRunRecord) -> EvalScenarioResult:
+    task = _require_task_input(scenario)
     result = dict(run_record.result)
     final_response = _as_string(result.get("final_response"))
     available_tools = _as_string_list(result.get("available_tools"))
@@ -167,7 +168,7 @@ def _score_scenario(scenario: EvalScenario, run_record: AgentRunRecord) -> EvalS
         executed_tools=executed_tools,
         tool_call_count=tool_call_count,
         final_response_excerpt=final_response[:300] if final_response else "",
-        task_name=scenario.task_input.task_name,
+        task_name=task.task_name,
         run_record_id=run_record.run_id,
         missing_required_output_substrings=missing_required_output_substrings,
         found_forbidden_output_substrings=found_forbidden_output_substrings,
@@ -183,6 +184,7 @@ def _score_scenario(scenario: EvalScenario, run_record: AgentRunRecord) -> EvalS
 
 
 def _execution_error_result(scenario: EvalScenario, exc: Exception) -> EvalScenarioResult:
+    task = _require_task_input(scenario)
     return EvalScenarioResult(
         scenario_id=scenario.scenario_id,
         passed=False,
@@ -193,10 +195,18 @@ def _execution_error_result(scenario: EvalScenario, exc: Exception) -> EvalScena
         executed_tools=[],
         tool_call_count=0,
         final_response_excerpt="",
-        task_name=scenario.task_input.task_name,
+        task_name=task.task_name,
         run_record_id=None,
         scenario_execution_error_message=str(exc) or None,
     )
+
+
+def _require_task_input(scenario: EvalScenario) -> AgentTaskRequest:
+    if scenario.task_input is None:
+        raise EvalSetupError(
+            f"Scenario {scenario.scenario_id} is missing task_input after scenario loading."
+        )
+    return scenario.task_input
 
 
 def _as_string(value: object) -> str:

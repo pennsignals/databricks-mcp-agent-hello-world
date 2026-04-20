@@ -18,9 +18,10 @@ def get_user_profile(user_id: str) -> dict[str, object]:
     """Fetch demo user details by user_id."""
 
     try:
-        return DEMO_USERS[user_id]
+        profile = DEMO_USERS[user_id]
     except KeyError as exc:
         raise ValueError(f"unknown user_id: {user_id}") from exc
+    return {key: value for key, value in profile.items()}
 
 
 def search_onboarding_docs(query: str, max_results: int = 3) -> dict[str, object]:
@@ -50,7 +51,7 @@ def search_onboarding_docs(query: str, max_results: int = 3) -> dict[str, object
             }
         )
 
-    ranked_results.sort(key=lambda item: (-int(item["score"]), str(item["title"])))
+    ranked_results.sort(key=_ranked_result_sort_key)
     return {
         "query": query,
         "results": ranked_results[:max_results],
@@ -87,3 +88,10 @@ def create_support_ticket(summary: str, severity: str = "low") -> dict[str, obje
         "status": "created",
         "severity": severity,
     }
+
+
+def _ranked_result_sort_key(item: dict[str, object]) -> tuple[int, str]:
+    score_value = item["score"]
+    if not isinstance(score_value, (int, str, float)):
+        raise TypeError(f"ranked result score must be int, str, or float; got {type(score_value)}")
+    return (-int(score_value), str(item["title"]))

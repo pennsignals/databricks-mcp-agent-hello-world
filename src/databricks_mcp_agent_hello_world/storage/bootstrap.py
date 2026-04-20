@@ -223,8 +223,19 @@ def _row_first_value(row: Any) -> Any:
         values = list(row.values())
         if values:
             return values[0]
-    if hasattr(row, "asDict"):
-        values = list(row.asDict().values())
+    row_mapping = _row_as_dict(row)
+    if row_mapping is not None:
+        values = list(row_mapping.values())
         if values:
             return values[0]
     return row[0]
+
+
+def _row_as_dict(row: Any) -> dict[object, object] | None:
+    if isinstance(row, dict):
+        return row
+    as_dict = getattr(row, "asDict", None)
+    if not callable(as_dict):
+        return None
+    payload = as_dict()
+    return payload if isinstance(payload, dict) else None

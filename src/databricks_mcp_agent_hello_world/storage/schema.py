@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Protocol, cast
 
 import pyarrow as pa
 
@@ -15,6 +16,19 @@ because callers can derive that composite when needed.
 
 SCHEMA_VERSION = "v1"
 _FINAL_RESPONSE_EXCERPT_LIMIT = 500
+_UNSUPPORTED_SERIALIZER = object()
+
+
+class _SupportsModelDump(Protocol):
+    def model_dump(self, *, mode: str = "python") -> object: ...
+
+
+class _SupportsAsDict(Protocol):
+    def as_dict(self) -> object: ...
+
+
+class _SupportsDict(Protocol):
+    def dict(self) -> object: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,12 +103,9 @@ def safe_jsonable(value: object) -> object:
     if isinstance(value, (list, tuple, set)):
         return [safe_jsonable(item) for item in value]
 
-    if hasattr(value, "model_dump"):
-        return safe_jsonable(value.model_dump(mode="json"))
-    if hasattr(value, "as_dict"):
-        return safe_jsonable(value.as_dict())
-    if hasattr(value, "dict") and not isinstance(value, dict):
-        return safe_jsonable(value.dict())
+    normalized_payload = _normalize_payload(value)
+    if normalized_payload is not _UNSUPPORTED_SERIALIZER:
+        return safe_jsonable(normalized_payload)
 
     return json.loads(json.dumps(value, default=str))
 
@@ -151,3 +162,13 @@ def _utc_now_iso() -> str:
 
 def _arrow_field_to_spark_field_type(field: pa.Field) -> str:
     return arrow_field_to_spark_sql_type(field).lower()
+
+
+def _normalize_payload(value: object) -> object:
+    if hasattr(value, "model_dump"):
+        return cast(_SupportsModelDump, value).model_dump(mode="json")
+    if hasattr(value, "as_dict"):
+        return cast(_SupportsAsDict, value).as_dict()
+    if hasattr(value, "dict") and not isinstance(value, dict):
+        return cast(_SupportsDict, value).dict()
+    return _UNSUPPORTED_SERIALIZER

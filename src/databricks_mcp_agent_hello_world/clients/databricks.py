@@ -24,15 +24,13 @@ def _workspace_client_config_kwargs(settings: Settings) -> dict[str, str]:
 def _cached_config(profile: str | None, host: str | None) -> "Config":
     from databricks.sdk.config import Config
 
-    kwargs = {
-        key: value
-        for key, value in {
-            "profile": profile,
-            "host": host,
-        }.items()
-        if value
-    }
-    return Config(**kwargs)
+    if profile and host:
+        return Config(profile=profile, host=host)
+    if profile:
+        return Config(profile=profile)
+    if host:
+        return Config(host=host)
+    return Config()
 
 
 @lru_cache(maxsize=8)
