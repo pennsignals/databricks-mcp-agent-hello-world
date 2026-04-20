@@ -29,9 +29,7 @@ def test_agent_runner_records_run_failed_event_when_llm_step_raises(
         )
 
     failed_event = next(
-        row
-        for row in runner.persisted_event_rows
-        if row["event_type"] == "run_failed"
+        row for row in runner.persisted_event_rows if row["event_type"] == "run_failed"
     )
     assert failed_event["status"] == "error"
     assert failed_event["error_message"] == "llm boom"
@@ -77,14 +75,10 @@ def test_agent_runner_success_without_tool_calls_truncates_terminal_excerpt(
 
     assert record.status == "success"
     response_event = next(
-        row
-        for row in runner.persisted_event_rows
-        if row["event_type"] == "llm_response"
+        row for row in runner.persisted_event_rows if row["event_type"] == "llm_response"
     )
     completed_event = next(
-        row
-        for row in runner.persisted_event_rows
-        if row["event_type"] == "run_completed"
+        row for row in runner.persisted_event_rows if row["event_type"] == "run_completed"
     )
     assert len(response_event["final_response_excerpt"]) == 500
     assert len(completed_event["final_response_excerpt"]) == 500

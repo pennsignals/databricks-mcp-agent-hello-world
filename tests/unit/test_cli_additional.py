@@ -199,15 +199,18 @@ def test_print_discovery_report_and_schema_summary(capsys) -> None:
 
     assert "Provider type: local_python" in output
     assert "Input schema: no parameters" in output
-    assert cli._summarize_input_schema(
-        {
-            "properties": {
-                "query": {"type": "string"},
-                "limit": "not-a-dict",
-            },
-            "required": ["query"],
-        }
-    ) == "query:string (required), limit:any (optional)"
+    assert (
+        cli._summarize_input_schema(
+            {
+                "properties": {
+                    "query": {"type": "string"},
+                    "limit": "not-a-dict",
+                },
+                "required": ["query"],
+            }
+        )
+        == "query:string (required), limit:any (optional)"
+    )
 
 
 def test_run_command_helpers_delegate_to_command_layer(monkeypatch) -> None:
@@ -235,16 +238,18 @@ def test_run_command_helpers_delegate_to_command_layer(monkeypatch) -> None:
     monkeypatch.setattr(
         cli,
         "run_agent_task_command",
-        lambda path, *, task_input_json, task_input_file: run_task_result
-        if (path, task_input_json, task_input_file) == ("demo.yml", "{}", None)
-        else None,
+        lambda path, *, task_input_json, task_input_file: (
+            run_task_result
+            if (path, task_input_json, task_input_file) == ("demo.yml", "{}", None)
+            else None
+        ),
     )
     monkeypatch.setattr(
         cli,
         "run_evals_command",
-        lambda path, *, scenario_file: evals_result
-        if (path, scenario_file) == ("demo.yml", "evals/custom.json")
-        else None,
+        lambda path, *, scenario_file: (
+            evals_result if (path, scenario_file) == ("demo.yml", "evals/custom.json") else None
+        ),
     )
 
     assert cli._run_preflight(args) is preflight_result

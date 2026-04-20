@@ -167,9 +167,7 @@ def test_agent_runner_persists_run_contract_for_success(tmp_path: Path, monkeypa
         "tool_call",
         "tool_result",
         "run_completed",
-    } <= {
-        row["event_type"] for row in events
-    }
+    } <= {row["event_type"] for row in events}
     assert [row["event_index"] for row in events] == list(range(len(events)))
     assert {row["run_key"] for row in events} == {"run-123"}
     assert all("conversation_id" not in row for row in events)
@@ -241,13 +239,7 @@ def test_agent_runner_returns_max_steps_exceeded_when_llm_never_finishes(
     runner = _runner(
         tmp_path,
         StubLLM(
-            [
-                _response(
-                    tool_calls=[
-                        _tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')
-                    ]
-                )
-            ]
+            [_response(tool_calls=[_tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')])]
         ),
         max_agent_steps=1,
     )
@@ -273,13 +265,7 @@ def test_agent_runner_emits_error_event_when_tool_execution_raises(
     runner = _runner(
         tmp_path,
         StubLLM(
-            [
-                _response(
-                    tool_calls=[
-                        _tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')
-                    ]
-                )
-            ]
+            [_response(tool_calls=[_tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')])]
         ),
         provider=RaisingProvider([_tool("get_user_profile")]),
     )

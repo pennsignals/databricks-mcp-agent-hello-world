@@ -143,8 +143,7 @@ def test_canonical_key_wins_over_deprecated_alias(tmp_path: Path, caplog) -> Non
 
     assert settings.tool_provider_type == "local_python"
     assert any(
-        "Deprecated config key 'provider_type' used" in message
-        for message in caplog.messages
+        "Deprecated config key 'provider_type' used" in message for message in caplog.messages
     )
 
 

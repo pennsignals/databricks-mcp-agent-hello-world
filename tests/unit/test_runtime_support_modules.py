@@ -97,7 +97,9 @@ def test_databricks_client_helpers_cover_all_configuration_paths(monkeypatch) ->
 
     assert db_clients.get_workspace_client(no_profile_or_host).config.kwargs == {}
     assert db_clients.get_workspace_client(profile_only).config.kwargs == {"profile": "DEFAULT"}
-    assert db_clients.get_workspace_client(host_only).config.kwargs == {"host": "https://example.com"}
+    assert db_clients.get_workspace_client(host_only).config.kwargs == {
+        "host": "https://example.com"
+    }
     assert db_clients.get_workspace_client(both).config.kwargs == {
         "profile": "DEFAULT",
         "host": "https://example.com",
@@ -187,19 +189,25 @@ def test_commands_additional_branches(tmp_path: Path, monkeypatch) -> None:
     assert run_preflight_command(str(config_path)).exit_code == 1
     assert run_discover_tools_command(str(config_path)).payload == {"settings": "settings"}
     assert run_init_storage_command(str(config_path)).payload.messages == ["done"]
-    assert _load_task_payload(
-        task_input_json=None,
-        task_input_file=str(task_file),
-    )["task_name"] == "demo"
-    assert _build_agent_task_request(
-        {
-            "task_name": "demo",
-            "instructions": "hi",
-            "payload": {},
-            "run_id": "run-123",
-        },
-        command_name="run-agent-task",
-    ).run_id == "run-123"
+    assert (
+        _load_task_payload(
+            task_input_json=None,
+            task_input_file=str(task_file),
+        )["task_name"]
+        == "demo"
+    )
+    assert (
+        _build_agent_task_request(
+            {
+                "task_name": "demo",
+                "instructions": "hi",
+                "payload": {},
+                "run_id": "run-123",
+            },
+            command_name="run-agent-task",
+        ).run_id
+        == "run-123"
+    )
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.commands.load_settings",
@@ -414,6 +422,7 @@ def test_provider_storage_and_runner_support_branches(tmp_path: Path, monkeypatc
     with pytest.raises(KeyError):
         bootstrap._row_first_value({})
     assert bootstrap._row_first_value(SimpleNamespace(asDict=lambda: {"schema": "demo"})) == "demo"
+
     class EmptyMappingRow:
         def asDict(self):
             return {}

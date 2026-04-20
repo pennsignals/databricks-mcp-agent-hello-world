@@ -45,8 +45,7 @@ def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
         print(
-            "Usage: python -m databricks_mcp_agent_hello_world.cli "
-            "<command> [options]",
+            "Usage: python -m databricks_mcp_agent_hello_world.cli <command> [options]",
             file=sys.stderr,
         )
         return 2
@@ -192,8 +191,7 @@ def _print_eval_summary(summary) -> None:
             )
         if "missing_required_available_tools" in result.failed_checks:
             print(
-                "  Missing available tools: "
-                f"{', '.join(result.missing_required_available_tools)}"
+                f"  Missing available tools: {', '.join(result.missing_required_available_tools)}"
             )
             print(f"  Available tools: {_format_csv(result.available_tools)}")
         if "forbidden_available_tools_present" in result.failed_checks:
@@ -203,10 +201,7 @@ def _print_eval_summary(summary) -> None:
             )
             print(f"  Available tools: {_format_csv(result.available_tools)}")
         if "missing_required_executed_tools" in result.failed_checks:
-            print(
-                "  Missing executed tools: "
-                f"{', '.join(result.missing_required_executed_tools)}"
-            )
+            print(f"  Missing executed tools: {', '.join(result.missing_required_executed_tools)}")
             print(f"  Executed tools: {_format_csv(result.executed_tools)}")
         if "forbidden_executed_tools_present" in result.failed_checks:
             print(

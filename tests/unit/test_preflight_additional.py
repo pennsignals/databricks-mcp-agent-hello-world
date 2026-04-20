@@ -16,10 +16,7 @@ def test_preflight_direct_helper_branches(monkeypatch, tmp_path: Path) -> None:
         }
     )
     assert (
-        preflight._check_llm_endpoint_name(
-            make_settings(llm_endpoint_name="  ")
-        ).status
-        == "fail"
+        preflight._check_llm_endpoint_name(make_settings(llm_endpoint_name="  ")).status == "fail"
     )
 
     monkeypatch.setattr(

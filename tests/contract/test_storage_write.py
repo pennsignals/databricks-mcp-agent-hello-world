@@ -55,10 +55,7 @@ def test_write_event_rows_appends_jsonl_in_event_index_order(tmp_path, monkeypat
     write_event_rows(settings, rows)
 
     output_path = tmp_path / "agent_events.jsonl"
-    persisted = [
-        json.loads(line)
-        for line in output_path.read_text(encoding="utf-8").splitlines()
-    ]
+    persisted = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
     assert [row["event_index"] for row in persisted] == [0, 1]
     assert all("conversation_id" not in row for row in persisted)
     assert all("event_id" not in row for row in persisted)

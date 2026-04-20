@@ -1,6 +1,6 @@
 # Convert the template into a real app
 
-[Back to README](../README.md)  
+[Back to README](../README.md)
 [Reference: Architecture](./ARCHITECTURE.md)
 
 Use this guide when you are adapting the template for a real downstream app. For setup, first run, and troubleshooting, use the [README](../README.md). For runtime, provider, config, and storage rationale, use [Architecture](./ARCHITECTURE.md).

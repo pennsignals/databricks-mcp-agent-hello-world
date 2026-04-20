@@ -114,8 +114,7 @@ def test_internal_config_helpers_cover_fallback_paths(tmp_path: Path) -> None:
         == "default"
     )
     assert (
-        config._read_prompt(str(tmp_path / "missing.txt"), "fallback prompt")
-        == "fallback prompt"
+        config._read_prompt(str(tmp_path / "missing.txt"), "fallback prompt") == "fallback prompt"
     )
 
 

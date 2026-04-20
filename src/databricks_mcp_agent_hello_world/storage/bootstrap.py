@@ -91,8 +91,7 @@ def parse_table_name(table_name: str) -> StorageTableName:
     parts = [part.strip() for part in table_name.split(".")]
     if len(parts) != 3 or any(not part for part in parts):
         raise ValueError(
-            "storage.agent_events_table must be a fully qualified 3-part name: "
-            "catalog.schema.table"
+            "storage.agent_events_table must be a fully qualified 3-part name: catalog.schema.table"
         )
     return StorageTableName(catalog=parts[0], schema=parts[1], table=parts[2])
 
@@ -155,9 +154,7 @@ def actual_table_schema_fields(
 
 
 def create_table(spark: Any, target: StorageTableName) -> None:
-    columns_sql = schema.arrow_schema_to_sql_columns(
-        schema.EVENT_SCHEMA
-    ).replace("\n", "\n    ")
+    columns_sql = schema.arrow_schema_to_sql_columns(schema.EVENT_SCHEMA).replace("\n", "\n    ")
     spark.sql(
         "\n".join(
             (
@@ -183,8 +180,7 @@ def format_schema_diff(
 
 def describe_schema(schema_fields: list[schema.SchemaFieldSpec]) -> list[str]:
     return [
-        f"{field.name}: {field.data_type} (nullable={field.nullable})"
-        for field in schema_fields
+        f"{field.name}: {field.data_type} (nullable={field.nullable})" for field in schema_fields
     ]
 
 

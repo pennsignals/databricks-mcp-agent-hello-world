@@ -89,17 +89,20 @@ def test_models_and_schema_additional_validation_paths() -> None:
     assert schema.safe_jsonable(AsDictPayload()) == {"value": "as_dict"}
     assert schema.safe_jsonable(DictPayload()) == {"value": "dict"}
     assert schema.safe_jsonable({1: {"nested": {1, 2}}})["1"]["nested"] in ([1, 2], [2, 1])
-    assert schema.validate_event_rows(
-        [
-            schema.serialize_event_row(
-                run_key="run-1",
-                task_name="task",
-                event_index=0,
-                event_type="started",
-                payload={"ok": True},
-            )
-        ]
-    ).num_rows == 1
+    assert (
+        schema.validate_event_rows(
+            [
+                schema.serialize_event_row(
+                    run_key="run-1",
+                    task_name="task",
+                    event_index=0,
+                    event_type="started",
+                    payload={"ok": True},
+                )
+            ]
+        ).num_rows
+        == 1
+    )
 
 
 def test_version_sync_and_versioning_unhappy_paths(tmp_path: Path) -> None:
@@ -109,14 +112,17 @@ def test_version_sync_and_versioning_unhappy_paths(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="Did not find any bundle wheel path"):
         sync_version_refs(bundle_resource_path=bundle_path)
 
-    assert format_sync_result(
-        SyncResult(
-            changed=False,
-            replacements=0,
-            version="1.2.3",
-            bundle_resource_path=bundle_path,
+    assert (
+        format_sync_result(
+            SyncResult(
+                changed=False,
+                replacements=0,
+                version="1.2.3",
+                bundle_resource_path=bundle_path,
+            )
         )
-    ) == "No version reference changes needed"
+        == "No version reference changes needed"
+    )
 
     with pytest.raises(ValueError, match="Did not find any bundle wheel path"):
         sync_wheel_paths_in_text(

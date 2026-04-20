@@ -72,24 +72,16 @@ class FakeSpark:
             catalog_name = query.split("`")[1]
             schema_name = query.split("'")[1]
             rows = (
-                [{"namespace": schema_name}]
-                if (catalog_name, schema_name) in self.schemas
-                else []
+                [{"namespace": schema_name}] if (catalog_name, schema_name) in self.schemas else []
             )
             return FakeSqlResult(rows)
         if query.startswith("SHOW TABLES IN "):
             schema_name = ".".join(
-                _unquote_qualified_name(
-                    query.split(" LIKE ")[0].removeprefix("SHOW TABLES IN ")
-                )
+                _unquote_qualified_name(query.split(" LIKE ")[0].removeprefix("SHOW TABLES IN "))
             )
             table_name = query.split("'")[1]
             qualified_name = f"{schema_name}.{table_name}"
-            rows = (
-                [SimpleNamespace(tableName=table_name)]
-                if qualified_name in self.tables
-                else []
-            )
+            rows = [SimpleNamespace(tableName=table_name)] if qualified_name in self.tables else []
             return FakeSqlResult(rows)
         if query.startswith("CREATE SCHEMA IF NOT EXISTS "):
             catalog_name, schema_name = _unquote_qualified_name(
@@ -130,8 +122,7 @@ def _settings(tmp_path: Path, *, table_name: str = "main.agent_demo.agent_events
 def _schema(*names: str) -> FakeSchema:
     return FakeSchema(
         tuple(
-            FakeField(name=name, dataType=FakeDataType("string"), nullable=False)
-            for name in names
+            FakeField(name=name, dataType=FakeDataType("string"), nullable=False) for name in names
         )
     )
 
@@ -202,8 +193,5 @@ def test_init_storage_reports_schema_mismatch_without_modifying_existing_table(
     report = bootstrap.init_storage(_settings(tmp_path))
 
     assert report.exit_code == 1
-    assert (
-        report.messages[0]
-        == "Table main.agent_demo.agent_events schema mismatch detected"
-    )
+    assert report.messages[0] == "Table main.agent_demo.agent_events schema mismatch detected"
     assert report.messages[-1] == "Refusing to modify an existing table automatically."

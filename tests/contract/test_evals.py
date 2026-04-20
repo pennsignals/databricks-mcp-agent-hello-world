@@ -263,9 +263,7 @@ def test_run_evals_marks_status_mismatch_and_missing_output_substrings(
         "status_mismatch",
         "missing_required_output_substrings",
     }
-    assert report.results[0].missing_required_output_substrings == [
-        "Databricks Serverless Jobs"
-    ]
+    assert report.results[0].missing_required_output_substrings == ["Databricks Serverless Jobs"]
     assert report.results[0].final_response_excerpt == "short"
     assert report.results[0].actual_result_keys == [
         "available_tools",

@@ -314,8 +314,7 @@ class AgentRunner:
         if not isinstance(raw_arguments, str):
             return (
                 {},
-                "Tool call arguments must be JSON text or an object, "
-                f"got {type(raw_arguments)!r}",
+                f"Tool call arguments must be JSON text or an object, got {type(raw_arguments)!r}",
             )
         try:
             parsed = json.loads(raw_arguments)

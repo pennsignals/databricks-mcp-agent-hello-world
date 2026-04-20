@@ -49,8 +49,10 @@ def test_run_named_command_renders_text_summary_for_preflight(monkeypatch) -> No
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.cli.run_preflight_command",
-        lambda config_path: recorded.update({"config_path": config_path})
-        or CommandResult(exit_code=0, payload=payload),
+        lambda config_path: (
+            recorded.update({"config_path": config_path})
+            or CommandResult(exit_code=0, payload=payload)
+        ),
     )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.cli.print_preflight_summary",
@@ -90,9 +92,9 @@ def test_run_named_command_renders_json_for_discovery(monkeypatch, capsys) -> No
 def test_run_named_command_maps_eval_setup_error_to_stderr(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.cli.run_evals_command",
-        lambda config_path, *, scenario_file="evals/sample_scenarios.json": (
-            _ for _ in ()
-        ).throw(EvalSetupError("auth failed")),
+        lambda config_path, *, scenario_file="evals/sample_scenarios.json": (_ for _ in ()).throw(
+            EvalSetupError("auth failed")
+        ),
     )
 
     exit_code = run_named_command("run-evals", ["--config-path", "custom.yml"])

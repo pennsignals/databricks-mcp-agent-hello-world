@@ -56,10 +56,7 @@ def test_sync_version_refs_updates_stale_bundle_resource(tmp_path: Path) -> None
     assert result.changed is True
     assert result.replacements == 2
     assert result.version == read_project_version()
-    assert (
-        expected_bundle_wheel_path(read_project_version(), read_project_name())
-        in updated_text
-    )
+    assert expected_bundle_wheel_path(read_project_version(), read_project_name()) in updated_text
     assert format_sync_result(result) == (
         f"Updated bundle wheel path(s) to version {read_project_version()}"
     )

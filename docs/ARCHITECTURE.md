@@ -1,6 +1,6 @@
 # Architecture
 
-[Back to README](../README.md)  
+[Back to README](../README.md)
 [Next: Convert the template into a real app](./CONVERT_TEMPLATE_TO_REAL_APP.md)
 
 Use this document for runtime, provider, config, and storage design. For setup, first run, and troubleshooting, go back to the [README](../README.md). For downstream edits, use [Convert the template into a real app](./CONVERT_TEMPLATE_TO_REAL_APP.md).

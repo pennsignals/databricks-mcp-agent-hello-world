@@ -22,19 +22,22 @@ def test_run_agent_task_calls_command_layer_directly_and_renders_text(capsys) ->
         ),
     )
 
-    with patch(
-        "databricks_mcp_agent_hello_world.commands.run_agent_task_command",
-        return_value=result,
-    ) as run_agent_task_command, patch.object(
-        sys,
-        "argv",
-        [
-            "databricks_mcp_agent_hello_world.run_agent_task",
-            "--config-path",
-            "/Workspace/Repos/user/project/workspace-config.yml",
-            "--task-input-json",
-            '{"task_name":"workspace_onboarding_brief"}',
-        ],
+    with (
+        patch(
+            "databricks_mcp_agent_hello_world.commands.run_agent_task_command",
+            return_value=result,
+        ) as run_agent_task_command,
+        patch.object(
+            sys,
+            "argv",
+            [
+                "databricks_mcp_agent_hello_world.run_agent_task",
+                "--config-path",
+                "/Workspace/Repos/user/project/workspace-config.yml",
+                "--task-input-json",
+                '{"task_name":"workspace_onboarding_brief"}',
+            ],
+        ),
     ):
         package_root.run_agent_task()
 
@@ -59,17 +62,20 @@ def test_run_agent_task_raises_system_exit_when_command_fails() -> None:
         ),
     )
 
-    with patch(
-        "databricks_mcp_agent_hello_world.commands.run_agent_task_command",
-        return_value=result,
-    ), patch.object(
-        sys,
-        "argv",
-        [
-            "databricks_mcp_agent_hello_world.run_agent_task",
-            "--task-input-json",
-            '{"task_name":"workspace_onboarding_brief"}',
-        ],
+    with (
+        patch(
+            "databricks_mcp_agent_hello_world.commands.run_agent_task_command",
+            return_value=result,
+        ),
+        patch.object(
+            sys,
+            "argv",
+            [
+                "databricks_mcp_agent_hello_world.run_agent_task",
+                "--task-input-json",
+                '{"task_name":"workspace_onboarding_brief"}',
+            ],
+        ),
     ):
         with pytest.raises(SystemExit) as excinfo:
             package_root.run_agent_task()
@@ -83,13 +89,16 @@ def test_run_init_storage_raises_system_exit_when_command_fails(capsys) -> None:
         payload=InitStorageReport(exit_code=1, messages=["boom"]),
     )
 
-    with patch(
-        "databricks_mcp_agent_hello_world.commands.run_init_storage_command",
-        return_value=result,
-    ), patch.object(
-        sys,
-        "argv",
-        ["databricks_mcp_agent_hello_world.run_init_storage"],
+    with (
+        patch(
+            "databricks_mcp_agent_hello_world.commands.run_init_storage_command",
+            return_value=result,
+        ),
+        patch.object(
+            sys,
+            "argv",
+            ["databricks_mcp_agent_hello_world.run_init_storage"],
+        ),
     ):
         with pytest.raises(SystemExit) as excinfo:
             package_root.run_init_storage()

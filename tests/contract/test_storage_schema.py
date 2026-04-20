@@ -43,9 +43,7 @@ def test_arrow_schema_helpers_match_storage_contract() -> None:
     )
 
     assert schema.arrow_schema_to_sql_columns(arrow_schema) == (
-        "`event_index` BIGINT NOT NULL,\n"
-        "`payload_json` STRING NOT NULL,\n"
-        "`error_message` STRING"
+        "`event_index` BIGINT NOT NULL,\n`payload_json` STRING NOT NULL,\n`error_message` STRING"
     )
     assert schema.arrow_schema_to_field_specs(arrow_schema) == [
         schema.SchemaFieldSpec(name="event_index", data_type="bigint", nullable=False),

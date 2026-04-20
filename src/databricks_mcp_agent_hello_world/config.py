@@ -130,14 +130,10 @@ def collect_config_warnings(raw_config: dict[str, Any]) -> list[str]:
 
     for key in sorted(raw_config):
         if key in IGNORED_TOP_LEVEL_CONFIG_KEYS:
-            warnings_by_path[key] = (
-                f"Unused config key '{key}' is ignored by the current runtime."
-            )
+            warnings_by_path[key] = f"Unused config key '{key}' is ignored by the current runtime."
             continue
         if key not in ALLOWED_TOP_LEVEL_CONFIG_KEYS:
-            warnings_by_path[key] = (
-                f"Unused config key '{key}' is ignored by the current runtime."
-            )
+            warnings_by_path[key] = f"Unused config key '{key}' is ignored by the current runtime."
             continue
 
         allowed_nested_keys = ALLOWED_NESTED_CONFIG_KEYS.get(key)
