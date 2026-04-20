@@ -79,7 +79,9 @@ def test_tool_spec_rejects_invalid_metadata_values(field_name: str, bad_values: 
 
 def test_tool_result_rejects_invalid_status() -> None:
     with pytest.raises(ValidationError):
-        ToolResult(tool_name="sample_tool", status="blocked", content={})
+        ToolResult.model_validate(
+            {"tool_name": "sample_tool", "status": "blocked", "content": {}}
+        )
 
 
 def test_agent_run_record_matches_current_runtime_shape() -> None:

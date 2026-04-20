@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from typing import Literal
 
 import pytest
 
@@ -13,7 +14,7 @@ from databricks_mcp_agent_hello_world.commands import (
 from databricks_mcp_agent_hello_world.models import AgentRunRecord, EvalRunReport
 
 
-def _record(status: str) -> AgentRunRecord:
+def _record(status: Literal["success", "error", "max_steps_exceeded"]) -> AgentRunRecord:
     return AgentRunRecord(
         run_id="run-123",
         task_name="workspace_onboarding_brief",
@@ -33,7 +34,7 @@ def _record(status: str) -> AgentRunRecord:
 def test_run_agent_task_command_maps_run_status_to_exit_code(
     monkeypatch,
     demo_task_input: dict[str, object],
-    status: str,
+    status: Literal["success", "error", "max_steps_exceeded"],
     expected_exit_code: int,
 ) -> None:
     monkeypatch.setattr(
