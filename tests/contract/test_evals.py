@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from types import SimpleNamespace
+from typing import Literal
 
 import pytest
 
+from tests.helpers import make_settings
 from databricks_mcp_agent_hello_world.app.data import DEMO_USERS
 from databricks_mcp_agent_hello_world.evals.harness import (
     EvalSetupError,
@@ -33,12 +34,12 @@ class StubRunner:
 
 
 def _settings(tmp_path: Path):
-    return SimpleNamespace(storage=SimpleNamespace(local_data_dir=str(tmp_path)))
+    return make_settings(storage={"local_data_dir": str(tmp_path)})
 
 
 def _record(
     *,
-    status: str = "success",
+    status: Literal["success", "error", "max_steps_exceeded"] = "success",
     final_response: str = "Ada Lovelace uses uv sync on Databricks Serverless Jobs.",
     available_tools: list[str] | None = None,
     tool_calls: list[dict] | None = None,

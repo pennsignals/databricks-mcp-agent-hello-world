@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
 
 import pyarrow as pa
 
+from tests.helpers import make_settings
 from databricks_mcp_agent_hello_world.storage.schema import (
     EVENT_SCHEMA,
     serialize_event_row,
@@ -44,11 +44,11 @@ def test_write_event_rows_appends_jsonl_in_event_index_order(tmp_path, monkeypat
         "databricks_mcp_agent_hello_world.storage.write.get_spark_session",
         lambda: None,
     )
-    settings = SimpleNamespace(
-        storage=SimpleNamespace(
-            local_data_dir=str(tmp_path),
-            agent_events_table="main.agent.agent_events",
-        )
+    settings = make_settings(
+        storage={
+            "local_data_dir": str(tmp_path),
+            "agent_events_table": "main.agent.agent_events",
+        }
     )
     rows = [_event_row(event_index=0), _event_row(event_index=1, payload={"step": 2})]
 
@@ -102,16 +102,18 @@ def test_write_event_rows_uses_arrow_table_for_spark_writes(monkeypatch) -> None
         "databricks_mcp_agent_hello_world.storage.write.get_spark_session",
         lambda: spark,
     )
-    settings = SimpleNamespace(
-        storage=SimpleNamespace(
-            local_data_dir=".local_state",
-            agent_events_table="main.agent.agent_events",
-        )
+    settings = make_settings(
+        storage={
+            "local_data_dir": ".local_state",
+            "agent_events_table": "main.agent.agent_events",
+        }
     )
 
     write_event_rows(settings, [_event_row(payload={"tool_result": {"team": "support"}})])
 
     assert isinstance(spark.arrow_table, pa.Table)
+    assert spark.arrow_table is not None
     assert spark.arrow_table.schema == EVENT_SCHEMA
+    assert spark.last_dataframe is not None
     assert spark.last_dataframe.write.mode_name == "append"
     assert spark.last_dataframe.write.table_name == "main.agent.agent_events"

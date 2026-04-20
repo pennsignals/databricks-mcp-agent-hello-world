@@ -1,1 +1,1 @@
-# Test package marker for shared helper imports.
+from __future__ import annotations

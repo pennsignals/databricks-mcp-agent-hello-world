@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
+from tests.helpers import make_settings
 from databricks_mcp_agent_hello_world.models import ToolCall
 from databricks_mcp_agent_hello_world.providers.factory import get_tool_provider
 from databricks_mcp_agent_hello_world.providers.local_python import LocalPythonToolProvider
@@ -30,17 +29,17 @@ def test_inventory_hash_is_stable_for_the_same_inventory() -> None:
 
 def test_provider_factory_selects_current_provider_types() -> None:
     assert isinstance(
-        get_tool_provider(SimpleNamespace(tool_provider_type="local_python")),
+        get_tool_provider(make_settings(tool_provider_type="local_python")),
         LocalPythonToolProvider,
     )
     assert isinstance(
-        get_tool_provider(SimpleNamespace(tool_provider_type="managed_mcp")),
+        get_tool_provider(make_settings(tool_provider_type="managed_mcp")),
         ManagedMCPToolProvider,
     )
 
 
 def test_local_python_provider_executes_tools_with_request_metadata(monkeypatch) -> None:
-    provider = LocalPythonToolProvider(SimpleNamespace(tool_provider_type="local_python"))
+    provider = LocalPythonToolProvider(make_settings(tool_provider_type="local_python"))
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.providers.local_python.get_tool_function",
         lambda tool_name: lambda **kwargs: {"tool_name": tool_name, "arguments": kwargs},

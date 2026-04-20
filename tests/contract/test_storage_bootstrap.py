@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.helpers import make_settings
 from databricks_mcp_agent_hello_world.storage import bootstrap
 
 
@@ -118,11 +119,11 @@ def _unquote_qualified_name(name: str) -> tuple[str, ...]:
 
 
 def _settings(tmp_path: Path, *, table_name: str = "main.agent_demo.agent_events"):
-    return SimpleNamespace(
-        storage=SimpleNamespace(
-            local_data_dir=str(tmp_path / ".local_state"),
-            agent_events_table=table_name,
-        )
+    return make_settings(
+        storage={
+            "local_data_dir": str(tmp_path / ".local_state"),
+            "agent_events_table": table_name,
+        }
     )
 
 
