@@ -208,6 +208,8 @@ python3.11 -m pre_commit run --all-files --show-diff-on-failure
 
 This is the canonical full validation flow for local development and CI. It runs the repository hygiene hooks plus the shared `nox` validation flow for Ruff linting, Ruff format validation, version-reference checks, `pytest` with coverage, and wheel build verification.
 
+The first full run may take noticeably longer because `pre-commit` and `nox` may need to create their environments. Subsequent runs are normally much faster because those environments are reused.
+
 Targeted unit tests only:
 
 ```bash
