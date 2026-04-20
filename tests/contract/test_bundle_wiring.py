@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import yaml
@@ -40,12 +39,21 @@ def test_jobs_use_current_python_wheel_entrypoints_and_dependency() -> None:
     assert run_dependency == expected_dependency
 
 
-def test_bundle_task_input_variable_references_canonical_sample_without_embedding_it() -> None:
+def test_bundle_does_not_define_placeholder_task_variable() -> None:
     bundle = _load_yaml(Path("databricks.yml"))
-    task_input_json = bundle["variables"]["task_input_json"]
-    placeholder = json.loads(task_input_json["default"])
 
-    assert "examples/demo_run_task.json" in task_input_json["description"]
-    assert placeholder["task_name"] == "replace_me"
-    assert placeholder["payload"] == {}
-    assert placeholder["instructions"].startswith("See examples/demo_run_task.json")
+    assert "task_input_json" not in bundle.get("variables", {})
+
+
+def test_deployed_runtime_job_uses_canonical_sample_task_file() -> None:
+    jobs = _load_yaml(JOB_RESOURCE_PATH)["resources"]["jobs"]
+    run_task = jobs["run_agent_task_job"]["tasks"][0]["python_wheel_task"]
+
+    assert run_task["parameters"] == [
+        "--config-path",
+        "${workspace.file_path}/workspace-config.yml",
+        "--task-input-file",
+        "${workspace.file_path}/examples/demo_run_task.json",
+        "--output",
+        "text",
+    ]

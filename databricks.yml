@@ -14,14 +14,6 @@ artifacts:
     type: whl
     build: uv build --wheel
 
-variables:
-  task_input_json:
-    # TEMPLATE_CUSTOMIZE_HERE
-    # Replace this placeholder with task input for your own task family. See
-    # examples/demo_run_task.json for the canonical sample task.
-    description: JSON string containing task-specific input. See examples/demo_run_task.json for the canonical sample task.
-    default: '{"task_name":"replace_me","instructions":"See examples/demo_run_task.json for the canonical sample task.","payload":{}}'
-
 targets:
   dev:
     mode: development

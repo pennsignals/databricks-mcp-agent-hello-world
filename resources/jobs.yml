@@ -28,8 +28,8 @@ resources:
             parameters:
               - --config-path
               - ${workspace.file_path}/workspace-config.yml
-              - --task-input-json
-              - ${var.task_input_json}
+              - --task-input-file
+              - ${workspace.file_path}/examples/demo_run_task.json
               - --output
               - text
       environments:
