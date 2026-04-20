@@ -35,11 +35,6 @@ def _cached_config(profile: str | None, host: str | None) -> "Config":
     return Config(**kwargs)
 
 
-def get_databricks_config(settings: Settings) -> "Config":
-    kwargs = _workspace_client_config_kwargs(settings)
-    return _cached_config(kwargs.get("profile"), kwargs.get("host"))
-
-
 @lru_cache(maxsize=8)
 def _cached_workspace_client(profile: str | None, host: str | None) -> "WorkspaceClient":
     from databricks.sdk import WorkspaceClient
