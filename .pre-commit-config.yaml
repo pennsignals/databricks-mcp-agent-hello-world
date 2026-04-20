@@ -1,0 +1,33 @@
+default_language_version:
+  python: python3.11
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: local
+    hooks:
+      - id: nox-precommit
+        name: nox-precommit
+        entry: >
+          sh -c 'if [ -x ./.venv/bin/python ]; then ./.venv/bin/python -m nox -s precommit;
+          else python -m nox -s precommit; fi'
+        language: system
+        stages: [pre-commit]
+        pass_filenames: false
+        always_run: true
+      - id: nox-ci
+        name: nox-ci
+        entry: >
+          sh -c 'if [ -x ./.venv/bin/python ]; then ./.venv/bin/python -m nox -s ci;
+          else python -m nox -s ci; fi'
+        language: system
+        stages: [manual]
+        pass_filenames: false
+        always_run: true

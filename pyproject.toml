@@ -19,6 +19,8 @@ dev = [
   "pytest-cov>=7.1.0",
   "ruff>=0.8.0",
   "build>=1.2.0",
+  "pre-commit>=4.0.0",
+  "nox>=2024.4.15",
 ]
 
 [project.scripts]

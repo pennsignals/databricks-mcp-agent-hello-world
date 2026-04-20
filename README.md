@@ -53,7 +53,7 @@ The serving endpoint should support the **function-calling / tool-calling patter
 
 Deployment-specific requirements are covered later in [Deploying to Databricks](#deploying-to-databricks).
 
-## First-time setup (venv + pip)
+## First-time setup
 
 From the repo root:
 
@@ -62,9 +62,12 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
+python -m pre_commit install
 cp workspace-config.example.yml workspace-config.yml
 cp .env.example .env
 ```
+
+`pre-commit` is the canonical repo-wide validation entrypoint in this repository. Install the git hooks once on your workstation, let them run automatically on commit, and use the full-repo command below when you want to validate everything manually.
 
 ## Required edits before your first run
 
@@ -197,16 +200,21 @@ Local JSONL state is created lazily on the first write under `./.local_state`, s
 
 ### Step 5: validate locally
 
-Fast local tests:
+Standard repo validation:
+
+```bash
+python3.11 -m pre_commit run --all-files --show-diff-on-failure
+```
+
+This is the canonical full validation flow for local development and CI. It runs the repository hygiene hooks plus the shared `nox` validation flow for Ruff linting, Ruff format validation, version-reference checks, `pytest` with coverage, and wheel build verification.
+
+Targeted unit tests only:
 
 ```bash
 pytest
 ```
 
-Coverage is configured centrally in `pyproject.toml`, so a normal `pytest` measures only
-the package under `src/databricks_mcp_agent_hello_world`, prints missing lines, writes
-`coverage.xml`, and fails if package coverage drops below 100%. Use the missing-lines output to
-find any untested package behavior before committing.
+Coverage is configured centrally in `pyproject.toml`, so a normal `pytest` measures only the package under `src/databricks_mcp_agent_hello_world`, prints missing lines, writes `coverage.xml`, and fails if package coverage drops below 100%. Use `pytest` when you intentionally want the fastest test-focused feedback loop rather than the full repo validation flow.
 
 Live integration evals against the configured Databricks endpoint:
 
@@ -217,6 +225,34 @@ run-evals \
 ```
 
 Live evals require valid Databricks auth and may consume tokens, so use them after the local demo flow is already working.
+
+### Databricks-hosted development
+
+If you are developing from fresh Databricks compute instead of a local workstation, the recommended path is notebook-based setup with `%pip install`, because that is the lowest-friction option for serverless and other ephemeral environments.
+
+Open the repo from a Databricks-hosted checkout, or otherwise make sure you are running from the repository root before installing dependencies or running validation.
+
+Install the repo's development dependencies into the active notebook environment:
+
+```python
+%pip install -e ".[dev]"
+```
+
+Then run the canonical repo-wide validation flow with that same Python interpreter:
+
+```python
+import subprocess
+import sys
+
+subprocess.run(
+    [sys.executable, "-m", "pre_commit", "run", "--all-files", "--show-diff-on-failure"],
+    check=True,
+)
+```
+
+`python3.11 -m pre_commit install` is primarily for workstation-based git-hook development. In Databricks notebook workflows, the standard path is to run `pre-commit` manually with `run --all-files`.
+
+If you have a browser-based terminal or workspace shell available, you can optionally use the same commands as local development after installing `.[dev]`. Cluster-level preinstallation of dev tooling can help on long-lived dedicated compute, but it is an optimization rather than the default recommendation.
 
 ### Success checklist
 
@@ -289,7 +325,7 @@ The deployed wheel tasks intentionally use **separate Databricks job entry point
 
 The serverless environment dependency should reference the **built bundle artifact wheel**, not a wildcard path under synced workspace files. In this template, that means the job resource points at the concrete wheel under `${workspace.root_path}/artifacts/.internal/...whl` instead of `${workspace.file_path}/dist/*.whl`.
 
-The package version is authored once in `pyproject.toml`. After a version bump, run `python scripts/sync_version_refs.py` before you build or deploy so the checked-in bundle wheel paths stay aligned with the new artifact name.
+The package version is authored once in `pyproject.toml`. After a version bump, run `python3.11 -m pre_commit run --all-files --show-diff-on-failure` so the checked-in bundle wheel paths stay aligned with the new artifact name before you build or deploy. If you are intentionally checking only that single concern, `python scripts/sync_version_refs.py` remains available as a focused maintenance command.
 
 When you change packaged job behavior, bump the package `version` in `pyproject.toml` before redeploying. Serverless environments can reuse cached custom-package environments, and updating the version is the safest way to ensure Databricks installs the new wheel content.
 

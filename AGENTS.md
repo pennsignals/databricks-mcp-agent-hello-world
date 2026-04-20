@@ -15,8 +15,27 @@ This is the internal maintainer guide for the template. For setup, first run, da
 - Keep the README flow canonical for operator onboarding and day-to-day usage.
 - Do not introduce alternate beginner setup paths that diverge from the README.
 - Treat [`examples/demo_run_task.json`](examples/demo_run_task.json) as the canonical sample task reference instead of restating its payload in prose.
+- Prefer the repo-local `.venv` for coding-agent local development when it already exists and has the needed tools installed.
+- Treat `python3.11 -m pre_commit run --all-files --show-diff-on-failure` as the maintainer-recommended standard validation command.
+- Treat `python3.11 -m pre_commit install` as the one-time workstation setup step for automatic git-hook enforcement.
+- Do not document raw lint, test, and build commands as the normal full-validation workflow.
 
 ## Testing levels
+
+### Standard repo validation
+
+Commands:
+
+```bash
+python3.11 -m pre_commit install
+python3.11 -m pre_commit run --all-files --show-diff-on-failure
+```
+
+Definition:
+
+- canonical maintainer workflow
+- local and CI use the same logical validation flow
+- includes repo hygiene hooks, Ruff, version-reference checks, `pytest`, and wheel build validation
 
 ### Unit tests
 
@@ -32,6 +51,7 @@ Definition:
 - fast
 - no live LLM call required
 - no token usage expected
+- use when you intentionally want tests only instead of the full standard validation flow
 
 ### Live integration evals
 
