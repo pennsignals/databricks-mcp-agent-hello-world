@@ -5,7 +5,7 @@ from pathlib import Path
 
 import nox
 
-PYTHON = "3.11"
+PYTHON = "3.12"
 REPO_ROOT = Path(__file__).resolve().parent
 BUILD_ARTIFACT_DIRS = (REPO_ROOT / "build", REPO_ROOT / "dist")
 NOX_TOOL_REQUIREMENTS = (
