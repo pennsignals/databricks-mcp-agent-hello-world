@@ -9,18 +9,12 @@ from pydantic import BaseModel, ValidationError
 
 import databricks_mcp_agent_hello_world as package_root
 from databricks_mcp_agent_hello_world.config import collect_config_warnings, load_yaml_config
-from databricks_mcp_agent_hello_world.devtools.version_sync import (
-    SyncResult,
-    format_sync_result,
-    sync_version_refs,
-)
+from databricks_mcp_agent_hello_world.devtools.wheel_build import discover_built_wheel
 from databricks_mcp_agent_hello_world.models import ToolSpec
 from databricks_mcp_agent_hello_world.storage import schema
 from databricks_mcp_agent_hello_world.versioning import (
-    expected_bundle_wheel_path,
+    bundle_wheel_glob,
     read_project_name,
-    read_project_version,
-    sync_wheel_paths_in_text,
 )
 
 
@@ -110,54 +104,33 @@ def test_models_and_schema_additional_validation_paths() -> None:
     )
 
 
-def test_version_sync_and_versioning_unhappy_paths(tmp_path: Path) -> None:
-    bundle_path = tmp_path / "bundle.yml"
-    bundle_path.write_text("no matching dependency here\n", encoding="utf-8")
-
-    with pytest.raises(RuntimeError, match="Did not find any bundle wheel path"):
-        sync_version_refs(bundle_resource_path=bundle_path)
-
+def test_versioning_and_wheel_discovery_unhappy_paths(tmp_path: Path) -> None:
     assert (
-        format_sync_result(
-            SyncResult(
-                changed=False,
-                replacements=0,
-                version="1.2.3",
-                bundle_resource_path=bundle_path,
-            )
-        )
-        == "No version reference changes needed"
+        bundle_wheel_glob(read_project_name()) == "../dist/databricks_mcp_agent_hello_world-*.whl"
     )
 
-    with pytest.raises(ValueError, match="Did not find any bundle wheel path"):
-        sync_wheel_paths_in_text(
-            "missing",
-            expected_path="expected.whl",
+    with pytest.raises(RuntimeError, match="Did not find a built wheel"):
+        discover_built_wheel(
+            tmp_path,
             project_name="databricks-mcp-agent-hello-world",
         )
 
-    current_dependency = expected_bundle_wheel_path(
-        read_project_version(),
-        read_project_name(),
-    )
-    unchanged_bundle = tmp_path / "unchanged.yml"
-    unchanged_bundle.write_text(
-        "\n".join(
-            [
-                "resources:",
-                "  jobs:",
-                "    run_agent_task_job:",
-                "      environments:",
-                "        - environment_key: default",
-                "          spec:",
-                "            dependencies:",
-                f"              - {current_dependency}",
-            ]
-        ),
+    dist_dir = tmp_path / "dist"
+    dist_dir.mkdir()
+    (dist_dir / "databricks_mcp_agent_hello_world-0.1.0-py3-none-any.whl").write_text(
+        "wheel-a",
         encoding="utf-8",
     )
-    unchanged = sync_version_refs(bundle_resource_path=unchanged_bundle)
-    assert unchanged.changed is False
+    (dist_dir / "databricks_mcp_agent_hello_world-0.1.1-py3-none-any.whl").write_text(
+        "wheel-b",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="Expected exactly one built wheel"):
+        discover_built_wheel(
+            tmp_path,
+            project_name="databricks-mcp-agent-hello-world",
+        )
 
 
 def test_config_file_and_warning_edge_cases(tmp_path: Path) -> None:

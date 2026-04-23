@@ -58,13 +58,7 @@ jobs:
           git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"
 
       - name: Install release tooling
-        run: python -m pip install --upgrade pip build jinja2
-
-      - name: Set package version from tag
-        run: python .github/scripts/set_version_from_tag.py "$GITHUB_REF_NAME"
-
-      - name: Sync bundle wheel references
-        run: python scripts/sync_version_refs.py
+        run: python -m pip install --upgrade pip build hatch-vcs jinja2
 
       - name: Render deploy workspace config
         run: python .github/scripts/render_workspace_config.py

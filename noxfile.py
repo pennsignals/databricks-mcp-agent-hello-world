@@ -7,12 +7,12 @@ import nox
 
 PYTHON = "3.12"
 REPO_ROOT = Path(__file__).resolve().parent
-BUILD_ARTIFACT_DIRS = (REPO_ROOT / "build", REPO_ROOT / "dist")
 NOX_DEV_REQUIREMENTS = (
     "build>=1.2.0",
     "coverage[toml]>=7.13.5",
     "editables>=0.5",
     "hatchling>=1.27.0",
+    "hatch-vcs>=0.5.0",
     "pytest>=8.3.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.8.0",
@@ -20,6 +20,7 @@ NOX_DEV_REQUIREMENTS = (
 NOX_BUILD_REQUIREMENTS = (
     "build>=1.2.0",
     "hatchling>=1.27.0",
+    "hatch-vcs>=0.5.0",
 )
 
 nox.options.default_venv_backend = "venv"
@@ -67,32 +68,18 @@ def tests(session: nox.Session) -> None:
 
 
 @nox.session(python=PYTHON)
-def version_refs(session: nox.Session) -> None:
-    """Sync or verify version-derived Databricks wheel references."""
-    _install_tool_requirements(session, *NOX_DEV_REQUIREMENTS)
-    _install_project_editable(session)
-
-    command = ["python", "scripts/sync_version_refs.py"]
-    if not _is_fix_mode(session):
-        command.append("--check")
-    session.run(*command)
-
-
-@nox.session(python=PYTHON)
 def build_wheel(session: nox.Session) -> None:
     """Build the wheel after cleaning local build artifacts."""
     _install_tool_requirements(session, *NOX_BUILD_REQUIREMENTS)
-
-    for path in BUILD_ARTIFACT_DIRS:
-        shutil.rmtree(path, ignore_errors=True)
-
-    session.run("python", "-m", "build", "--wheel", "--no-isolation")
+    shutil.rmtree(REPO_ROOT / "build", ignore_errors=True)
+    shutil.rmtree(REPO_ROOT / "dist", ignore_errors=True)
+    session.run("python", "scripts/build_wheel.py")
 
 
 def _run_validation_flow(session: nox.Session, *, check_only: bool) -> None:
     mode_arg = "--check" if check_only else "--fix"
 
-    for name in ("lint", "version_refs", "tests", "build_wheel"):
+    for name in ("lint", "tests", "build_wheel"):
         session.notify(name, posargs=[mode_arg])
 
 

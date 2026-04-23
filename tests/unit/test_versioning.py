@@ -4,31 +4,29 @@ import tomllib
 from pathlib import Path
 
 from databricks_mcp_agent_hello_world.versioning import (
-    expected_bundle_wheel_path,
-    expected_wheel_filename,
+    bundle_wheel_glob,
+    distribution_name_for_wheel,
     read_installed_package_version,
     read_project_name,
-    read_project_version,
 )
 
 PYPROJECT_PATH = Path("pyproject.toml")
 
 
-def test_read_project_version_from_pyproject() -> None:
+def test_read_project_name_from_pyproject() -> None:
     pyproject = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
-    assert read_project_version() == pyproject["project"]["version"]
+    assert read_project_name() == pyproject["project"]["name"]
 
 
-def test_expected_wheel_filename_uses_project_name_and_version() -> None:
-    assert expected_wheel_filename("1.2.3", "databricks-mcp-agent-hello-world") == (
-        "databricks_mcp_agent_hello_world-1.2.3-py3-none-any.whl"
+def test_distribution_name_for_wheel_normalizes_project_name() -> None:
+    assert distribution_name_for_wheel("databricks-mcp-agent-hello-world") == (
+        "databricks_mcp_agent_hello_world"
     )
 
 
-def test_expected_bundle_wheel_path_uses_canonical_bundle_prefix() -> None:
-    assert expected_bundle_wheel_path("1.2.3", "databricks-mcp-agent-hello-world") == (
-        "${workspace.root_path}/artifacts/.internal/"
-        "databricks_mcp_agent_hello_world-1.2.3-py3-none-any.whl"
+def test_bundle_wheel_glob_uses_canonical_dist_pattern() -> None:
+    assert bundle_wheel_glob("databricks-mcp-agent-hello-world") == (
+        "../dist/databricks_mcp_agent_hello_world-*.whl"
     )
 
 

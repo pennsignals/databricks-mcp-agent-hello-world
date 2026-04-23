@@ -18,7 +18,7 @@ include:
 artifacts:
   python_artifact:
     type: whl
-    build: python -m build --wheel
+    build: python scripts/build_wheel.py
 
 targets:
   dev:
