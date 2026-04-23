@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -9,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from databricks_mcp_agent_hello_world.versioning import (
-    DEFAULT_BOOTSTRAP_VERSION,
+    BOOTSTRAP_BASE_VERSION,
     distribution_name_for_wheel,
     read_project_name,
 )
@@ -17,7 +18,7 @@ from databricks_mcp_agent_hello_world.versioning import (
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DIST_DIR = PROJECT_ROOT / "dist"
 BUILD_DIR = PROJECT_ROOT / "build"
-VERSION_TAG_GLOB = "v[0-9]*"
+VERSION_TAG_RE = re.compile(r"^v\d+\.\d+\.\d+$")
 
 
 @dataclass(frozen=True)
@@ -38,11 +39,12 @@ def _git(repo_root: Path, *args: str) -> str:
 
 
 def repository_has_version_tags(repo_root: Path = PROJECT_ROOT) -> bool:
-    return bool(_git(repo_root, "tag", "--list", VERSION_TAG_GLOB))
+    tags = _git(repo_root, "tag", "--list", "v*").splitlines()
+    return any(VERSION_TAG_RE.fullmatch(tag) for tag in tags)
 
 
 def repository_is_dirty(repo_root: Path = PROJECT_ROOT) -> bool:
-    return bool(_git(repo_root, "status", "--short"))
+    return bool(_git(repo_root, "status", "--short", "--untracked-files=no"))
 
 
 def commit_count(repo_root: Path = PROJECT_ROOT) -> int:
@@ -56,7 +58,7 @@ def short_revision(repo_root: Path = PROJECT_ROOT) -> str:
 def bootstrap_pretend_version(
     repo_root: Path = PROJECT_ROOT,
     *,
-    base_version: str = DEFAULT_BOOTSTRAP_VERSION,
+    base_version: str = BOOTSTRAP_BASE_VERSION,
 ) -> str:
     version = f"{base_version}.dev{commit_count(repo_root)}+g{short_revision(repo_root)}"
     if repository_is_dirty(repo_root):
@@ -67,6 +69,8 @@ def bootstrap_pretend_version(
 def build_environment_overrides(repo_root: Path = PROJECT_ROOT) -> dict[str, str]:
     if repository_has_version_tags(repo_root):
         return {}
+    # Use the generic override intentionally: this template is forkable, and the
+    # override is scoped to this build subprocess rather than exported globally.
     return {"SETUPTOOLS_SCM_PRETEND_VERSION": bootstrap_pretend_version(repo_root)}
 
 

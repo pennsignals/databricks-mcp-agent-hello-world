@@ -8,7 +8,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PYPROJECT_PATH = PROJECT_ROOT / "pyproject.toml"
-DEFAULT_BOOTSTRAP_VERSION = "0.1.0"
+BOOTSTRAP_BASE_VERSION = "0.1.0"
 BUNDLE_WHEEL_GLOB_TEMPLATE = "../dist/{distribution}-*.whl"
 
 

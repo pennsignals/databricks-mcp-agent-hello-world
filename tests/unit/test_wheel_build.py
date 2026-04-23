@@ -14,6 +14,7 @@ from databricks_mcp_agent_hello_world.devtools.wheel_build import (
     clean_build_artifacts,
     discover_built_wheel,
     repository_has_version_tags,
+    repository_is_dirty,
 )
 
 
@@ -57,8 +58,20 @@ def test_bootstrap_pretend_version_marks_dirty_repo(tmp_path: Path) -> None:
 
     version = bootstrap_pretend_version(repo_root)
 
+    assert repository_is_dirty(repo_root) is True
     assert Version(version).local is not None
     assert ".d" in version
+
+
+def test_bootstrap_pretend_version_ignores_untracked_files(tmp_path: Path) -> None:
+    repo_root = _init_repo(tmp_path)
+    (repo_root / "scratch.txt").write_text("not part of the package\n", encoding="utf-8")
+
+    version = bootstrap_pretend_version(repo_root)
+
+    assert repository_is_dirty(repo_root) is False
+    assert Version(version).local is not None
+    assert ".d20" not in version
 
 
 def test_build_environment_overrides_only_apply_before_first_tag(tmp_path: Path) -> None:
@@ -72,6 +85,16 @@ def test_build_environment_overrides_only_apply_before_first_tag(tmp_path: Path)
 
     assert repository_has_version_tags(repo_root) is True
     assert build_environment_overrides(repo_root) == {}
+
+
+def test_build_environment_overrides_ignore_non_release_v_tags(tmp_path: Path) -> None:
+    repo_root = _init_repo(tmp_path)
+
+    for tag in ("v2-test", "v123junk", "v2026-experiment"):
+        _git(repo_root, "tag", tag)
+
+    assert repository_has_version_tags(repo_root) is False
+    assert "SETUPTOOLS_SCM_PRETEND_VERSION" in build_environment_overrides(repo_root)
 
 
 def test_build_wheel_script_runs_from_plain_repo_checkout(repo_root: Path) -> None:
