@@ -16,8 +16,6 @@ from databricks_mcp_agent_hello_world.versioning import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DIST_DIR = PROJECT_ROOT / "dist"
-BUILD_DIR = PROJECT_ROOT / "build"
 VERSION_TAG_RE = re.compile(r"^v\d+\.\d+\.\d+$")
 
 
