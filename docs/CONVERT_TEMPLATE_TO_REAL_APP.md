@@ -59,6 +59,10 @@ Edit these files:
 
 When you extend config, keep `src/databricks_mcp_agent_hello_world/config.py` as the only place that decides config behavior. For canonical keys, deprecated aliases, stale-key warnings, and the current `sql:` note, follow the config-loading contract in [Architecture](./ARCHITECTURE.md).
 
+## Step 6.5 — Customize CD deployment inputs
+
+Downstream projects should customize the GitHub environment secrets, the serving endpoint name, the Delta table target, and the bundle name for their own workspace layout and naming. If you need production automation later, add a separate `prod` GitHub environment, a `prod` OIDC federation policy, and a gated prod workflow or job instead of overloading the starter `dev` flow.
+
 ## Step 7 — Verify the full workflow
 
 Use this checklist:

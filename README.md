@@ -269,23 +269,31 @@ A healthy first pass looks like this:
 
 Do this only after the local flow is green.
 
+Local deployment remains supported for first validation and debugging. For shared, repeatable `dev` deployments, GitHub Actions CD with OIDC is the recommended path. See [CD deployment with GitHub Actions and OIDC](docs/CD_DEPLOYMENT.md).
+
 Before you deploy, make these additional Databricks-specific updates:
 
-### 1) Set your workspace host in `databricks.yml`
+### 1) Provide your workspace host for the target you are deploying
 
-Replace the placeholder host in every target you plan to validate or deploy:
+The template keeps both `dev` and `prod` workspace hosts out of `databricks.yml` and expects you to provide them at deploy time with bundle variables, either through `--var` or `BUNDLE_VAR_*`.
 
-```yaml
-targets:
-  dev:
-    workspace:
-      host: https://<your-workspace-host>
-  prod:
-    workspace:
-      host: https://<your-workspace-host>
+For local/manual `dev` validation or deployment:
+
+```bash
+env \
+  BUNDLE_VAR_dev_workspace_host=https://<your-workspace-host> \
+  databricks bundle validate --target dev
 ```
 
-If you leave the placeholder host in place, `databricks bundle validate` will fail.
+```bash
+env \
+  BUNDLE_VAR_dev_workspace_host=https://<your-workspace-host> \
+  databricks bundle deploy --target dev
+```
+
+If you want to validate or deploy `prod` manually later, provide `BUNDLE_VAR_prod_workspace_host` yourself in the same way.
+
+CD deployment supplies the `dev` value from GitHub environment secrets.
 
 ### 2) Point `storage.agent_events_table` at a writable Delta target
 
@@ -305,8 +313,14 @@ This repo deploys **two Python wheel jobs**:
 ### Deploy commands
 
 ```bash
-databricks bundle validate --target dev
-databricks bundle deploy --target dev
+env \
+  BUNDLE_VAR_dev_workspace_host=https://<your-workspace-host> \
+  databricks bundle validate --target dev
+
+env \
+  BUNDLE_VAR_dev_workspace_host=https://<your-workspace-host> \
+  databricks bundle deploy --target dev
+
 databricks bundle run --target dev init_storage_job
 databricks bundle run --target dev run_agent_task_job
 ```
@@ -327,13 +341,15 @@ The deployed wheel tasks intentionally use **separate Databricks job entry point
 
 The serverless environment dependency should reference the **built bundle artifact wheel**, not a wildcard path under synced workspace files. In this template, that means the job resource points at the concrete wheel under `${workspace.root_path}/artifacts/.internal/...whl` instead of `${workspace.file_path}/dist/*.whl`.
 
-The package version is authored once in `pyproject.toml`. After a version bump, run `python3.11 -m pre_commit run --all-files --show-diff-on-failure` so the checked-in bundle wheel paths stay aligned with the new artifact name before you build or deploy. If you are intentionally checking only that single concern, `python scripts/sync_version_refs.py` remains available as a focused maintenance command.
+The package version is authored once in `pyproject.toml`, and `scripts/sync_version_refs.py` updates the derived wheel references in [`resources/jobs.yml`](resources/jobs.yml). CD performs that sync automatically on tag deployment. After a local version bump, run `python3.11 -m pre_commit run --all-files --show-diff-on-failure` so the checked-in bundle wheel paths stay aligned before you build or deploy. If you are intentionally checking only that single concern, `python scripts/sync_version_refs.py` remains available as a focused maintenance command.
 
 When you change packaged job behavior, bump the package `version` in `pyproject.toml` before redeploying. Serverless environments can reuse cached custom-package environments, and updating the version is the safest way to ensure Databricks installs the new wheel content.
 
 If you want the deployed job to use a different task contract later, update [`resources/jobs.yml`](resources/jobs.yml) on purpose. The starter keeps the default deployed path pointed at the same canonical sample task file used locally.
 
 This starter is intentionally **not scheduled by default**. Get the on-demand flow working first, then add a schedule in a downstream project.
+
+The template includes a `prod` target for future use, but prod CD automation is not implemented yet.
 
 ## Where outputs go
 
@@ -390,11 +406,11 @@ Usually keep these framework files intact unless you are intentionally changing 
 
 ## Troubleshooting
 
-### `databricks bundle validate` fails with the placeholder host
+### `databricks bundle validate` fails because a workspace host is missing
 
-You still have `https://your-workspace.cloud.databricks.com` in `databricks.yml`.
+You did not provide the required bundle variable for the target you are validating or deploying.
 
-Fix: replace it for every target you validate or deploy.
+Fix: pass `BUNDLE_VAR_dev_workspace_host` for `dev`, or `BUNDLE_VAR_prod_workspace_host` for `prod`.
 
 ### `preflight` says `DATABRICKS_CONFIG_PROFILE` is missing
 
