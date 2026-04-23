@@ -2,6 +2,8 @@
 
 This template supports local/manual deployment and tag-driven CD deployment, but they serve different jobs. Use local deployment first to validate auth, config, and runtime behavior. Use GitHub Actions CD for repeatable shared `dev` deployments once the local flow is green.
 
+The template now requires Python 3.12+ in its wheel metadata and intentionally no longer supports older Databricks runtimes that are still on Python 3.11. This keeps the template aligned with the latest Databricks serverless environment and current modern Databricks runtimes, so use Python 3.12 for local build tooling, validation, and release automation as well.
+
 This template includes both `dev` and `prod` bundle targets, but only `dev` CD deployment is implemented today. Production deployment automation is future work for either this template or downstream projects built from it.
 
 ## When to use local deployment vs CD deployment

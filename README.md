@@ -44,7 +44,7 @@ The canonical sample task in [`examples/demo_run_task.json`](examples/demo_run_t
 
 Before you start, make sure you have:
 
-- **Python 3.11**
+- **Python 3.12 or newer**
 - the **Databricks CLI** installed
 - a Databricks workspace you can authenticate to locally
 - a **Databricks model serving endpoint** to use as `llm_endpoint_name`
@@ -57,11 +57,13 @@ Deployment-specific requirements are covered later in [Deploying to Databricks](
 
 From the repo root:
 
+The template supports **Python 3.12 and newer**. **Python 3.11 is no longer supported** so the wheel metadata, local tooling, CI, and CD all align with current Databricks serverless and modern Databricks runtime Python versions.
+
 ```bash
-python3.11 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+python -m pip install -e .[dev]
 python -m pre_commit install
 cp workspace-config.example.yml workspace-config.yml
 cp .env.example .env
@@ -203,7 +205,7 @@ Local JSONL state is created lazily on the first write under `./.local_state`, s
 Standard repo validation:
 
 ```bash
-python3.11 -m pre_commit run --all-files --show-diff-on-failure
+python3.12 -m pre_commit run --all-files --show-diff-on-failure
 ```
 
 This is the canonical full validation flow for local development and CI. It runs the repository hygiene hooks plus the shared `nox` validation flow for Ruff linting, Ruff format validation, version-reference checks, `pytest` with coverage, and wheel build verification.
@@ -252,7 +254,7 @@ subprocess.run(
 )
 ```
 
-`python3.11 -m pre_commit install` is primarily for workstation-based git-hook development. In Databricks notebook workflows, the standard path is to run `pre-commit` manually with `run --all-files`.
+`python3.12 -m pre_commit install` is primarily for workstation-based git-hook development. In Databricks notebook workflows, the standard path is to run `pre-commit` manually with `run --all-files`.
 
 If you have a browser-based terminal or workspace shell available, you can optionally use the same commands as local development after installing `.[dev]`. Cluster-level preinstallation of dev tooling can help on long-lived dedicated compute, but it is an optimization rather than the default recommendation.
 
@@ -346,7 +348,7 @@ The deployed wheel tasks intentionally use **separate Databricks job entry point
 
 The serverless environment dependency should reference the **built bundle artifact wheel**, not a wildcard path under synced workspace files. In this template, that means the job resource points at the concrete wheel under `${workspace.root_path}/artifacts/.internal/...whl` instead of `${workspace.file_path}/dist/*.whl`.
 
-The package version is authored once in `pyproject.toml`, and `scripts/sync_version_refs.py` updates the derived wheel references in [`resources/jobs.yml`](resources/jobs.yml). CD performs that sync automatically on tag deployment. After a local version bump, run `python3.11 -m pre_commit run --all-files --show-diff-on-failure` so the checked-in bundle wheel paths stay aligned before you build or deploy. If you are intentionally checking only that single concern, `python scripts/sync_version_refs.py` remains available as a focused maintenance command.
+The package version is authored once in `pyproject.toml`, and `scripts/sync_version_refs.py` updates the derived wheel references in [`resources/jobs.yml`](resources/jobs.yml). CD performs that sync automatically on tag deployment. After a local version bump, run `python3.12 -m pre_commit run --all-files --show-diff-on-failure` so the checked-in bundle wheel paths stay aligned before you build or deploy. If you are intentionally checking only that single concern, `python scripts/sync_version_refs.py` remains available as a focused maintenance command.
 
 When you change packaged job behavior, bump the package `version` in `pyproject.toml` before redeploying. Serverless environments can reuse cached custom-package environments, and updating the version is the safest way to ensure Databricks installs the new wheel content.
 

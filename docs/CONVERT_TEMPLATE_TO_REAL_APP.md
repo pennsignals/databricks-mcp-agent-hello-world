@@ -5,6 +5,8 @@
 
 Use this guide when you are adapting the template for a real downstream app. For setup, first run, and troubleshooting, use the [README](../README.md). For runtime, provider, config, and storage rationale, use [Architecture](./ARCHITECTURE.md).
 
+Downstream apps built from this template should keep the same Python version policy unless they make an explicit platform decision to diverge: the template requires Python 3.12+ in wheel metadata, aligns local tooling and CI/CD to Python 3.12, and does not support older Databricks runtimes that are still on Python 3.11.
+
 ## Step 1 — Rename the demo task family
 
 Edit these files:

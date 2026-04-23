@@ -16,8 +16,8 @@ This is the internal maintainer guide for the template. For setup, first run, da
 - Do not introduce alternate beginner setup paths that diverge from the README.
 - Treat [`examples/demo_run_task.json`](examples/demo_run_task.json) as the canonical sample task reference instead of restating its payload in prose.
 - Prefer the repo-local `.venv` for coding-agent local development when it already exists and has the needed tools installed.
-- Treat `python3.11 -m pre_commit run --all-files --show-diff-on-failure` as the maintainer-recommended standard validation command.
-- Treat `python3.11 -m pre_commit install` as the one-time workstation setup step for automatic git-hook enforcement.
+- Treat `python3.12 -m pre_commit run --all-files --show-diff-on-failure` as the maintainer-recommended standard validation command.
+- Treat `python3.12 -m pre_commit install` as the one-time workstation setup step for automatic git-hook enforcement.
 - Do not document raw lint, test, and build commands as the normal full-validation workflow.
 
 ## Testing levels
@@ -27,8 +27,8 @@ This is the internal maintainer guide for the template. For setup, first run, da
 Commands:
 
 ```bash
-python3.11 -m pre_commit install
-python3.11 -m pre_commit run --all-files --show-diff-on-failure
+python3.12 -m pre_commit install
+python3.12 -m pre_commit run --all-files --show-diff-on-failure
 ```
 
 Definition:
