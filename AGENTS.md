@@ -53,6 +53,16 @@ Definition:
 - no token usage expected
 - use when you intentionally want tests only instead of the full standard validation flow
 
+### Build wheel in network-restricted agents
+
+If an agent or sandbox cannot download packages, prime `.nox/build_wheel` outside the sandbox first, then run:
+
+```bash
+python -m nox -s build_wheel --reuse-venv=yes --no-install
+```
+
+`build_wheel` is intentionally build-only and does not rely on editable install.
+
 ### Live integration evals
 
 Command:

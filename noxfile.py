@@ -8,7 +8,7 @@ import nox
 PYTHON = "3.12"
 REPO_ROOT = Path(__file__).resolve().parent
 BUILD_ARTIFACT_DIRS = (REPO_ROOT / "build", REPO_ROOT / "dist")
-NOX_TOOL_REQUIREMENTS = (
+NOX_DEV_REQUIREMENTS = (
     "build>=1.2.0",
     "coverage[toml]>=7.13.5",
     "editables>=0.5",
@@ -17,14 +17,21 @@ NOX_TOOL_REQUIREMENTS = (
     "pytest-cov>=7.1.0",
     "ruff>=0.8.0",
 )
+NOX_BUILD_REQUIREMENTS = (
+    "build>=1.2.0",
+    "hatchling>=1.27.0",
+)
 
 nox.options.default_venv_backend = "venv"
 nox.options.error_on_missing_interpreters = True
 nox.options.reuse_existing_virtualenvs = True
 
 
-def _install_dev_dependencies(session: nox.Session) -> None:
-    session.install(*NOX_TOOL_REQUIREMENTS)
+def _install_tool_requirements(session: nox.Session, *requirements: str) -> None:
+    session.install(*requirements)
+
+
+def _install_project_editable(session: nox.Session) -> None:
     session.install("--no-build-isolation", "-e", ".")
 
 
@@ -39,7 +46,8 @@ def _is_fix_mode(session: nox.Session) -> bool:
 @nox.session(python=PYTHON)
 def lint(session: nox.Session) -> None:
     """Run Ruff in fix or check mode."""
-    _install_dev_dependencies(session)
+    _install_tool_requirements(session, *NOX_DEV_REQUIREMENTS)
+    _install_project_editable(session)
 
     if _is_fix_mode(session):
         session.run("ruff", "format", ".")
@@ -53,14 +61,16 @@ def lint(session: nox.Session) -> None:
 @nox.session(python=PYTHON)
 def tests(session: nox.Session) -> None:
     """Run unit and contract tests with coverage."""
-    _install_dev_dependencies(session)
+    _install_tool_requirements(session, *NOX_DEV_REQUIREMENTS)
+    _install_project_editable(session)
     session.run("pytest")
 
 
 @nox.session(python=PYTHON)
 def version_refs(session: nox.Session) -> None:
     """Sync or verify version-derived Databricks wheel references."""
-    _install_dev_dependencies(session)
+    _install_tool_requirements(session, *NOX_DEV_REQUIREMENTS)
+    _install_project_editable(session)
 
     command = ["python", "scripts/sync_version_refs.py"]
     if not _is_fix_mode(session):
@@ -71,7 +81,7 @@ def version_refs(session: nox.Session) -> None:
 @nox.session(python=PYTHON)
 def build_wheel(session: nox.Session) -> None:
     """Build the wheel after cleaning local build artifacts."""
-    _install_dev_dependencies(session)
+    _install_tool_requirements(session, *NOX_BUILD_REQUIREMENTS)
 
     for path in BUILD_ARTIFACT_DIRS:
         shutil.rmtree(path, ignore_errors=True)
