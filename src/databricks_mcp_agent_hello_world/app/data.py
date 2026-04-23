@@ -21,7 +21,7 @@ DEMO_ONBOARDING_DOCS = [
         "title": "Local Development Setup",
         "path": "/docs/onboarding/local-development.md",
         "content": (
-            "For local development, create an isolated environment with python3.11 -m venv "
+            "For local development, create an isolated environment with python3.12 -m venv "
             'and install the project with python -m pip install -e ".[dev]", '
             "run the test suite before opening a PR, and use the shared lint config."
         ),

@@ -41,7 +41,7 @@ def _record(
     *,
     status: Literal["success", "error", "max_steps_exceeded"] = "success",
     final_response: str = (
-        "Ada Lovelace uses python3.11 -m venv plus pip on Databricks Serverless Jobs."
+        "Ada Lovelace uses python3.12 -m venv plus pip on Databricks Serverless Jobs."
     ),
     available_tools: list[str] | None = None,
     tool_calls: list[dict] | None = None,
@@ -303,7 +303,7 @@ def test_run_evals_records_detailed_failure_diagnostics(
         ],
         [
             _record(
-                final_response="Ada Lovelace uses python3.11 -m venv plus pip.",
+                final_response="Ada Lovelace uses python3.12 -m venv plus pip.",
                 available_tools=["get_user_profile", "create_support_ticket"],
                 tool_calls=[
                     {

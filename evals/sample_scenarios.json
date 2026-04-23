@@ -19,7 +19,7 @@
     "min_tool_calls": 4,
     "required_output_substrings": [
       "Grace Hopper",
-      "python3.11 -m venv",
+      "python3.12 -m venv",
       "Databricks Serverless Jobs"
     ]
   },
