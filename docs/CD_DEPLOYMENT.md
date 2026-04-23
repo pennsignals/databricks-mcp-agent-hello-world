@@ -17,6 +17,8 @@ This template includes both `dev` and `prod` bundle targets, but only `dev` CD d
 
 Local/manual deployment remains the best path for initial debugging. CD deployment is the recommended repeatable deployment path for shared `dev` environments.
 
+For local/manual use, provide the same bundle variable for every bundle command, including `databricks bundle run`. For example, if you use `BUNDLE_VAR_dev_workspace_host` for `bundle validate` and `bundle deploy`, use it for `bundle run` too.
+
 ## Security model
 
 - The workflow uses GitHub OIDC and a Databricks service principal. No PATs are used.

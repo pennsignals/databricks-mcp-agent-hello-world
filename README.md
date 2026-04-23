@@ -321,8 +321,13 @@ env \
   BUNDLE_VAR_dev_workspace_host=https://<your-workspace-host> \
   databricks bundle deploy --target dev
 
-databricks bundle run --target dev init_storage_job
-databricks bundle run --target dev run_agent_task_job
+env \
+  BUNDLE_VAR_dev_workspace_host=https://<your-workspace-host> \
+  databricks bundle run --target dev init_storage_job
+
+env \
+  BUNDLE_VAR_dev_workspace_host=https://<your-workspace-host> \
+  databricks bundle run --target dev run_agent_task_job
 ```
 
 Run `init_storage_job` only after the bundle has been deployed. It initializes the remote Delta table inside Databricks before the first remote workload run.
@@ -371,7 +376,7 @@ When Spark is available, the project uses the Delta event store configured in `w
 
 - `storage.agent_events_table`
 
-Before you rely on deployed runs, make sure `storage.agent_events_table` points to a writable location, then run `databricks bundle run --target dev init_storage_job`.
+Before you rely on deployed runs, make sure `storage.agent_events_table` points to a writable location, then run `databricks bundle run --target dev init_storage_job` with the same `BUNDLE_VAR_dev_workspace_host` value used for validate and deploy.
 
 ## Persistence model
 
