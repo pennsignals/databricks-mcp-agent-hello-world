@@ -12,16 +12,14 @@ Use this document for runtime, provider, config, and storage design. For setup, 
 - minimal framework complexity
 - LLM-driven tool selection
 - one canonical persistence contract across local and Databricks runtimes
-- one authored package version source in `pyproject.toml`
+- one SCM-derived package version source
 - example app assets separated from reusable framework assets
 
 ## Version source of truth
 
-The template authors the package version once in `pyproject.toml`.
+The template derives package versions from Git state with `hatch-vcs`.
 
-Runtime code reads the installed package version from metadata instead of duplicating a hardcoded `__version__` literal, and Databricks bundle wheel references are kept in sync with `python scripts/sync_version_refs.py`.
-
-That keeps the checked-in bundle YAML readable while avoiding manual version drift between package metadata, wheel artifact names, and tests.
+Runtime code reads the installed package version from metadata instead of duplicating a hardcoded `__version__` literal. Bundle jobs consume the built wheel from `../dist/*.whl`, so deployment follows the actual artifact that was built rather than a separately synchronized version string.
 
 ## End-to-end flow
 

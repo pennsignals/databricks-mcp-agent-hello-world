@@ -71,11 +71,11 @@ Replace:
 
 1. A tag matching `vX.Y.Z` is pushed.
 2. The workflow verifies that the tagged commit is on `main`.
-3. The workflow sets the package version from the tag in the GitHub runner workspace only.
-4. The workflow syncs bundle wheel path references with `scripts/sync_version_refs.py`.
-5. The workflow renders deployment config into `workspace-config.yml`.
-6. The workflow validates the bundle.
-7. The workflow deploys the `dev` bundle.
+3. The workflow renders deployment config into `workspace-config.yml`.
+4. The workflow validates the bundle.
+5. The workflow deploys the `dev` bundle.
+6. The bundle build step runs `scripts/build_wheel.py`, which resolves the SCM version and builds the wheel into `dist/`.
+7. The deployed jobs install that built wheel from `../dist/*.whl`.
 8. The workflow runs `init_storage_job`.
 9. The workflow runs `run_agent_task_job`.
 
@@ -89,7 +89,7 @@ databricks bundle run --target dev init_storage_job
 databricks bundle run --target dev run_agent_task_job
 ```
 
-`pyproject.toml` remains the single authored version source in the repository. CD mutates `pyproject.toml` only inside the runner workspace, runs `scripts/sync_version_refs.py`, and builds and deploys from those ephemeral files without committing anything back.
+`pyproject.toml` now uses dynamic VCS versioning through `hatch-vcs`, so CD does not rewrite the file. Tagged releases resolve directly from the pushed tag, and the bundle deploy builds and deploys the resulting wheel artifact without a separate filename sync step.
 
 ## Troubleshooting
 

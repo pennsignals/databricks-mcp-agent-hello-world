@@ -208,7 +208,7 @@ Standard repo validation:
 python3.12 -m pre_commit run --all-files --show-diff-on-failure
 ```
 
-This is the canonical full validation flow for local development and CI. It runs the repository hygiene hooks plus the shared `nox` validation flow for Ruff linting, Ruff format validation, version-reference checks, `pytest` with coverage, and wheel build verification.
+This is the canonical full validation flow for local development and CI. It runs the repository hygiene hooks plus the shared `nox` validation flow for Ruff linting, Ruff format validation, `pytest` with coverage, and wheel build verification.
 
 The first full run may take noticeably longer because `pre-commit` and `nox` may need to create their environments. Subsequent runs are normally much faster because those environments are reused.
 
@@ -346,11 +346,11 @@ The deployed wheel tasks intentionally use **separate Databricks job entry point
 - `run_init_storage` loads settings, calls the shared bootstrap logic, and exits non-zero on mismatch
 - the runtime job passes `--config-path`, `--task-input-file`, and `--output` through `python_wheel_task.parameters`, and the wrapper forwards `sys.argv[1:]` into the existing `argparse` command handler
 
-The serverless environment dependency should reference the **built bundle artifact wheel**, not a wildcard path under synced workspace files. In this template, that means the job resource points at the concrete wheel under `${workspace.root_path}/artifacts/.internal/...whl` instead of `${workspace.file_path}/dist/*.whl`.
+The deployed jobs install the **built wheel artifact** via `libraries.whl: ../dist/databricks_mcp_agent_hello_world-*.whl`. That keeps the bundle pointed at the artifact that was actually built instead of a guessed filename under `${workspace.root_path}/artifacts/.internal/...whl`.
 
-The package version is authored once in `pyproject.toml`, and `scripts/sync_version_refs.py` updates the derived wheel references in [`resources/jobs.yml`](resources/jobs.yml). CD performs that sync automatically on tag deployment. After a local version bump, run `python3.12 -m pre_commit run --all-files --show-diff-on-failure` so the checked-in bundle wheel paths stay aligned before you build or deploy. If you are intentionally checking only that single concern, `python scripts/sync_version_refs.py` remains available as a focused maintenance command.
+Package versions are derived from Git state with `hatch-vcs`. Release tags like `v1.2.3` build `1.2.3`, tagged post-release commits build SCM-derived development versions, and no-tag repos bootstrap through `scripts/build_wheel.py` as `0.1.0.dev...+g...` builds so local/manual deploys stay visibly non-release and traceable.
 
-When you change packaged job behavior, bump the package `version` in `pyproject.toml` before redeploying. Serverless environments can reuse cached custom-package environments, and updating the version is the safest way to ensure Databricks installs the new wheel content.
+When you change packaged job behavior, rebuild and redeploy the wheel instead of editing a static `project.version`. Serverless environments can reuse cached custom-package environments, so the SCM-derived wheel version is what tells Databricks to install the new artifact content.
 
 If you want the deployed job to use a different task contract later, update [`resources/jobs.yml`](resources/jobs.yml) on purpose. The starter keeps the default deployed path pointed at the same canonical sample task file used locally.
 

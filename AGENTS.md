@@ -35,7 +35,7 @@ Definition:
 
 - canonical maintainer workflow
 - local and CI use the same logical validation flow
-- includes repo hygiene hooks, Ruff, version-reference checks, `pytest`, and wheel build validation
+- includes repo hygiene hooks, Ruff, `pytest`, and wheel build validation
 
 ### Unit tests
 
