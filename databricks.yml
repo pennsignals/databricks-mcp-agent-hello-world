@@ -1,10 +1,16 @@
 # Declarative Automation Bundle for a reusable Python-wheel Databricks agent project.
-# See the official Databricks bundle + Python wheel docs for the patterns this starter follows.
+# This template retains both dev and prod targets.
+# Only dev CD deployment is implemented by the template today.
 
 bundle:
   # TEMPLATE_CUSTOMIZE_HERE
-  # Rename the bundle for your downstream app and keep it aligned with your deployment naming.
   name: databricks-mcp-agent-hello-world
+
+variables:
+  dev_workspace_host:
+    description: Databricks workspace host URL for the dev target
+  prod_workspace_host:
+    description: Databricks workspace host URL for the prod target
 
 include:
   - resources/*.yml
@@ -19,8 +25,11 @@ targets:
     mode: development
     default: true
     workspace:
-      host: https://your-workspace.cloud.databricks.com
+      host: ${var.dev_workspace_host}
+      root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
+
   prod:
     mode: production
     workspace:
-      host: https://your-workspace.cloud.databricks.com
+      host: ${var.prod_workspace_host}
+      root_path: /Shared/.bundle/${bundle.name}/${bundle.target}

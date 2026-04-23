@@ -1,0 +1,85 @@
+name: CD Dev Deploy on Tag
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+    environment: dev
+
+    env:
+      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+
+      BUNDLE_VAR_dev_workspace_host: ${{ secrets.DATABRICKS_HOST }}
+
+      DEV_LLM_ENDPOINT_NAME: ${{ secrets.DEV_LLM_ENDPOINT_NAME }}
+      DEV_AGENT_EVENTS_TABLE: ${{ secrets.DEV_AGENT_EVENTS_TABLE }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Set up Databricks CLI
+        uses: databricks/setup-cli@578f756bb514999ca21f433eef5202c8d6ac62a6
+
+      - name: Mask Databricks values
+        shell: bash
+        run: |
+          echo "::add-mask::$DATABRICKS_HOST"
+          echo "::add-mask::$DATABRICKS_CLIENT_ID"
+          echo "::add-mask::$DEV_LLM_ENDPOINT_NAME"
+          echo "::add-mask::$DEV_AGENT_EVENTS_TABLE"
+
+      - name: Verify tag commit is on main
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"
+
+      - name: Install release tooling
+        run: python -m pip install --upgrade pip build jinja2
+
+      - name: Set package version from tag
+        run: python .github/scripts/set_version_from_tag.py "$GITHUB_REF_NAME"
+
+      - name: Sync bundle wheel references
+        run: python scripts/sync_version_refs.py
+
+      - name: Render deploy workspace config
+        run: python .github/scripts/render_workspace_config.py
+
+      - name: Authenticate to Databricks
+        run: databricks current-user me
+
+      - name: Validate bundle
+        run: databricks bundle validate --target dev
+
+      - name: Deploy bundle
+        run: databricks bundle deploy --target dev
+
+      - name: Initialize storage
+        run: databricks bundle run --target dev init_storage_job
+
+      - name: Run demo job
+        run: databricks bundle run --target dev run_agent_task_job
