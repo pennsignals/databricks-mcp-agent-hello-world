@@ -16,7 +16,12 @@ from databricks_mcp_agent_hello_world.devtools.version_sync import (
 )
 from databricks_mcp_agent_hello_world.models import ToolSpec
 from databricks_mcp_agent_hello_world.storage import schema
-from databricks_mcp_agent_hello_world.versioning import sync_wheel_paths_in_text
+from databricks_mcp_agent_hello_world.versioning import (
+    expected_bundle_wheel_path,
+    read_project_name,
+    read_project_version,
+    sync_wheel_paths_in_text,
+)
 
 
 def test_package_root_run_init_storage_success(capsys, monkeypatch) -> None:
@@ -131,9 +136,9 @@ def test_version_sync_and_versioning_unhappy_paths(tmp_path: Path) -> None:
             project_name="databricks-mcp-agent-hello-world",
         )
 
-    current_dependency = (
-        "${workspace.root_path}/artifacts/.internal/"
-        "databricks_mcp_agent_hello_world-0.1.0-py3-none-any.whl"
+    current_dependency = expected_bundle_wheel_path(
+        read_project_version(),
+        read_project_name(),
     )
     unchanged_bundle = tmp_path / "unchanged.yml"
     unchanged_bundle.write_text(
