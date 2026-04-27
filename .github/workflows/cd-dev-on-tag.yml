@@ -1,6 +1,7 @@
 name: CD Dev Deploy on Tag
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v*.*.*"
