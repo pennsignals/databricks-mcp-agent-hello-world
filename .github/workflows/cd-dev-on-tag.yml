@@ -51,6 +51,14 @@ jobs:
           echo "::add-mask::$DEV_LLM_ENDPOINT_NAME"
           echo "::add-mask::$DEV_AGENT_EVENTS_TABLE"
 
+      - name: Validate required environment secrets
+        shell: bash
+        run: |
+          test -n "$DATABRICKS_HOST"
+          test -n "$DATABRICKS_CLIENT_ID"
+          test -n "$DEV_LLM_ENDPOINT_NAME"
+          test -n "$DEV_AGENT_EVENTS_TABLE"
+
       - name: Verify tag commit is on main
         shell: bash
         run: |
