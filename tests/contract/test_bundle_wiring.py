@@ -23,6 +23,15 @@ def test_bundle_includes_current_job_resource_file() -> None:
     assert JOB_RESOURCE_PATH.exists()
 
 
+def test_bundle_uses_databricks_auth_configuration_for_workspace_hosts() -> None:
+    bundle = _load_yaml(Path("databricks.yml"))
+
+    assert "dev_workspace_host" not in bundle.get("variables", {})
+    assert "prod_workspace_host" not in bundle.get("variables", {})
+    assert "host" not in bundle["targets"]["dev"]["workspace"]
+    assert "host" not in bundle["targets"]["prod"]["workspace"]
+
+
 def test_jobs_use_current_python_wheel_entrypoints_and_library_glob() -> None:
     jobs = _load_yaml(JOB_RESOURCE_PATH)["resources"]["jobs"]
     expected_library = bundle_wheel_glob(read_project_name())

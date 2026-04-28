@@ -6,12 +6,6 @@ bundle:
   # TEMPLATE_CUSTOMIZE_HERE
   name: databricks-mcp-agent-hello-world
 
-variables:
-  dev_workspace_host:
-    description: Databricks workspace host URL for the dev target
-  prod_workspace_host:
-    description: Databricks workspace host URL for the prod target
-
 include:
   - resources/*.yml
 
@@ -22,14 +16,14 @@ artifacts:
 
 targets:
   dev:
-    mode: development
     default: true
     workspace:
-      host: ${var.dev_workspace_host}
       root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
+    presets:
+      name_prefix: "dev_"
+      trigger_pause_status: PAUSED
 
   prod:
     mode: production
     workspace:
-      host: ${var.prod_workspace_host}
       root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
