@@ -30,7 +30,7 @@ Local/manual deployment remains the best path for initial debugging. CD deployme
 
 ## One-time setup in Databricks
 
-Create one Databricks service principal for `dev` CD, assign it to the `dev` workspace, and grant the minimum capabilities it needs to deploy bundle-managed jobs, own and update those jobs, use the configured serving endpoint, create and write to the configured Delta table target, and access the required Unity Catalog catalog and schema.
+Create one Databricks service principal for `dev` CD, assign it to the target Databricks workspace, and grant the minimum capabilities it needs to deploy bundle-managed jobs, own and update those jobs, use the configured serving endpoint, create and write to the configured Delta table target, and access the required Unity Catalog catalog and schema.
 
 The first successful `dev` deployment should be run by the service principal. If `dev` resources were previously created by a human user, delete those old jobs before switching CD ownership to the service principal. After that, GitHub CD should create and own the shared dev jobs.
 
