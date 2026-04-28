@@ -10,6 +10,10 @@ from databricks_mcp_agent_hello_world.versioning import (
 )
 
 JOB_RESOURCE_PATH = Path("resources/jobs.yml")
+CD_WORKFLOW_PATH = Path(".github/workflows/cd-dev-on-tag.yml")
+SHARED_CD_ROOT_PATH = (
+    "/Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}"
+)
 
 
 def _load_yaml(path: Path) -> dict:
@@ -45,23 +49,37 @@ def test_bundle_targets_separate_local_dev_and_prod_deployments() -> None:
     assert targets["local"]["workspace"]["root_path"] == "~/.bundle/${bundle.name}/${bundle.target}"
 
     assert "mode" not in targets["dev"]
-    assert (
-        targets["dev"]["workspace"]["root_path"]
-        == "/Shared/.bundle/${bundle.name}/${bundle.target}"
-    )
+    assert targets["dev"]["workspace"]["root_path"] == SHARED_CD_ROOT_PATH
     assert targets["dev"]["presets"]["name_prefix"] == "dev_"
     assert targets["dev"]["presets"]["trigger_pause_status"] == "PAUSED"
 
     assert targets["prod"]["mode"] == "production"
-    assert (
-        targets["prod"]["workspace"]["root_path"]
-        == "/Shared/.bundle/${bundle.name}/${bundle.target}"
-    )
+    assert targets["prod"]["workspace"]["root_path"] == SHARED_CD_ROOT_PATH
     assert targets["prod"]["git"]["branch"] == "main"
 
+
+def test_bundle_target_permissions_grant_shared_visibility_without_management() -> None:
+    bundle = _load_yaml(Path("databricks.yml"))
+    targets = bundle["targets"]
+    expected_view_permission = [{"group_name": "users", "level": "CAN_VIEW"}]
+    forbidden_levels = {"CAN_MANAGE", "CAN_MANAGE_RUN", "CAN_RUN", "IS_OWNER"}
+
     assert "permissions" not in targets["local"]
-    assert "permissions" not in targets["dev"]
-    assert "permissions" not in targets["prod"]
+    assert targets["dev"]["permissions"] == expected_view_permission
+    assert targets["prod"]["permissions"] == expected_view_permission
+
+    for target_name in ("dev", "prod"):
+        for permission in targets[target_name].get("permissions", []):
+            if permission.get("group_name") == "users":
+                assert permission["level"] not in forbidden_levels
+
+
+def test_cd_workflow_suppresses_databricks_job_output() -> None:
+    workflow_text = CD_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "databricks bundle run --target dev init_storage_job >/dev/null 2>&1" in workflow_text
+    assert "databricks bundle run --target dev run_agent_task_job >/dev/null 2>&1" in workflow_text
+    assert "Databricks job output suppressed" in workflow_text
 
 
 def test_jobs_use_current_python_wheel_entrypoints_and_environment_dependency_glob() -> None:

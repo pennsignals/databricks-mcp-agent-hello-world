@@ -80,7 +80,27 @@ jobs:
         run: databricks bundle deploy --target dev
 
       - name: Initialize storage
-        run: databricks bundle run --target dev init_storage_job
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if databricks bundle run --target dev init_storage_job >/dev/null 2>&1; then
+            echo "init_storage_job completed successfully."
+          else
+            status=$?
+            echo "::error::init_storage_job failed. Databricks job output suppressed to avoid leaking sensitive data in GitHub logs."
+            exit "$status"
+          fi
 
       - name: Run demo job
-        run: databricks bundle run --target dev run_agent_task_job
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if databricks bundle run --target dev run_agent_task_job >/dev/null 2>&1; then
+            echo "run_agent_task_job completed successfully."
+          else
+            status=$?
+            echo "::error::run_agent_task_job failed. Databricks job output suppressed to avoid leaking sensitive data in GitHub logs."
+            exit "$status"
+          fi

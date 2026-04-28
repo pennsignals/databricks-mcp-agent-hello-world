@@ -25,14 +25,20 @@ targets:
 
   dev:
     workspace:
-      root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     presets:
       name_prefix: "dev_"
       trigger_pause_status: PAUSED
+    permissions:
+      - group_name: users
+        level: CAN_VIEW
 
   prod:
     mode: production
     workspace:
-      root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     git:
       branch: main
+    permissions:
+      - group_name: users
+        level: CAN_VIEW
