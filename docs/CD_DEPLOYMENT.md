@@ -13,12 +13,14 @@ This template includes `local`, `dev`, and `prod` bundle targets, but only `dev`
 | Target | `local` | `dev` |
 | Deployer | Human developer | Databricks service principal |
 | Auth | Databricks CLI profile/local auth | GitHub OIDC |
-| Root path | User-scoped `~/.bundle/...` | Shared `/Shared/.bundle/.../dev` |
+| Root path | User-scoped `~/.bundle/...` | Deployer-scoped `/Workspace/Users/${workspace.current_user.userName}/.bundle/.../dev` |
 | Intended use | Debugging and manual smoke testing | Repeatable shared non-prod deployment |
 | Which config file is used | `workspace-config.yml` that you manage locally | Generated `workspace-config.yml` rendered from `workspace-config.deploy.template.yml.j2` |
 | Where Databricks values are stored | Local `.env`, local CLI profile, and local config files | GitHub environment secrets in the `dev` environment |
 
 Local/manual deployment remains the best path for initial debugging. CD deployment is the recommended repeatable deployment path for shared `dev` environments. Local users should deploy `local`, while GitHub Actions should deploy `dev`.
+
+For `dev` and `prod`, the bundle root is `/Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}`. In GitHub CD, `${workspace.current_user.userName}` resolves to the authenticated service principal, so deployment files and Terraform state are owned by the deployer identity instead of being stored under a workspace-wide shared path.
 
 ## Security model
 
@@ -27,12 +29,17 @@ Local/manual deployment remains the best path for initial debugging. CD deployme
 - This repository is public, so the Databricks workspace URL is treated as sensitive and is not committed to `databricks.yml`.
 - The workflow intentionally does not expose an environment URL in GitHub.
 - The workflow uses the `dev` GitHub environment so environment protections such as required reviewers can be applied.
+- The workflow suppresses Databricks job stdout and stderr in GitHub Actions logs because public repository workflow logs may be visible to public readers.
+
+Downstream apps should not print secrets, credentials, sensitive prompts, sensitive model responses, row-level data, or private config to stdout or stderr. Databricks-side logs may still retain output according to workspace and job permissions; the CD workflow only prevents that output from being copied into GitHub Actions logs.
 
 ## One-time setup in Databricks
 
 Create one Databricks service principal for `dev` CD, assign it to the target Databricks workspace, and grant the minimum capabilities it needs to deploy bundle-managed jobs, own and update those jobs, use the configured serving endpoint, create and write to the configured Delta table target, and access the required Unity Catalog catalog and schema.
 
 The first successful `dev` deployment should be run by the service principal. If `dev` resources were previously created by a human user, delete those old jobs before switching CD ownership to the service principal. After that, GitHub CD should create and own the shared dev jobs.
+
+The `dev` and `prod` bundle targets grant `group_name: users` `CAN_VIEW` so Databricks workspace users can see shared jobs, run status, run history, and run details. This does not grant deployment control. Do not grant `users` `CAN_MANAGE` unless the workspace intentionally wants all users to manage the bundle-managed resources.
 
 Create the GitHub OIDC federation policy with this exact command template:
 
@@ -89,6 +96,8 @@ databricks bundle deploy --target dev
 databricks bundle run --target dev init_storage_job
 databricks bundle run --target dev run_agent_task_job
 ```
+
+The actual workflow redirects both `bundle run` commands with `>/dev/null 2>&1`. Successful runs print only a short completion message, and failures print a generic error noting that Databricks job output was suppressed.
 
 `pyproject.toml` now uses dynamic VCS versioning through `hatch-vcs`, so CD does not rewrite the file. Tagged releases resolve directly from the pushed tag, and the bundle deploy builds and deploys the resulting wheel artifact without a separate filename sync step.
 

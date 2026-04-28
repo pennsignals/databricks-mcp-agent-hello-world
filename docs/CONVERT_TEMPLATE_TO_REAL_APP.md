@@ -67,11 +67,15 @@ Downstream projects should customize the GitHub environment secrets, the serving
 
 Keep or intentionally customize the target model:
 
-- `local`: personal developer target
-- `dev`: shared service-principal-owned non-prod target
-- `prod`: future service-principal-owned production target
+- `local`: personal developer target using `~/.bundle/${bundle.name}/${bundle.target}`
+- `dev`: shared service-principal-owned non-prod target using `/Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}`
+- `prod`: future service-principal-owned production target using `/Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}`
 
 Keep human local testing on `local`, configure GitHub OIDC for `dev`, create separate secrets and tables for `dev`, and add prod CD only when you have a real production deployment process. Do not hardcode service principal IDs, user emails, or other deployer-specific identities in the template.
+
+In GitHub CD, `${workspace.current_user.userName}` resolves under the authenticated service principal identity. Keep the target-level `users` `CAN_VIEW` grant if workspace users should observe shared jobs and runs, but do not grant `users` `CAN_MANAGE` unless all workspace users should manage bundle resources.
+
+The starter CD workflow suppresses Databricks job stdout and stderr in GitHub Actions logs. Downstream apps should still avoid printing secrets, credentials, sensitive prompts, sensitive model responses, row-level data, or private config to stdout and stderr. Databricks-side logs may retain output according to workspace and job permissions; the workflow only suppresses GitHub Actions log output.
 
 ## Step 7 — Verify the full workflow
 

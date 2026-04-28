@@ -275,13 +275,19 @@ Local deployment remains supported for first validation and debugging. For share
 
 The bundle targets intentionally separate personal testing from shared automation:
 
-- `local`: personal developer deployment, run by an individual user
-- `dev`: shared GitHub Actions CD deployment, run by a service principal only
-- `prod`: future production deployment, run by a service principal only
+- `local`: personal developer deployment, run by an individual user, with bundle files under `~/.bundle/${bundle.name}/${bundle.target}`
+- `dev`: shared GitHub Actions CD deployment, run by a service principal only, with bundle files under `/Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}`
+- `prod`: future production deployment, run by a service principal only, with bundle files under `/Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}`
 
 Local developers should use `local`. GitHub Actions uses `dev`. The `prod` target exists as a template placeholder for future production automation. Local developers should not deploy `dev` or `prod`.
 
 No workspace hosts are stored in `databricks.yml`. Local authentication comes from your Databricks CLI auth configuration, such as a profile or `DATABRICKS_HOST`. GitHub CD gets `DATABRICKS_HOST` from the `dev` GitHub environment and authenticates with OIDC.
+
+For GitHub CD, `${workspace.current_user.userName}` resolves to the authenticated Databricks service principal, so shared `dev` bundle files and deployment state are scoped to that deployer identity instead of a workspace-wide shared folder.
+
+The `dev` and `prod` targets intentionally grant the workspace `users` group `CAN_VIEW` on bundle-managed resources so normal Databricks users can observe shared jobs and runs. That grant does not provide deployment control or job management access; do not grant `users` `CAN_MANAGE` unless your workspace intentionally wants all users to manage bundle-managed resources.
+
+GitHub CD suppresses Databricks job stdout and stderr in Actions logs because public repository workflow logs can be visible to public readers. Downstream apps should avoid printing secrets, credentials, sensitive prompts, sensitive model responses, row-level data, or private config to stdout and stderr. Databricks-side logs may still retain output according to workspace and job permissions; this only suppresses GitHub Actions log output.
 
 Before you deploy, make these additional Databricks-specific updates:
 
