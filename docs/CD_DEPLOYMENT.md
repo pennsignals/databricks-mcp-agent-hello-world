@@ -77,6 +77,14 @@ Replace:
 
 ## How tag-based deployment works
 
+### Release tag CI gate
+
+Release tags trigger the CD workflow, not standalone CI.
+
+When a `v*.*.*` tag is pushed, the CD workflow first calls the reusable CI workflow. The `deploy-dev` job depends on that CI job and only runs if CI succeeds.
+
+Standalone CI still runs for pull requests, pushes to `main`, and manual CI runs. It intentionally does not run directly on tag pushes, which avoids duplicate parallel CI and prevents CD from deploying before CI finishes.
+
 1. A tag matching `vX.Y.Z` is pushed.
 2. The workflow verifies that the tagged commit is on `main`.
 3. The workflow renders deployment config into `workspace-config.yml`.
