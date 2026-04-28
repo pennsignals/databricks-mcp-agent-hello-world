@@ -32,19 +32,27 @@ def test_bundle_uses_databricks_auth_configuration_for_workspace_hosts() -> None
     assert "host" not in bundle["targets"]["prod"]["workspace"]
 
 
-def test_jobs_use_current_python_wheel_entrypoints_and_library_glob() -> None:
+def test_jobs_use_current_python_wheel_entrypoints_and_environment_dependency_glob() -> None:
     jobs = _load_yaml(JOB_RESOURCE_PATH)["resources"]["jobs"]
     expected_library = bundle_wheel_glob(read_project_name())
 
-    init_task = jobs["init_storage_job"]["tasks"][0]["python_wheel_task"]
-    run_task = jobs["run_agent_task_job"]["tasks"][0]["python_wheel_task"]
-    init_library = jobs["init_storage_job"]["tasks"][0]["libraries"][0]["whl"]
-    run_library = jobs["run_agent_task_job"]["tasks"][0]["libraries"][0]["whl"]
+    init_job = jobs["init_storage_job"]
+    run_job = jobs["run_agent_task_job"]
+    init_task = init_job["tasks"][0]
+    run_task = run_job["tasks"][0]
+    init_wheel_task = init_task["python_wheel_task"]
+    run_wheel_task = run_task["python_wheel_task"]
+    init_dependencies = init_job["environments"][0]["spec"]["dependencies"]
+    run_dependencies = run_job["environments"][0]["spec"]["dependencies"]
 
-    assert init_task["entry_point"] == "run_init_storage"
-    assert run_task["entry_point"] == "run_agent_task"
-    assert init_library == expected_library
-    assert run_library == expected_library
+    assert init_task["environment_key"] == "default"
+    assert run_task["environment_key"] == "default"
+    assert "libraries" not in init_task
+    assert "libraries" not in run_task
+    assert init_wheel_task["entry_point"] == "run_init_storage"
+    assert run_wheel_task["entry_point"] == "run_agent_task"
+    assert expected_library in init_dependencies
+    assert expected_library in run_dependencies
 
 
 def test_bundle_does_not_define_placeholder_task_variable() -> None:

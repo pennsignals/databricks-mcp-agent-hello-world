@@ -5,8 +5,6 @@ resources:
       tasks:
         - task_key: run_init_storage
           environment_key: default
-          libraries:
-            - whl: ../dist/databricks_mcp_agent_hello_world-*.whl
           python_wheel_task:
             package_name: databricks_mcp_agent_hello_world
             entry_point: run_init_storage
@@ -17,13 +15,13 @@ resources:
         - environment_key: default
           spec:
             environment_version: "4"
+            dependencies:
+              - ../dist/databricks_mcp_agent_hello_world-*.whl
     run_agent_task_job:
       name: run_agent_task_job
       tasks:
         - task_key: run_agent_task
           environment_key: default
-          libraries:
-            - whl: ../dist/databricks_mcp_agent_hello_world-*.whl
           python_wheel_task:
             package_name: databricks_mcp_agent_hello_world
             entry_point: run_agent_task
@@ -38,3 +36,5 @@ resources:
         - environment_key: default
           spec:
             environment_version: "4"
+            dependencies:
+              - ../dist/databricks_mcp_agent_hello_world-*.whl
