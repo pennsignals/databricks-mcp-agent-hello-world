@@ -1,37 +1,38 @@
 # CD deployment with GitHub Actions and OIDC
 
-This template supports local/manual deployment and tag-driven CD deployment, but they serve different jobs. Use local deployment first to validate auth, config, and runtime behavior. Use GitHub Actions CD for repeatable shared `dev` deployments once the local flow is green.
+This template supports local/manual deployment and tag-driven CD deployment, but they serve different jobs. Use the `local` target first to validate auth, config, and runtime behavior. Use GitHub Actions CD for repeatable shared `dev` deployments once the local flow is green.
 
 The template now requires Python 3.12+ in its wheel metadata and intentionally no longer supports older Databricks runtimes that are still on Python 3.11. This keeps the template aligned with the latest Databricks serverless environment and current modern Databricks runtimes, so use Python 3.12 for local build tooling, validation, and release automation as well.
 
-This template includes both `dev` and `prod` bundle targets, but only `dev` CD deployment is implemented today. Production deployment automation is future work for either this template or downstream projects built from it.
+This template includes `local`, `dev`, and `prod` bundle targets, but only `dev` CD deployment is implemented today. Production deployment automation is future work for either this template or downstream projects built from it.
 
 ## When to use local deployment vs CD deployment
 
-| Topic | Local/manual deployment | CD deployment |
+| Topic | Local deployment | CD dev deployment |
 | --- | --- | --- |
-| Primary use case | First validation, debugging, and iterative local checks | Repeatable shared dev deployment |
-| Auth method | Local Databricks CLI profile auth | GitHub OIDC + Databricks service principal |
-| Who performs the deployment | A local operator using their CLI session | GitHub Actions |
+| Target | `local` | `dev` |
+| Deployer | Human developer | Databricks service principal |
+| Auth | Databricks CLI profile/local auth | GitHub OIDC |
+| Root path | User-scoped `~/.bundle/...` | Shared `/Shared/.bundle/.../dev` |
+| Intended use | Debugging and manual smoke testing | Repeatable shared non-prod deployment |
 | Which config file is used | `workspace-config.yml` that you manage locally | Generated `workspace-config.yml` rendered from `workspace-config.deploy.template.yml.j2` |
 | Where Databricks values are stored | Local `.env`, local CLI profile, and local config files | GitHub environment secrets in the `dev` environment |
-| Recommended for shared dev deployments? | No | Yes |
 
-Local/manual deployment remains the best path for initial debugging. CD deployment is the recommended repeatable deployment path for shared `dev` environments.
-
-For local/manual use, provide the same bundle variable for every bundle command, including `databricks bundle run`. For example, if you use `BUNDLE_VAR_dev_workspace_host` for `bundle validate` and `bundle deploy`, use it for `bundle run` too.
+Local/manual deployment remains the best path for initial debugging. CD deployment is the recommended repeatable deployment path for shared `dev` environments. Local users should deploy `local`, while GitHub Actions should deploy `dev`.
 
 ## Security model
 
 - The workflow uses GitHub OIDC and a Databricks service principal. No PATs are used.
 - All Databricks-specific values are stored as GitHub environment secrets.
-- This repository is public, so the Databricks workspace URL is treated as sensitive and is not committed.
+- This repository is public, so the Databricks workspace URL is treated as sensitive and is not committed to `databricks.yml`.
 - The workflow intentionally does not expose an environment URL in GitHub.
 - The workflow uses the `dev` GitHub environment so environment protections such as required reviewers can be applied.
 
 ## One-time setup in Databricks
 
 Create one Databricks service principal for `dev` CD, assign it to the `dev` workspace, and grant the minimum capabilities it needs to deploy bundle-managed jobs, own and update those jobs, use the configured serving endpoint, create and write to the configured Delta table target, and access the required Unity Catalog catalog and schema.
+
+The first successful `dev` deployment should be run by the service principal. If `dev` resources were previously created by a human user, delete those old jobs before switching CD ownership to the service principal. After that, GitHub CD should create and own the shared dev jobs.
 
 Create the GitHub OIDC federation policy with this exact command template:
 
@@ -109,9 +110,9 @@ If `DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, `DEV_LLM_ENDPOINT_NAME`, or `DEV_A
 
 If deployment or job execution fails with permission errors, verify that the Databricks service principal can deploy bundle-managed jobs, use the serving endpoint, and access the configured Unity Catalog objects and Delta table target.
 
-### Bundle validate fails because `prod` host is not configured
+### Bundle validate uses the wrong workspace
 
-The template keeps a `prod` target for downstream use, but this PR only implements `dev` CD. If someone explicitly validates or deploys `prod`, they must provide `BUNDLE_VAR_prod_workspace_host` themselves.
+The bundle does not store workspace hosts in `databricks.yml`. Local validation uses local Databricks auth, and GitHub CD uses the `dev` environment secrets plus OIDC.
 
 The current CD flow does not handle schema migrations, prod deployment, rollback, or compute model changes away from the current serverless pattern.
 

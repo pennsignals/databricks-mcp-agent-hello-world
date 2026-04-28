@@ -273,35 +273,23 @@ Do this only after the local flow is green.
 
 Local deployment remains supported for first validation and debugging. For shared, repeatable `dev` deployments, GitHub Actions CD with OIDC is the recommended path. See [CD deployment with GitHub Actions and OIDC](docs/CD_DEPLOYMENT.md).
 
+The bundle targets intentionally separate personal testing from shared automation:
+
+- `local`: personal developer deployment, run by an individual user
+- `dev`: shared GitHub Actions CD deployment, run by a service principal only
+- `prod`: future production deployment, run by a service principal only
+
+Local developers should use `local`. GitHub Actions uses `dev`. The `prod` target exists as a template placeholder for future production automation. Local developers should not deploy `dev` or `prod`.
+
+No workspace hosts are stored in `databricks.yml`. Local authentication comes from your Databricks CLI auth configuration, such as a profile or `DATABRICKS_HOST`. GitHub CD gets `DATABRICKS_HOST` from the `dev` GitHub environment and authenticates with OIDC.
+
 Before you deploy, make these additional Databricks-specific updates:
 
-### 1) Provide your workspace host for the target you are deploying
-
-The template keeps both `dev` and `prod` workspace hosts out of `databricks.yml` and expects you to provide them at deploy time with bundle variables, either through `--var` or `BUNDLE_VAR_*`.
-
-For local/manual `dev` validation or deployment:
-
-```bash
-env \
-  BUNDLE_VAR_dev_workspace_host=https://<your-workspace-host> \
-  databricks bundle validate --target dev
-```
-
-```bash
-env \
-  BUNDLE_VAR_dev_workspace_host=https://<your-workspace-host> \
-  databricks bundle deploy --target dev
-```
-
-If you want to validate or deploy `prod` manually later, provide `BUNDLE_VAR_prod_workspace_host` yourself in the same way.
-
-CD deployment supplies the `dev` value from GitHub environment secrets.
-
-### 2) Point `storage.agent_events_table` at a writable Delta target
+### 1) Point `storage.agent_events_table` at a writable Delta target
 
 In `workspace-config.yml`, change `storage.agent_events_table` to a **catalog and schema you can create and write to** for deployed Databricks runs.
 
-### 3) Confirm your deployment permissions and compute model
+### 2) Confirm your deployment permissions and compute model
 
 You need permission to deploy bundles and run jobs in your target workspace.
 
@@ -315,21 +303,13 @@ This repo deploys **two Python wheel jobs**:
 ### Deploy commands
 
 ```bash
-env \
-  BUNDLE_VAR_dev_workspace_host=https://<your-workspace-host> \
-  databricks bundle validate --target dev
+databricks bundle validate --target local
 
-env \
-  BUNDLE_VAR_dev_workspace_host=https://<your-workspace-host> \
-  databricks bundle deploy --target dev
+databricks bundle deploy --target local
 
-env \
-  BUNDLE_VAR_dev_workspace_host=https://<your-workspace-host> \
-  databricks bundle run --target dev init_storage_job
+databricks bundle run --target local init_storage_job
 
-env \
-  BUNDLE_VAR_dev_workspace_host=https://<your-workspace-host> \
-  databricks bundle run --target dev run_agent_task_job
+databricks bundle run --target local run_agent_task_job
 ```
 
 Run `init_storage_job` only after the bundle has been deployed. It initializes the remote Delta table inside Databricks before the first remote workload run.
@@ -346,7 +326,7 @@ The deployed wheel tasks intentionally use **separate Databricks job entry point
 - `run_init_storage` loads settings, calls the shared bootstrap logic, and exits non-zero on mismatch
 - the runtime job passes `--config-path`, `--task-input-file`, and `--output` through `python_wheel_task.parameters`, and the wrapper forwards `sys.argv[1:]` into the existing `argparse` command handler
 
-The deployed jobs install the **built wheel artifact** via `libraries.whl: ../dist/databricks_mcp_agent_hello_world-*.whl`. That keeps the bundle pointed at the artifact that was actually built instead of a guessed filename under `${workspace.root_path}/artifacts/.internal/...whl`.
+The deployed jobs install the **built wheel artifact** through job environment dependencies such as `../dist/databricks_mcp_agent_hello_world-*.whl`. That keeps serverless wheel jobs compatible with Databricks job environments and points the bundle at the artifact that was actually built.
 
 Package versions are derived from Git state with `hatch-vcs`. Release tags like `v1.2.3` build `1.2.3`, tagged post-release commits build SCM-derived development versions, and no-tag repos bootstrap through `scripts/build_wheel.py` as `0.1.0.dev...+g...` builds so local/manual deploys stay visibly non-release and traceable.
 
@@ -378,7 +358,7 @@ When Spark is available, the project uses the Delta event store configured in `w
 
 - `storage.agent_events_table`
 
-Before you rely on deployed runs, make sure `storage.agent_events_table` points to a writable location, then run `databricks bundle run --target dev init_storage_job` with the same `BUNDLE_VAR_dev_workspace_host` value used for validate and deploy.
+Before you rely on deployed runs, make sure `storage.agent_events_table` points to a writable location, then run `databricks bundle run --target local init_storage_job` for local deployment or let GitHub CD run `databricks bundle run --target dev init_storage_job` for shared dev deployment.
 
 ## Persistence model
 
@@ -413,11 +393,9 @@ Usually keep these framework files intact unless you are intentionally changing 
 
 ## Troubleshooting
 
-### `databricks bundle validate` fails because a workspace host is missing
+### `databricks bundle validate` uses the wrong workspace
 
-You did not provide the required bundle variable for the target you are validating or deploying.
-
-Fix: pass `BUNDLE_VAR_dev_workspace_host` for `dev`, or `BUNDLE_VAR_prod_workspace_host` for `prod`.
+The bundle does not store workspace hosts in `databricks.yml`. Local validation uses your Databricks CLI auth configuration, such as a profile or `DATABRICKS_HOST`; GitHub CD uses the `dev` environment secrets and OIDC.
 
 ### `preflight` says `DATABRICKS_CONFIG_PROFILE` is missing
 

@@ -65,12 +65,20 @@ When you extend config, keep `src/databricks_mcp_agent_hello_world/config.py` as
 
 Downstream projects should customize the GitHub environment secrets, the serving endpoint name, the Delta table target, and the bundle name for their own workspace layout and naming. If you need production automation later, add a separate `prod` GitHub environment, a `prod` OIDC federation policy, and a gated prod workflow or job instead of overloading the starter `dev` flow.
 
+Keep or intentionally customize the target model:
+
+- `local`: personal developer target
+- `dev`: shared service-principal-owned non-prod target
+- `prod`: future service-principal-owned production target
+
+Keep human local testing on `local`, configure GitHub OIDC for `dev`, create separate secrets and tables for `dev`, and add prod CD only when you have a real production deployment process. Do not hardcode service principal IDs, user emails, or other deployer-specific identities in the template.
+
 ## Step 7 — Verify the full workflow
 
 Use this checklist:
 
 1. run preflight locally
-2. if you are validating Databricks persistence, run `databricks bundle run --target <target> init_storage_job`
+2. if you are validating Databricks persistence locally, run `databricks bundle run --target local init_storage_job`
 3. discover tools locally
 4. run the agent locally
 5. run evals locally
