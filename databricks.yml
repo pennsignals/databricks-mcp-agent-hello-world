@@ -1,6 +1,8 @@
 # Declarative Automation Bundle for a reusable Python-wheel Databricks agent project.
-# This template retains both dev and prod targets.
-# Only dev CD deployment is implemented by the template today.
+# This template supports:
+# - local: personal developer deployment
+# - dev: shared service-principal-owned non-prod CD deployment
+# - prod: future service-principal-owned production deployment
 
 bundle:
   # TEMPLATE_CUSTOMIZE_HERE
@@ -15,8 +17,13 @@ artifacts:
     build: python scripts/build_wheel.py
 
 targets:
-  dev:
+  local:
+    mode: development
     default: true
+    workspace:
+      root_path: ~/.bundle/${bundle.name}/${bundle.target}
+
+  dev:
     workspace:
       root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
     presets:
@@ -27,3 +34,5 @@ targets:
     mode: production
     workspace:
       root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
+    git:
+      branch: main
