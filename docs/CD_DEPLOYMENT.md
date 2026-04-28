@@ -86,7 +86,7 @@ When a `v*.*.*` tag is pushed, the CD workflow first calls the reusable CI workf
 Standalone CI still runs for pull requests, pushes to `main`, and manual CI runs. It intentionally does not run directly on tag pushes, which avoids duplicate parallel CI and prevents CD from deploying before CI finishes.
 
 1. A tag matching `vX.Y.Z` is pushed.
-2. The workflow verifies that the tagged commit is on `main`.
+2. After CI succeeds, the workflow verifies that the tagged commit is on `main`.
 3. The workflow renders deployment config into `workspace-config.yml`.
 4. The workflow validates the bundle.
 5. The workflow deploys the `dev` bundle.
