@@ -236,7 +236,7 @@ dev_run_agent_task_job
 
 The exact names depend on the bundle target and configured name prefixes.
 
-Using the service principal as the initial creator avoids ownership mismatches between human-created jobs and service-principal-managed bundle deployments. Databricks job permissions distinguish view, run-management, manage, and owner privileges. See [Databricks job permissions](https://docs.databricks.com/aws/en/security/auth/access-control/jobs-acl).
+Using the service principal as the initial creator avoids ownership mismatches between human-created jobs and service-principal-managed bundle deployments. Databricks job permissions distinguish view, run-management, manage, and owner privileges. See [Databricks job permissions](https://docs.databricks.com/aws/en/jobs/privileges).
 
 ## 9. Understand bundle resource visibility
 
