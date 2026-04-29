@@ -271,7 +271,7 @@ A healthy first pass looks like this:
 
 Do this only after the local flow is green.
 
-Local deployment remains supported for first validation and debugging. For shared, repeatable `dev` deployments, GitHub Actions CD with OIDC is the recommended path. See [CD deployment with GitHub Actions and OIDC](docs/CD_DEPLOYMENT.md).
+Local deployment remains supported for first validation and debugging. For shared, repeatable `dev` deployments, GitHub Actions CD with OIDC is the recommended path. See [CD deployment with GitHub Actions and OIDC](docs/CD_DEPLOYMENT.md). For Databricks administrator setup, including service principal creation, workspace assignment, GitHub OIDC federation policy, serving endpoint permissions, and Unity Catalog grants, see [Databricks Admin Setup](docs/DATABRICKS_ADMIN_SETUP.md).
 
 The bundle targets intentionally separate personal testing from shared automation:
 

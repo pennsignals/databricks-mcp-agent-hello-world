@@ -35,31 +35,28 @@ Downstream apps should not print secrets, credentials, sensitive prompts, sensit
 
 ## One-time setup in Databricks
 
-Create one Databricks service principal for `dev` CD, assign it to the target Databricks workspace, and grant the minimum capabilities it needs to deploy bundle-managed jobs, own and update those jobs, use the configured serving endpoint, create and write to the configured Delta table target, and access the required Unity Catalog catalog and schema.
+A Databricks administrator must create and configure the service principal, GitHub OIDC federation policy, workspace access, serving endpoint permissions, and Unity Catalog grants before CD can run.
+
+See [Databricks Admin Setup](./DATABRICKS_ADMIN_SETUP.md) for the reproducible admin checklist.
+
+After admin setup, configure the GitHub `dev` environment secrets:
+
+- `DATABRICKS_HOST`
+- `DATABRICKS_CLIENT_ID`
+- `DEV_LLM_ENDPOINT_NAME`
+- `DEV_AGENT_EVENTS_TABLE`
 
 The first successful `dev` deployment should be run by the service principal. If `dev` resources were previously created by a human user, delete those old jobs before switching CD ownership to the service principal. After that, GitHub CD should create and own the shared dev jobs.
 
 The `dev` and `prod` bundle targets grant `group_name: users` `CAN_VIEW` so Databricks workspace users can see shared jobs, run status, run history, and run details. This does not grant deployment control. Do not grant `users` `CAN_MANAGE` unless the workspace intentionally wants all users to manage the bundle-managed resources.
 
-Create the GitHub OIDC federation policy with this exact command template:
+### Expected local validation warning
 
-```bash
-databricks account service-principal-federation-policy create <SERVICE_PRINCIPAL_NUMERIC_ID> \
-  --policy-id github-actions-dev \
-  --description "GitHub Actions dev deploys for <ORG>/<REPO>" \
-  --json '{
-    "oidc_policy": {
-      "issuer": "https://token.actions.githubusercontent.com",
-      "subject": "repo:<ORG>/<REPO>:environment:dev"
-    }
-  }'
-```
+When validating `dev` or `prod` locally as a human user, Databricks may recommend explicitly adding the current deployment identity with `CAN_MANAGE`.
 
-Replace:
+This template intentionally does not hardcode a deployment user, service principal UUID, or organization-specific deployer group. Shared targets are intended to be deployed by the configured service principal through GitHub CD.
 
-- `<SERVICE_PRINCIPAL_NUMERIC_ID>` with the Databricks account-level numeric service principal ID
-- `<ORG>` with the GitHub org or user
-- `<REPO>` with the GitHub repository name
+Downstream private repos may add their actual deployer identity or deployer group with `CAN_MANAGE` if they want fully explicit bundle-managed permissions.
 
 ## One-time setup in GitHub
 

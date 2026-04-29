@@ -65,6 +65,14 @@ When you extend config, keep `src/databricks_mcp_agent_hello_world/config.py` as
 
 Downstream projects should customize the GitHub environment secrets, the serving endpoint name, the Delta table target, and the bundle name for their own workspace layout and naming. If you need production automation later, add a separate `prod` GitHub environment, a `prod` OIDC federation policy, and a gated prod workflow or job instead of overloading the starter `dev` flow.
 
+For a new downstream project, ask a Databricks administrator to complete [Databricks Admin Setup](./DATABRICKS_ADMIN_SETUP.md) for the new GitHub repo and environment pair. The OIDC federation policy subject is repo-specific and environment-specific:
+
+```text
+repo:<github-org>/<github-repo>:environment:<github-environment>
+```
+
+Do not reuse another project's service principal, OIDC federation policy, serving endpoint grant, or events table without intentionally reviewing isolation requirements.
+
 Keep or intentionally customize the target model:
 
 - `local`: personal developer target using `~/.bundle/${bundle.name}/${bundle.target}`
