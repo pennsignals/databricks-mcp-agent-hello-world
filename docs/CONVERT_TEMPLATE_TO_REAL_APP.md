@@ -23,7 +23,7 @@ Edit these files:
 - [`src/databricks_mcp_agent_hello_world/app/tools.py`](../src/databricks_mcp_agent_hello_world/app/tools.py)
 - [`src/databricks_mcp_agent_hello_world/app/registry.py`](../src/databricks_mcp_agent_hello_world/app/registry.py)
 
-Populate `description`, `capability_tags`, `side_effect_level`, `data_domains`, and `example_uses` carefully.
+For each local tool, populate only the fields the runtime uses: `name`, `description`, `input_schema`, and `fn`. The local adapter turns those fields into a Databricks/OpenAI-compatible function spec.
 
 Do not replace LLM-driven tool selection with manual Python-side filtering or deterministic routing. The runtime boundary and tool-selection model are described in [Architecture](./ARCHITECTURE.md).
 

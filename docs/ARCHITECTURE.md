@@ -35,7 +35,7 @@ examples/demo_run_task.json
   -> provider.list_tools(...)
   -> model receives the full discovered tool inventory
   -> generic runner loop
-  -> provider.call_tool(...)
+  -> runtime_tool.execute(...)
   -> runtime emits execution events incrementally
   -> write_event_rows(...)
 ```
@@ -48,17 +48,30 @@ The runtime loop in [`src/databricks_mcp_agent_hello_world/runner/agent_runner.p
 
 There is no compile step. There is no task-specific hard-coded allowlist. There is no deterministic prefilter layer. The model decides which tools to call, and the application only validates that a requested tool actually exists before executing it.
 
-This matches the standard tool-calling pattern where the model is given tools and can decide whether to call them. The intended runtime model is provider-based discovery plus provider-based execution rather than split provider and executor routing.
+This matches the standard tool-calling pattern where the model is given tools and can decide whether to call them. The intended runtime model is provider-based discovery of `RuntimeTool` objects, followed by direct execution of the selected tool's `execute` callable.
 
 ## Provider model
 
-There should be one canonical tool-provider resolution point in the runtime. `local_python` is the working runtime today. `managed_mcp` is retained as a near-term extension point and is intentionally present in the codebase, but it is not implemented yet.
+There should be one canonical tool-provider resolution point in the runtime. `local_python` exposes the built-in repo-local Python tools. `databricks_mcp` uses Databricks' `McpServerToolkit` to discover tools from one configured Databricks MCP server at runtime.
 
 That means:
 
-- the provider advertises the discovered tool inventory
-- the provider boundary is also the execution seam for tool calls
+- the provider advertises the discovered `RuntimeTool` inventory
+- each `RuntimeTool` contains the model-visible function spec and execution callable
 - unrelated modules should not branch separately on provider type
+
+The internal runtime tool shape is intentionally small:
+
+```python
+RuntimeTool(
+    name="tool_name",
+    spec={...},      # Databricks/OpenAI-compatible function tool spec
+    execute=fn,      # called with parsed model arguments
+    source=ToolSource(type="local_python" | "databricks_mcp", id="..."),
+)
+```
+
+Tool source metadata is for logging and discovery output only. Fields that do not affect model-visible specs, execution, config, tests, or traceability are kept out of the runtime model.
 
 ## Config loading contract
 
@@ -66,6 +79,9 @@ That means:
 
 - `tool_provider_type` and `databricks_config_profile` are the canonical YAML keys
 - `provider_type` and `databricks_cli_profile` are accepted as deprecated aliases and produce warnings
+- `tool_provider_type` supports `local_python` and `databricks_mcp`
+- `databricks_mcp` requires `mcp.server.url`; `mcp.server.name` defaults to `databricks_mcp`
+- the old `managed_mcp` value fails fast with a replacement message
 - deprecated, stale, or unknown config keys do not fail config load by themselves
 - `preflight` consumes the same config warning list instead of maintaining a second set of config rules
 

@@ -10,7 +10,7 @@ This template is intentionally:
 
 This repo is for **autonomous batch-style agent workflows**, not chat apps, Databricks Apps, or long-running interactive services.
 
-For the current MVP, **`local_python` is the only working tool runtime**. `managed_mcp` is retained as a near-term extension point and is intentionally present in the codebase, but it is not implemented yet.
+The runtime supports local Python tools through `local_python` and Databricks MCP tools through `databricks_mcp`. Both providers expose the same internal `RuntimeTool` shape to the agent loop.
 
 On a successful first pass, you should be able to authenticate locally to Databricks, configure a Databricks-hosted LLM endpoint, discover the built-in example app tools, run the example app locally, verify that the model can choose and call tools at runtime, and deploy the same workflow as a Python wheel Job.
 
@@ -96,6 +96,16 @@ tool_provider_type: local_python
 llm_endpoint_name: <your-serving-endpoint-name>
 ```
 
+To discover tools from one Databricks MCP server instead of the built-in local tools:
+
+```yaml
+tool_provider_type: databricks_mcp
+mcp:
+  server:
+    name: uc_functions
+    url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
+```
+
 You can also override `llm_endpoint_name` from `.env` with `LLM_ENDPOINT_NAME`, but keeping the main value in `workspace-config.yml` is the clearest beginner path.
 
 ### 3) Leave storage on the local default for your first pass
@@ -169,7 +179,7 @@ When Spark is unavailable locally, `preflight` reports that local JSONL fallback
 discover-tools --config-path workspace-config.yml
 ```
 
-For the built-in example app, you should see **5 tools**. The discovery output may also show metadata such as side-effect level, tags, and domains for each tool.
+For the built-in example app, you should see **5 tools**. The discovery output shows each tool's source and Databricks/OpenAI-compatible function spec summary.
 
 ### Step 4: run the demo task
 
@@ -435,7 +445,7 @@ Also make sure the serving endpoint supports the tool/function-calling pattern t
 
 ### selected tools are wrong
 
-Check the wording in [`examples/demo_run_task.json`](examples/demo_run_task.json) and the metadata in [`src/databricks_mcp_agent_hello_world/app/registry.py`](src/databricks_mcp_agent_hello_world/app/registry.py). Task clarity and metadata quality directly affect runtime tool selection.
+Check the wording in [`examples/demo_run_task.json`](examples/demo_run_task.json) and the local tool descriptions in [`src/databricks_mcp_agent_hello_world/app/registry.py`](src/databricks_mcp_agent_hello_world/app/registry.py). Task clarity and tool descriptions directly affect runtime tool selection.
 
 ### Local logs say Spark is unavailable
 
@@ -451,9 +461,9 @@ Fix: run `init_storage_job`.
 
 ### `preflight` fails for `managed_mcp`
 
-`managed_mcp` is still a placeholder and is not implemented yet as a working runtime.
+`managed_mcp` has been replaced by `databricks_mcp`.
 
-Fix: use `local_python` or implement the `managed_mcp` feature.
+Fix: use `local_python`, or configure `databricks_mcp` with `mcp.server.url` and `mcp.server.name`.
 
 ### The remote init job fails with a schema mismatch
 

@@ -7,6 +7,13 @@
 tool_provider_type: local_python
 llm_endpoint_name: your-llm-endpoint-name
 
+# To use one Databricks MCP server instead of the built-in local Python tools:
+# tool_provider_type: databricks_mcp
+# mcp:
+#   server:
+#     name: uc_functions
+#     url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
+
 storage:
   # One canonical event store backs both local JSONL and Databricks Delta persistence.
   # On Databricks compute, the runtime appends event rows to this Delta table.
