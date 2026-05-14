@@ -190,7 +190,7 @@ For a manual Databricks MCP smoke test, create a separate config such as `worksp
 discover-tools --config-path workspace-config.databricks-mcp.yml
 ```
 
-Expected result: provider type is `databricks_mcp`, provider id is the configured server name, at least one tool is discovered, and each discovered MCP tool shows source `databricks_mcp/<server-name>`. This check requires real workspace auth and is intentionally not part of CI.
+Expected result: provider type is `databricks_mcp`, provider id is the configured server name, and the command completes successfully. If the configured catalog/schema contains MCP-exposed tools, they should appear with source `databricks_mcp/<server-name>`. This check requires real workspace auth and is intentionally not part of CI.
 
 ### Step 4: run the demo task
 
