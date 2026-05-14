@@ -13,7 +13,6 @@ from .storage.spark import get_spark_session
 DEFAULT_CONFIG_PATH = "workspace-config.yml"
 DEFAULT_PROMPT_DIR = Path(__file__).resolve().parent / "prompts"
 FORBIDDEN_LOCAL_DOTENV_KEYS = {
-    "DATABRICKS_HOST",
     "DATABRICKS_TOKEN",
     "DATABRICKS_CLIENT_ID",
     "DATABRICKS_CLIENT_SECRET",
@@ -127,7 +126,7 @@ def load_dotenv_values(config_path: str | None = None) -> tuple[str | None, dict
     if forbidden_keys:
         keys = ", ".join(forbidden_keys)
         raise ValueError(
-            "Local .env must not contain direct Databricks credentials for the supported "
+            "Local .env must not contain forbidden Databricks auth material for the supported "
             f"quickstart path: {keys}"
         )
     return str(dotenv_path), values

@@ -75,11 +75,34 @@ def test_build_settings_uses_dotenv_for_optional_values_when_yaml_omits_them(
     assert settings.log_level == "DEBUG"
 
 
-def test_load_dotenv_rejects_direct_databricks_credentials(tmp_path: Path) -> None:
+def test_databricks_host_allowed_in_local_dotenv(tmp_path: Path) -> None:
     config_path = write_workspace_config(tmp_path)
-    (tmp_path / ".env").write_text("DATABRICKS_TOKEN=dapi-secret\n", encoding="utf-8")
+    (tmp_path / ".env").write_text(
+        "DATABRICKS_HOST=https://example.cloud.databricks.com\n",
+        encoding="utf-8",
+    )
 
-    with pytest.raises(ValueError, match="must not contain direct Databricks credentials"):
+    settings = load_settings(str(config_path))
+
+    assert settings.workspace_host == "https://example.cloud.databricks.com"
+
+
+@pytest.mark.parametrize(
+    "forbidden_key",
+    [
+        "DATABRICKS_TOKEN",
+        "DATABRICKS_CLIENT_ID",
+        "DATABRICKS_CLIENT_SECRET",
+    ],
+)
+def test_load_dotenv_rejects_forbidden_databricks_auth_material(
+    tmp_path: Path,
+    forbidden_key: str,
+) -> None:
+    config_path = write_workspace_config(tmp_path)
+    (tmp_path / ".env").write_text(f"{forbidden_key}=forbidden\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must not contain forbidden Databricks auth material"):
         load_dotenv_values(str(config_path))
 
 
