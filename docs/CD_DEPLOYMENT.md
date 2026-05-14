@@ -25,8 +25,9 @@ For `dev` and `prod`, the bundle root is `/Workspace/Users/${workspace.current_u
 ## Security model
 
 - The workflow uses GitHub OIDC and a Databricks service principal. No PATs are used.
-- All Databricks-specific values are stored as GitHub environment secrets.
-- This repository is public, so the Databricks workspace URL is treated as sensitive and is not committed to `databricks.yml`.
+- All Databricks-specific values are stored as GitHub environment secrets or protected environment variables.
+- This repository is public, so the Databricks workspace URL is treated as sensitive and is not committed to `databricks.yml` or other repo config files.
+- `DATABRICKS_HOST` is allowed in local `.env` files and CI/CD settings, but real workspace hostnames should not be committed.
 - The workflow intentionally does not expose an environment URL in GitHub.
 - The workflow uses the `dev` GitHub environment so environment protections such as required reviewers can be applied.
 - The workflow suppresses Databricks job stdout and stderr in GitHub Actions logs because public repository workflow logs may be visible to public readers.

@@ -81,11 +81,17 @@ For the smoothest first pass, start with the local-only setup below and leave de
 
 ```dotenv
 DATABRICKS_CONFIG_PROFILE=DEFAULT
+DATABRICKS_HOST=https://your-workspace.cloud.databricks.com
 ```
 
 If you use a different profile name, put that value here instead.
 `DATABRICKS_CONFIG_PROFILE` is the canonical runtime setting for selecting your
 Databricks CLI profile.
+
+`DATABRICKS_HOST` may also live in your local `.env` file or in CI/CD
+environment variables. It is not a credential, but real workspace hostnames
+should stay out of committed YAML, examples, and code. The repo-local `.env`
+file is intended for local, untracked configuration and must not be committed.
 
 ### 2) Set the main runtime config in `workspace-config.yml`
 
@@ -302,7 +308,7 @@ The bundle targets intentionally separate personal testing from shared automatio
 
 Local developers should use `local`. GitHub Actions uses `dev`. The `prod` target exists as a template placeholder for future production automation. Local developers should not deploy `dev` or `prod`.
 
-No workspace hosts are stored in `databricks.yml`. Local authentication comes from your Databricks CLI auth configuration, such as a profile or `DATABRICKS_HOST`. GitHub CD gets `DATABRICKS_HOST` from the `dev` GitHub environment and authenticates with OIDC.
+No workspace hosts are stored in `databricks.yml`. Local authentication comes from your Databricks CLI auth configuration, such as a profile or local `.env` `DATABRICKS_HOST`. GitHub CD gets `DATABRICKS_HOST` from the `dev` GitHub environment and authenticates with OIDC.
 
 For GitHub CD, `${workspace.current_user.userName}` resolves to the authenticated Databricks service principal, so shared `dev` bundle files and deployment state are scoped to that deployer identity instead of a workspace-wide shared folder.
 
