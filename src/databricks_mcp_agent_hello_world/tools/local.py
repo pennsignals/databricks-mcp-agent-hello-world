@@ -17,13 +17,15 @@ class LocalToolDefinition:
 
 def local_definition_to_runtime_tool(defn: LocalToolDefinition) -> RuntimeTool:
     _validate_local_tool_definition(defn)
+    name = defn.name.strip()
+    description = defn.description.strip()
     return RuntimeTool(
-        name=defn.name,
+        name=name,
         spec={
             "type": "function",
             "function": {
-                "name": defn.name,
-                "description": defn.description,
+                "name": name,
+                "description": description,
                 "parameters": defn.input_schema,
             },
         },

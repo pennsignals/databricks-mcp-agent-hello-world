@@ -92,6 +92,17 @@ def test_models_and_schema_additional_validation_paths() -> None:
                 fn=None,
             )
         )
+    normalized_tool = local_definition_to_runtime_tool(
+        LocalToolDefinition(
+            name=" sample_tool ",
+            description=" Sample description ",
+            input_schema={"type": "object", "properties": {}},
+            fn=lambda: {},
+        )
+    )
+    assert normalized_tool.name == "sample_tool"
+    assert normalized_tool.spec["function"]["name"] == "sample_tool"
+    assert normalized_tool.spec["function"]["description"] == "Sample description"
 
     with pytest.raises(ValueError, match="Unsupported Arrow type"):
         schema.arrow_field_to_spark_sql_type(pa.field("bad", pa.bool_(), nullable=False))

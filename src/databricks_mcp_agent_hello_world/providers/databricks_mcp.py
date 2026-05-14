@@ -21,6 +21,7 @@ class DatabricksMCPToolProvider(ToolProvider):
         self.toolkit = McpServerToolkit(
             url=settings.mcp.server.url,
             name=settings.mcp.server.name,
+            workspace_client=_build_workspace_client(settings),
         )
 
     def list_tools(self) -> list[RuntimeTool]:
@@ -33,3 +34,11 @@ class DatabricksMCPToolProvider(ToolProvider):
             )
             for tool in self.toolkit.get_tools()
         ]
+
+
+def _build_workspace_client(settings: Settings):
+    from databricks.sdk import WorkspaceClient
+
+    if settings.databricks_config_profile:
+        return WorkspaceClient(profile=settings.databricks_config_profile)
+    return WorkspaceClient()

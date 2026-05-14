@@ -85,11 +85,29 @@ def test_provider_factory_rejects_old_managed_mcp_value() -> None:
         raise AssertionError("managed_mcp should fail fast")
 
 
-def test_databricks_mcp_provider_adapts_toolkit_tools(monkeypatch) -> None:
+def _install_fake_databricks_mcp_modules(monkeypatch):
+    captured = {
+        "workspace_client_calls": [],
+        "toolkit_calls": [],
+    }
+
+    class FakeWorkspaceClient:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = kwargs
+            captured["workspace_client_calls"].append(kwargs)
+
     class FakeMcpServerToolkit:
-        def __init__(self, *, url, name) -> None:
+        def __init__(self, *, url, name, workspace_client) -> None:
             self.url = url
             self.name = name
+            self.workspace_client = workspace_client
+            captured["toolkit_calls"].append(
+                {
+                    "url": url,
+                    "name": name,
+                    "workspace_client": workspace_client,
+                }
+            )
 
         def get_tools(self):
             return [
@@ -100,13 +118,24 @@ def test_databricks_mcp_provider_adapts_toolkit_tools(monkeypatch) -> None:
                 )
             ]
 
+    databricks_module = ModuleType("databricks")
+    databricks_module.__path__ = []
+    sdk_module = ModuleType("databricks.sdk")
+    sdk_module.WorkspaceClient = FakeWorkspaceClient
     openai_module = ModuleType("databricks_openai")
     openai_module.McpServerToolkit = FakeMcpServerToolkit
+    monkeypatch.setitem(sys.modules, "databricks", databricks_module)
+    monkeypatch.setitem(sys.modules, "databricks.sdk", sdk_module)
     monkeypatch.setitem(sys.modules, "databricks_openai", openai_module)
+    return captured
 
+
+def test_databricks_mcp_provider_passes_profile_workspace_client(monkeypatch) -> None:
+    captured = _install_fake_databricks_mcp_modules(monkeypatch)
     provider = DatabricksMCPToolProvider(
         make_settings(
             tool_provider_type="databricks_mcp",
+            databricks_config_profile="dev",
             mcp=MCPConfig(
                 server=MCPServerConfig(
                     name="uc_functions",
@@ -123,6 +152,34 @@ def test_databricks_mcp_provider_adapts_toolkit_tools(monkeypatch) -> None:
     assert tools[0].source.type == "databricks_mcp"
     assert tools[0].source.id == "uc_functions"
     assert tools[0].execute(value="x") == {"arguments": {"value": "x"}}
+    assert captured["workspace_client_calls"] == [{"profile": "dev"}]
+    assert captured["toolkit_calls"] == [
+        {
+            "url": "https://example.cloud.databricks.com/api/2.0/mcp/functions/main/demo",
+            "name": "uc_functions",
+            "workspace_client": provider.toolkit.workspace_client,
+        }
+    ]
+
+
+def test_databricks_mcp_provider_uses_default_workspace_client_without_profile(monkeypatch) -> None:
+    captured = _install_fake_databricks_mcp_modules(monkeypatch)
+
+    provider = DatabricksMCPToolProvider(
+        make_settings(
+            tool_provider_type="databricks_mcp",
+            databricks_config_profile=None,
+            mcp=MCPConfig(
+                server=MCPServerConfig(
+                    name="uc_functions",
+                    url="https://example.cloud.databricks.com/api/2.0/mcp/functions/main/demo",
+                )
+            ),
+        )
+    )
+
+    assert captured["workspace_client_calls"] == [{}]
+    assert captured["toolkit_calls"][0]["workspace_client"] is provider.toolkit.workspace_client
 
 
 def test_databricks_mcp_provider_requires_server_config() -> None:
