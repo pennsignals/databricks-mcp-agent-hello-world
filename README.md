@@ -99,12 +99,15 @@ llm_endpoint_name: <your-serving-endpoint-name>
 To discover tools from one Databricks MCP server instead of the built-in local tools:
 
 ```yaml
+databricks_config_profile: DEFAULT
 tool_provider_type: databricks_mcp
 mcp:
   server:
     name: uc_functions
     url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
 ```
+
+When `databricks_config_profile` is set, the MCP provider uses that profile through the Databricks `WorkspaceClient`. Without it, the provider uses Databricks SDK default authentication.
 
 You can also override `llm_endpoint_name` from `.env` with `LLM_ENDPOINT_NAME`, but keeping the main value in `workspace-config.yml` is the clearest beginner path.
 
@@ -180,6 +183,14 @@ discover-tools --config-path workspace-config.yml
 ```
 
 For the built-in example app, you should see **5 tools**. The discovery output shows each tool's source and Databricks/OpenAI-compatible function spec summary.
+
+For a manual Databricks MCP smoke test, create a separate config such as `workspace-config.databricks-mcp.yml` with `tool_provider_type: databricks_mcp`, `databricks_config_profile`, and `mcp.server` set, then run:
+
+```bash
+discover-tools --config-path workspace-config.databricks-mcp.yml
+```
+
+Expected result: provider type is `databricks_mcp`, provider id is the configured server name, at least one tool is discovered, and each discovered MCP tool shows source `databricks_mcp/<server-name>`. This check requires real workspace auth and is intentionally not part of CI.
 
 ### Step 4: run the demo task
 
