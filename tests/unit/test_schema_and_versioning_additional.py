@@ -5,13 +5,16 @@ from types import SimpleNamespace
 
 import pyarrow as pa
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 import databricks_mcp_agent_hello_world as package_root
 from databricks_mcp_agent_hello_world.config import collect_config_warnings, load_yaml_config
 from databricks_mcp_agent_hello_world.devtools.wheel_build import discover_built_wheel
-from databricks_mcp_agent_hello_world.models import ToolSpec
 from databricks_mcp_agent_hello_world.storage import schema
+from databricks_mcp_agent_hello_world.tools.local import (
+    LocalToolDefinition,
+    local_definition_to_runtime_tool,
+)
 from databricks_mcp_agent_hello_world.versioning import (
     bundle_wheel_glob,
     read_project_name,
@@ -53,21 +56,41 @@ def test_package_root_run_agent_task_json_output(capsys, monkeypatch) -> None:
 
 
 def test_models_and_schema_additional_validation_paths() -> None:
-    with pytest.raises(ValidationError, match="tool_name must not be empty"):
-        ToolSpec(
-            tool_name="   ",
-            description="desc",
-            input_schema={"type": "object", "properties": {}},
-            provider_type="local_python",
-            provider_id="builtin_tools",
+    with pytest.raises(ValueError, match="name must not be empty"):
+        local_definition_to_runtime_tool(
+            LocalToolDefinition(
+                name="   ",
+                description="desc",
+                input_schema={"type": "object", "properties": {}},
+                fn=lambda: {},
+            )
         )
-    with pytest.raises(ValidationError, match="type=object"):
-        ToolSpec(
-            tool_name="tool",
-            description="desc",
-            input_schema={"type": "array"},
-            provider_type="local_python",
-            provider_id="builtin_tools",
+    with pytest.raises(ValueError, match="input_schema.type"):
+        local_definition_to_runtime_tool(
+            LocalToolDefinition(
+                name="tool",
+                description="desc",
+                input_schema={"type": "array"},
+                fn=lambda: {},
+            )
+        )
+    with pytest.raises(ValueError, match="description"):
+        local_definition_to_runtime_tool(
+            LocalToolDefinition(
+                name="tool",
+                description="  ",
+                input_schema={"type": "object", "properties": {}},
+                fn=lambda: {},
+            )
+        )
+    with pytest.raises(ValueError, match="callable"):
+        local_definition_to_runtime_tool(
+            LocalToolDefinition(
+                name="tool",
+                description="desc",
+                input_schema={"type": "object", "properties": {}},
+                fn=None,
+            )
         )
 
     with pytest.raises(ValueError, match="Unsupported Arrow type"):

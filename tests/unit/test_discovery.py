@@ -19,13 +19,14 @@ def test_discover_tools_returns_current_app_inventory(tmp_path: Path) -> None:
     assert report.provider_type == "local_python"
     assert report.provider_id == "builtin_tools"
     assert report.tool_count == 5
-    assert [tool.tool_name for tool in report.tools] == [
+    assert [tool.name for tool in report.tools] == [
         "get_user_profile",
         "search_onboarding_docs",
         "get_workspace_setting",
         "list_recent_job_runs",
         "create_support_ticket",
     ]
+    assert {tool.source_type for tool in report.tools} == {"local_python"}
 
 
 def test_discovery_json_output_matches_runtime_shape(tmp_path: Path, capsys) -> None:
@@ -44,6 +45,6 @@ def test_print_discovery_report_surfaces_contract_metadata(tmp_path: Path, capsy
     print_discovery_report(report)
     output = capsys.readouterr().out
 
-    assert "Side effect level: read_only" in output
-    assert "Tags: identity, user_lookup" in output
-    assert "Domains: user" in output
+    assert "Source: local_python/builtin_tools" in output
+    assert "Input schema:" in output
+    assert "Side effect level" not in output

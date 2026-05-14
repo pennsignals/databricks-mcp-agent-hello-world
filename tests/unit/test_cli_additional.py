@@ -184,12 +184,17 @@ def test_print_discovery_report_and_schema_summary(capsys) -> None:
         tool_count=1,
         tools=[
             SimpleNamespace(
-                tool_name="get_user_profile",
-                description="Fetch a user",
-                input_schema={"type": "object", "properties": {}, "required": []},
-                side_effect_level="read_only",
-                capability_tags=[],
-                data_domains=[],
+                name="get_user_profile",
+                source_type="local_python",
+                source_id="builtin_tools",
+                spec={
+                    "type": "function",
+                    "function": {
+                        "name": "get_user_profile",
+                        "description": "Fetch a user",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                    },
+                },
             )
         ],
     )

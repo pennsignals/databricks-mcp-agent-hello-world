@@ -11,11 +11,11 @@ from ..models import (
     AgentTaskRequest,
     ToolCall,
     ToolResult,
-    ToolSpec,
 )
 from ..providers.factory import get_tool_provider
 from ..storage.schema import safe_jsonable, serialize_event_row
 from ..storage.write import write_event_rows
+from ..tools.runtime import RuntimeTool, inventory_hash
 
 logger = logging.getLogger(__name__)
 
@@ -28,22 +28,22 @@ class AgentRunner:
 
     def run(self, task: AgentTaskRequest) -> AgentRunRecord:
         discovered_tools = self.provider.list_tools()
-        inventory_hash = self.provider.inventory_hash()
+        discovered_inventory_hash = inventory_hash(discovered_tools)
         return self._run_generic(
             task=task,
             discovered_tools=discovered_tools,
-            inventory_hash=inventory_hash,
+            inventory_hash=discovered_inventory_hash,
         )
 
     def _run_generic(
         self,
         *,
         task: AgentTaskRequest,
-        discovered_tools: list[ToolSpec],
+        discovered_tools: list[RuntimeTool],
         inventory_hash: str | None,
     ) -> AgentRunRecord:
         run_key = task.run_id
-        discovered_tools_by_name = {tool.tool_name: tool for tool in discovered_tools}
+        tools_by_name = {tool.name: tool for tool in discovered_tools}
         # The runtime exposes the full discovered inventory to the model. Tool
         # selection is performed by the LLM at runtime; Python does not
         # pre-filter or manually route tools.
@@ -61,7 +61,7 @@ class AgentRunner:
                 ),
             },
         ]
-        openai_tools = self._build_openai_tools(discovered_tools)
+        llm_tools = [tool.spec for tool in discovered_tools]
         tool_call_trace: list[dict[str, Any]] = []
         llm_turn_count = 0
         event_index = 0
@@ -106,7 +106,7 @@ class AgentRunner:
                 "task_name": task.task_name,
                 "instructions": task.instructions,
                 "payload": task.payload,
-                "available_tools": [tool.tool_name for tool in discovered_tools],
+                "available_tools": [tool.name for tool in discovered_tools],
                 "available_tools_count": len(discovered_tools),
             },
         )
@@ -121,12 +121,12 @@ class AgentRunner:
                     payload={
                         "model": self.settings.llm_endpoint_name,
                         "messages": messages,
-                        "tools": openai_tools,
+                        "tools": llm_tools,
                         "tool_choice": "auto",
                     },
                 )
                 llm_turn_count += 1
-                response = self.llm.tool_step(messages, openai_tools, tool_choice="auto")
+                response = self.llm.tool_step(messages, llm_tools, tool_choice="auto")
                 message = response.choices[0].message
                 tool_calls = getattr(message, "tool_calls", None)
                 terminal_excerpt = None
@@ -205,7 +205,7 @@ class AgentRunner:
                         )
                     else:
                         tool_result = self._execute_tool_call(
-                            discovered_tools_by_name=discovered_tools_by_name,
+                            tools_by_name=tools_by_name,
                             request_id=f"{task.run_id}:{llm_turn_count}:{index}",
                             tool_name=call.function.name,
                             arguments=tool_args,
@@ -277,19 +277,16 @@ class AgentRunner:
             )
             raise
 
-    @staticmethod
-    def _build_openai_tools(discovered_tools: list[ToolSpec]) -> list[dict[str, Any]]:
-        return [tool.to_openai_tool() for tool in discovered_tools]
-
     def _execute_tool_call(
         self,
         *,
-        discovered_tools_by_name: dict[str, ToolSpec],
+        tools_by_name: dict[str, RuntimeTool],
         request_id: str,
         tool_name: str,
         arguments: dict[str, Any],
     ) -> ToolResult:
-        if tool_name not in discovered_tools_by_name:
+        runtime_tool = tools_by_name.get(tool_name)
+        if runtime_tool is None:
             logger.warning("Unknown tool call: %s", tool_name)
             return ToolResult(
                 tool_name=tool_name,
@@ -303,7 +300,32 @@ class AgentRunner:
             arguments=arguments,
             request_id=request_id,
         )
-        return self.provider.call_tool(tool_call)
+        try:
+            content = runtime_tool.execute(**tool_call.arguments)
+            logger.info("Executed tool %s from %s", tool_name, runtime_tool.source.type)
+            return ToolResult(
+                tool_name=tool_name,
+                status="ok",
+                content=content,
+                metadata={
+                    "source_type": runtime_tool.source.type,
+                    "source_id": runtime_tool.source.id,
+                    "request_id": request_id,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Tool execution failed for %s", tool_name)
+            return ToolResult(
+                tool_name=tool_name,
+                status="error",
+                content={},
+                metadata={
+                    "source_type": runtime_tool.source.type,
+                    "source_id": runtime_tool.source.id,
+                    "request_id": request_id,
+                },
+                error=str(exc),
+            )
 
     @staticmethod
     def _parse_tool_arguments(raw_arguments: Any) -> tuple[dict[str, Any], str | None]:
@@ -328,10 +350,10 @@ class AgentRunner:
     def _build_result_payload(
         *,
         final_response: str,
-        discovered_tools: list[ToolSpec],
+        discovered_tools: list[RuntimeTool],
         tool_calls: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        available_tools = [tool.tool_name for tool in discovered_tools]
+        available_tools = [tool.name for tool in discovered_tools]
         return {
             "final_response": final_response,
             "available_tools": available_tools,

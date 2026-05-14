@@ -18,7 +18,7 @@ FORBIDDEN_LOCAL_DOTENV_KEYS = {
     "DATABRICKS_CLIENT_ID",
     "DATABRICKS_CLIENT_SECRET",
 }
-SUPPORTED_TOOL_PROVIDER_TYPES = {"local_python", "managed_mcp"}
+SUPPORTED_TOOL_PROVIDER_TYPES = {"local_python", "databricks_mcp"}
 DEPRECATED_CONFIG_ALIASES = {
     "provider_type": "tool_provider_type",
     "databricks_cli_profile": "databricks_config_profile",
@@ -35,10 +35,12 @@ ALLOWED_TOP_LEVEL_CONFIG_KEYS = {
     "databricks_cli_profile",
     "workspace_host",
     "log_level",
+    "mcp",
 }
 ALLOWED_NESTED_CONFIG_KEYS = {
     "storage": {"agent_events_table", "local_data_dir"},
     "prompts": {"agent_system_prompt"},
+    "mcp": {"server"},
 }
 IGNORED_TOP_LEVEL_CONFIG_KEYS = {"auth_mode", "local_tool_backend_mode", "sql"}
 IGNORED_NESTED_CONFIG_KEYS = {
@@ -65,12 +67,24 @@ class PromptConfig:
 
 
 @dataclass(slots=True)
+class MCPServerConfig:
+    name: str
+    url: str
+
+
+@dataclass(slots=True)
+class MCPConfig:
+    server: MCPServerConfig | None = None
+
+
+@dataclass(slots=True)
 class Settings:
     tool_provider_type: str
     llm_endpoint_name: str
     max_agent_steps: int
     storage: StorageConfig
     prompts: PromptConfig
+    mcp: MCPConfig
     databricks_config_profile: str | None = None
     workspace_host: str | None = None
     log_level: str = "INFO"
@@ -240,6 +254,7 @@ def build_settings(
                 ),
             ),
         ),
+        mcp=_build_mcp_config(raw, dotenv_values),
         databricks_config_profile=_resolve_value(
             yaml_value=raw.get("databricks_config_profile"),
             dotenv_values=dotenv_values,
@@ -276,12 +291,23 @@ def validate_settings(settings: Settings) -> None:
         formatted = ", ".join(missing_required)
         raise ValueError(f"Missing required settings: {formatted}")
 
+    if settings.tool_provider_type == "managed_mcp":
+        raise ValueError(
+            "managed_mcp has been replaced by databricks_mcp. "
+            "Configure mcp.server.url and mcp.server.name."
+        )
     if settings.tool_provider_type not in SUPPORTED_TOOL_PROVIDER_TYPES:
         supported = ", ".join(sorted(SUPPORTED_TOOL_PROVIDER_TYPES))
         raise ValueError(
             "Unsupported tool_provider_type "
             f"{settings.tool_provider_type!r}. Supported values: {supported}"
         )
+    if settings.tool_provider_type == "databricks_mcp":
+        if settings.mcp.server is None or not settings.mcp.server.url.strip():
+            raise ValueError(
+                "databricks_mcp requires mcp.server.url. "
+                "Configure mcp.server.url and mcp.server.name."
+            )
     if settings.max_agent_steps < 1:
         raise ValueError("max_agent_steps must be at least 1.")
 
@@ -357,6 +383,29 @@ def _read_prompt(path: str, fallback: str) -> str:
     if prompt_path.exists():
         return prompt_path.read_text(encoding="utf-8").strip()
     return fallback
+
+
+def _build_mcp_config(raw: dict[str, Any], dotenv_values: dict[str, str]) -> MCPConfig:
+    server = _deep_get(raw, "mcp", "server")
+    url = _resolve_value(
+        yaml_value=_deep_get(raw, "mcp", "server", "url"),
+        dotenv_values=dotenv_values,
+        dotenv_key="MCP_SERVER_URL",
+    )
+    name = (
+        _resolve_value(
+            yaml_value=_deep_get(raw, "mcp", "server", "name"),
+            dotenv_values=dotenv_values,
+            dotenv_key="MCP_SERVER_NAME",
+            default="databricks_mcp",
+        )
+        or "databricks_mcp"
+    )
+    if server is None and url is None:
+        return MCPConfig()
+    if server is not None and not isinstance(server, dict):
+        raise ValueError("mcp.server must be a YAML mapping.")
+    return MCPConfig(server=MCPServerConfig(name=str(name), url=str(url or "")))
 
 
 def _parse_dotenv(path: Path) -> dict[str, str]:

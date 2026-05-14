@@ -57,10 +57,6 @@ def run_preflight(config_path: str) -> PreflightReport:
     checks.append(_check_llm_endpoint_name(settings))
     provider_check, provider = _check_provider_factory(settings)
     checks.append(provider_check)
-    provider_runtime_status_check = _check_provider_runtime_status(settings)
-    if provider_runtime_status_check is not None:
-        checks.append(provider_runtime_status_check)
-        return _finalize_preflight_report(checks, settings)
     tool_check, _ = _check_tool_registry_nonempty(provider)
     checks.append(tool_check)
     checks.append(_check_persistence_target_names(settings))
@@ -164,20 +160,6 @@ def _check_tool_registry_nonempty(provider) -> tuple[PreflightCheck, int]:
             ),
             0,
         )
-
-
-def _check_provider_runtime_status(settings: Settings) -> PreflightCheck | None:
-    if settings.tool_provider_type != "managed_mcp":
-        return None
-    return PreflightCheck(
-        name="provider_runtime_status",
-        status="fail",
-        message="Configured provider 'managed_mcp' is a placeholder and is not implemented yet.",
-        details={
-            "tool_provider_type": "managed_mcp",
-            "next_step": "Implement managed_mcp or switch to local_python.",
-        },
-    )
 
 
 def _check_persistence_target_names(settings: Settings) -> PreflightCheck:

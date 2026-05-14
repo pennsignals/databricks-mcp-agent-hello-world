@@ -22,8 +22,8 @@ from databricks_mcp_agent_hello_world.commands import (
     run_preflight_command,
 )
 from databricks_mcp_agent_hello_world.evals.harness import EvalSetupError
-from databricks_mcp_agent_hello_world.models import EvalRunReport, ToolCall
-from databricks_mcp_agent_hello_world.providers import base, factory, managed_mcp
+from databricks_mcp_agent_hello_world.models import EvalRunReport
+from databricks_mcp_agent_hello_world.providers import base, factory
 from databricks_mcp_agent_hello_world.providers.local_python import LocalPythonToolProvider
 from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
 from databricks_mcp_agent_hello_world.storage import bootstrap, spark, write
@@ -32,7 +32,7 @@ from tests.helpers import make_settings
 
 def test_app_registry_and_tool_errors() -> None:
     assert registry.get_tool_function("get_user_profile") is tools.get_user_profile
-    assert len(registry.list_authored_tools()) == len(registry.TOOL_DEFINITIONS)
+    assert len(registry.list_local_tools()) == len(registry.TOOL_DEFINITIONS)
 
     with pytest.raises(ValueError, match="unknown setting key"):
         tools.get_workspace_setting("missing")
@@ -358,31 +358,14 @@ def test_eval_harness_additional_branches(tmp_path: Path, monkeypatch) -> None:
 
 def test_provider_storage_and_runner_support_branches(tmp_path: Path, monkeypatch, caplog) -> None:
     provider = LocalPythonToolProvider(make_settings())
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.providers.local_python.get_tool_function",
-        lambda name: (_ for _ in ()).throw(RuntimeError(f"boom: {name}")),
-    )
-    result = provider.call_tool(
-        ToolCall(
-            tool_name="get_user_profile",
-            arguments={},
-            request_id="req-1",
-        )
-    )
-    assert result.status == "error"
-    assert result.error == "boom: get_user_profile"
+    tools_list = provider.list_tools()
+    assert tools_list[0].execute(user_id="usr_ada_01")["user_id"] == "usr_ada_01"
 
     with pytest.raises(ValueError, match="Unsupported tool_provider_type"):
         factory.get_tool_provider(make_settings(tool_provider_type="something-else"))
 
-    managed_provider = managed_mcp.ManagedMCPToolProvider()
-    for method in (
-        managed_provider.list_tools,
-        managed_provider.inventory_hash,
-        lambda: managed_provider.call_tool(ToolCall(tool_name="demo")),
-    ):
-        with pytest.raises(NotImplementedError, match="not implemented yet"):
-            method()
+    with pytest.raises(ValueError, match="managed_mcp has been replaced"):
+        factory.get_tool_provider(make_settings(tool_provider_type="managed_mcp"))
 
     class DummyProvider(base.ToolProvider):
         provider_type = "dummy"
@@ -391,19 +374,9 @@ def test_provider_storage_and_runner_support_branches(tmp_path: Path, monkeypatc
         def list_tools(self):
             return super().list_tools()
 
-        def inventory_hash(self):
-            return super().inventory_hash()
-
-        def call_tool(self, tool_call):
-            return super().call_tool(tool_call)
-
     dummy = DummyProvider()
     with pytest.raises(NotImplementedError):
         dummy.list_tools()
-    with pytest.raises(NotImplementedError):
-        dummy.inventory_hash()
-    with pytest.raises(NotImplementedError):
-        dummy.call_tool(ToolCall(tool_name="demo"))
 
     target = bootstrap.parse_table_name(" main . demo . events ")
     assert target.full_name == "main.demo.events"
@@ -579,10 +552,6 @@ def test_provider_storage_and_runner_support_branches(tmp_path: Path, monkeypatc
     write._append_delta_event_rows(FakeSpark(), "main.demo.events", [{"schema_version": "1"}])
     assert save_calls == ["main.demo.events"]
 
-    runner = AgentRunner.__new__(AgentRunner)
-    runner.provider = SimpleNamespace(
-        call_tool=lambda tool_call: {"tool_name": tool_call.tool_name}
-    )
     assert AgentRunner._parse_tool_arguments({}) == ({}, None)
     assert AgentRunner._parse_tool_arguments({"a": 1}) == ({"a": 1}, None)
     assert AgentRunner._parse_tool_arguments(5)[1] is not None

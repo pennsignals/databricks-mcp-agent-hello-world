@@ -4,43 +4,25 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 from databricks_mcp_agent_hello_world.models import (
     AgentRunRecord,
     AgentTaskRequest,
-    ToolResult,
-    ToolSpec,
 )
 from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
+from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool, ToolSource
 
 
 class StubProvider:
-    def __init__(self, tools: list[ToolSpec], inventory_hash: str = "inventory-hash") -> None:
+    def __init__(self, tools: list[RuntimeTool]) -> None:
         self.tools = tools
-        self._inventory_hash = inventory_hash
         self.calls = []
 
-    def list_tools(self) -> list[ToolSpec]:
+    def list_tools(self) -> list[RuntimeTool]:
         return list(self.tools)
-
-    def inventory_hash(self) -> str:
-        return self._inventory_hash
-
-    def call_tool(self, tool_call):
-        self.calls.append(tool_call)
-        return ToolResult(
-            tool_name=tool_call.tool_name,
-            status="ok",
-            content={"echo": tool_call.arguments},
-            metadata={"request_id": tool_call.request_id},
-        )
 
 
 class RaisingProvider(StubProvider):
-    def call_tool(self, tool_call):
-        self.calls.append(tool_call)
-        raise RuntimeError(f"tool boom: {tool_call.tool_name}")
+    pass
 
 
 class StubLLM:
@@ -58,30 +40,40 @@ class StubLLM:
         return response
 
 
-def _tool(name: str) -> ToolSpec:
-    return ToolSpec(
-        tool_name=name,
-        description=f"{name} description",
-        input_schema={
-            "type": "object",
-            "properties": {"value": {"type": "string"}},
-            "required": [],
+def _tool(name: str, calls: list | None = None, *, raises: bool = False) -> RuntimeTool:
+    def _execute(**kwargs):
+        if calls is not None:
+            calls.append({"tool_name": name, "arguments": kwargs})
+        if raises:
+            raise RuntimeError(f"tool boom: {name}")
+        return {"echo": kwargs}
+
+    return RuntimeTool(
+        name=name,
+        spec={
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": f"{name} description",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                    "required": [],
+                },
+            },
         },
-        provider_type="local_python",
-        provider_id="builtin_tools",
-        capability_tags=["demo"],
-        data_domains=["demo"],
-        example_uses=["Example"],
+        execute=_execute,
+        source=ToolSource(type="local_python", id="builtin_tools"),
     )
 
 
-def _discovered_tools() -> list[ToolSpec]:
+def _discovered_tools(calls: list | None = None) -> list[RuntimeTool]:
     return [
-        _tool("get_user_profile"),
-        _tool("search_onboarding_docs"),
-        _tool("get_workspace_setting"),
-        _tool("list_recent_job_runs"),
-        _tool("create_support_ticket"),
+        _tool("get_user_profile", calls),
+        _tool("search_onboarding_docs", calls),
+        _tool("get_workspace_setting", calls),
+        _tool("list_recent_job_runs", calls),
+        _tool("create_support_ticket", calls),
     ]
 
 
@@ -99,7 +91,7 @@ def _runner(
     tmp_path: Path,
     llm,
     *,
-    tools: list[ToolSpec] | None = None,
+    tools: list[RuntimeTool] | None = None,
     max_agent_steps: int = 2,
     provider=None,
 ) -> AgentRunner:
@@ -132,7 +124,8 @@ def _payload(row: dict) -> dict:
 
 
 def test_agent_runner_persists_run_contract_for_success(tmp_path: Path, monkeypatch) -> None:
-    tools = _discovered_tools()
+    calls = []
+    tools = _discovered_tools(calls)
     runner = _runner(
         tmp_path,
         StubLLM(
@@ -156,8 +149,8 @@ def test_agent_runner_persists_run_contract_for_success(tmp_path: Path, monkeypa
 
     assert isinstance(record, AgentRunRecord)
     assert record.status == "success"
-    assert record.result["available_tools"] == [tool.tool_name for tool in tools]
-    assert [item.tool_name for item in runner.provider.calls] == ["get_user_profile"]
+    assert record.result["available_tools"] == [tool.name for tool in tools]
+    assert calls == [{"tool_name": "get_user_profile", "arguments": {"user_id": "usr_ada_01"}}]
 
     events = runner.persisted_event_rows
     assert {
@@ -239,7 +232,10 @@ def test_agent_runner_returns_max_steps_exceeded_when_llm_never_finishes(
     runner = _runner(
         tmp_path,
         StubLLM(
-            [_response(tool_calls=[_tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')])]
+            [
+                _response(tool_calls=[_tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')]),
+                _response(content="Finished after tool error."),
+            ]
         ),
         max_agent_steps=1,
     )
@@ -265,19 +261,21 @@ def test_agent_runner_emits_error_event_when_tool_execution_raises(
     runner = _runner(
         tmp_path,
         StubLLM(
-            [_response(tool_calls=[_tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')])]
+            [
+                _response(tool_calls=[_tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')]),
+                _response(content="Finished after tool error."),
+            ]
         ),
-        provider=RaisingProvider([_tool("get_user_profile")]),
+        provider=RaisingProvider([_tool("get_user_profile", raises=True)]),
     )
     _capture_event_rows(runner, monkeypatch)
 
-    with pytest.raises(RuntimeError, match="tool boom: get_user_profile"):
-        runner.run(
-            AgentTaskRequest(
-                task_name="workspace_onboarding_brief",
-                instructions="Write the report.",
-            )
+    record = runner.run(
+        AgentTaskRequest(
+            task_name="workspace_onboarding_brief",
+            instructions="Write the report.",
         )
+    )
 
-    assert runner.persisted_event_rows[-1]["event_type"] == "run_failed"
-    assert runner.persisted_event_rows[-1]["status"] == "error"
+    assert record.result["tool_calls"][0]["status"] == "error"
+    assert record.result["tool_calls"][0]["error"] == "tool boom: get_user_profile"

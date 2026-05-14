@@ -249,14 +249,12 @@ def print_discovery_report(report) -> None:
     print(f"Provider type: {report.provider_type}")
     print(f"Total tools: {report.tool_count}")
     for tool in report.tools:
-        summary = _summarize_input_schema(tool.input_schema)
-        capability_tags = ", ".join(tool.capability_tags) or "-"
-        data_domains = ", ".join(tool.data_domains) or "-"
-        print(f"- {tool.tool_name}: {tool.description}")
+        function_spec = tool.spec.get("function", {})
+        summary = _summarize_input_schema(function_spec.get("parameters", {}))
+        description = function_spec.get("description", "")
+        print(f"- {tool.name}: {description}")
+        print(f"  Source: {tool.source_type}/{tool.source_id}")
         print(f"  Input schema: {summary}")
-        print(f"  Side effect level: {tool.side_effect_level}")
-        print(f"  Tags: {capability_tags}")
-        print(f"  Domains: {data_domains}")
 
 
 def _summarize_input_schema(schema: dict[str, Any]) -> str:

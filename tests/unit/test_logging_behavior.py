@@ -6,9 +6,10 @@ import types
 from pathlib import Path
 from types import SimpleNamespace
 
-from databricks_mcp_agent_hello_world.models import AgentTaskRequest, ToolResult, ToolSpec
+from databricks_mcp_agent_hello_world.models import AgentTaskRequest
 from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
 from databricks_mcp_agent_hello_world.storage import spark
+from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool, ToolSource
 
 EXPECTED_SPARK_FALLBACK_MESSAGE = (
     "Local mode: no active Spark session detected; using local fallback persistence."
@@ -16,23 +17,11 @@ EXPECTED_SPARK_FALLBACK_MESSAGE = (
 
 
 class StubProvider:
-    def __init__(self, tools: list[ToolSpec], inventory_hash: str = "inventory-hash") -> None:
+    def __init__(self, tools: list[RuntimeTool]) -> None:
         self.tools = tools
-        self._inventory_hash = inventory_hash
 
-    def list_tools(self) -> list[ToolSpec]:
+    def list_tools(self) -> list[RuntimeTool]:
         return list(self.tools)
-
-    def inventory_hash(self) -> str:
-        return self._inventory_hash
-
-    def call_tool(self, tool_call):
-        return ToolResult(
-            tool_name=tool_call.tool_name,
-            status="ok",
-            content={"echo": tool_call.arguments},
-            metadata={"request_id": tool_call.request_id},
-        )
 
 
 class StubLLM:
@@ -47,20 +36,23 @@ class StubLLM:
         return response
 
 
-def _tool(name: str) -> ToolSpec:
-    return ToolSpec(
-        tool_name=name,
-        description=f"{name} description",
-        input_schema={
-            "type": "object",
-            "properties": {"value": {"type": "string"}},
-            "required": [],
+def _tool(name: str) -> RuntimeTool:
+    return RuntimeTool(
+        name=name,
+        spec={
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": f"{name} description",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                    "required": [],
+                },
+            },
         },
-        provider_type="local_python",
-        provider_id="builtin_tools",
-        capability_tags=["demo"],
-        data_domains=["demo"],
-        example_uses=["Example"],
+        execute=lambda **kwargs: {"echo": kwargs},
+        source=ToolSource(type="local_python", id="builtin_tools"),
     )
 
 
@@ -74,7 +66,7 @@ def _tool_call(name: str, arguments: str, call_id: str = "call-1"):
     return SimpleNamespace(id=call_id, function=function)
 
 
-def _runner(tmp_path: Path, llm, *, tools: list[ToolSpec] | None = None) -> AgentRunner:
+def _runner(tmp_path: Path, llm, *, tools: list[RuntimeTool] | None = None) -> AgentRunner:
     runner = AgentRunner.__new__(AgentRunner)
     runner.settings = SimpleNamespace(
         prompts=SimpleNamespace(agent_system_prompt="system"),

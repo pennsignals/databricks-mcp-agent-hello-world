@@ -99,7 +99,7 @@ def test_preflight_warns_for_stale_keys_without_failing(tmp_path: Path, monkeypa
     assert any("auth_mode" in warning for warning in warning_check.details["warnings"])
 
 
-def test_preflight_managed_mcp_fails_for_placeholder_readiness_not_config(
+def test_preflight_managed_mcp_fails_fast_in_config_validation(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -117,12 +117,8 @@ def test_preflight_managed_mcp_fails_for_placeholder_readiness_not_config(
     report = run_preflight(str(config_path))
 
     config_check = report.checks[0]
-    provider_runtime_check = next(
-        check for check in report.checks if check.name == "provider_runtime_status"
-    )
-    assert config_check.status == "pass"
-    assert provider_runtime_check.status == "fail"
-    assert "placeholder" in provider_runtime_check.message
+    assert config_check.status == "fail"
+    assert "managed_mcp has been replaced by databricks_mcp" in config_check.message
 
 
 def test_preflight_requires_agent_events_table_when_spark_is_available(

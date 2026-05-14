@@ -94,8 +94,8 @@ def test_canonical_config_keys_load_successfully(tmp_path: Path) -> None:
     ("replacement", "expected_value", "warning_substring"),
     [
         (
-            "provider_type: managed_mcp",
-            "managed_mcp",
+            "provider_type: databricks_mcp",
+            "databricks_mcp",
             "Deprecated config key 'provider_type' used",
         ),
         (
@@ -122,6 +122,14 @@ def test_deprecated_aliases_load_and_warn(
         config_path.read_text(encoding="utf-8").replace(original, replacement),
         encoding="utf-8",
     )
+    if replacement.startswith("provider_type"):
+        config_path.write_text(
+            config_path.read_text(encoding="utf-8")
+            + "\nmcp:\n"
+            + "  server:\n"
+            + "    url: https://example.cloud.databricks.com/api/2.0/mcp/functions/main/demo\n",
+            encoding="utf-8",
+        )
 
     with caplog.at_level("WARNING"):
         settings = load_settings(str(config_path))
@@ -136,7 +144,7 @@ def test_deprecated_aliases_load_and_warn(
 
 
 def test_canonical_key_wins_over_deprecated_alias(tmp_path: Path, caplog) -> None:
-    config_path = write_workspace_config(tmp_path, extra_lines=["provider_type: managed_mcp"])
+    config_path = write_workspace_config(tmp_path, extra_lines=["provider_type: databricks_mcp"])
 
     with caplog.at_level("WARNING"):
         settings = load_settings(str(config_path))
@@ -246,8 +254,48 @@ def test_resolve_deprecated_aliases_preserves_canonical_values() -> None:
     resolved = resolve_deprecated_config_aliases(
         {
             "tool_provider_type": "local_python",
-            "provider_type": "managed_mcp",
+            "provider_type": "databricks_mcp",
         }
     )
 
     assert resolved["tool_provider_type"] == "local_python"
+
+
+def test_load_settings_rejects_old_managed_mcp_value(tmp_path: Path) -> None:
+    config_path = write_workspace_config(tmp_path, tool_provider_type="managed_mcp")
+
+    with pytest.raises(ValueError, match="managed_mcp has been replaced by databricks_mcp"):
+        load_settings(str(config_path))
+
+
+def test_load_settings_accepts_databricks_mcp_config(tmp_path: Path) -> None:
+    config_path = write_workspace_config(
+        tmp_path,
+        tool_provider_type="databricks_mcp",
+        extra_lines=[
+            "mcp:",
+            "  server:",
+            "    name: uc_functions",
+            "    url: https://example.cloud.databricks.com/api/2.0/mcp/functions/main/demo",
+        ],
+    )
+
+    settings = load_settings(str(config_path))
+
+    assert settings.tool_provider_type == "databricks_mcp"
+    assert settings.mcp.server is not None
+    assert settings.mcp.server.name == "uc_functions"
+
+
+def test_load_settings_rejects_non_mapping_mcp_server(tmp_path: Path) -> None:
+    config_path = write_workspace_config(
+        tmp_path,
+        tool_provider_type="databricks_mcp",
+        extra_lines=[
+            "mcp:",
+            "  server: not-a-mapping",
+        ],
+    )
+
+    with pytest.raises(ValueError, match="mcp.server must be a YAML mapping"):
+        load_settings(str(config_path))

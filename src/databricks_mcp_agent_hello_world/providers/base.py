@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ..models import ToolCall, ToolResult, ToolSpec
+from ..tools.runtime import RuntimeTool
 
 
 class ToolProvider(ABC):
@@ -10,13 +10,5 @@ class ToolProvider(ABC):
     provider_id: str
 
     @abstractmethod
-    def list_tools(self) -> list[ToolSpec]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def inventory_hash(self) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    def call_tool(self, tool_call: ToolCall) -> ToolResult:
+    def list_tools(self) -> list[RuntimeTool]:
         raise NotImplementedError

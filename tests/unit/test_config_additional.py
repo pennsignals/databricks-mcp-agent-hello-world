@@ -11,7 +11,7 @@ from tests.helpers import make_settings
 
 
 def test_settings_provider_type_property_reflects_tool_provider_type() -> None:
-    assert make_settings(tool_provider_type="managed_mcp").provider_type == "managed_mcp"
+    assert make_settings(tool_provider_type="databricks_mcp").provider_type == "databricks_mcp"
 
 
 def test_resolve_config_path_defaults_to_workspace_config() -> None:
@@ -43,6 +43,12 @@ def test_validate_settings_rejects_remaining_invalid_shapes(monkeypatch) -> None
 
     with pytest.raises(ValueError, match="Unsupported tool_provider_type"):
         config.validate_settings(make_settings(tool_provider_type="unknown"))
+
+    with pytest.raises(ValueError, match="managed_mcp has been replaced"):
+        config.validate_settings(make_settings(tool_provider_type="managed_mcp"))
+
+    with pytest.raises(ValueError, match="mcp.server.url"):
+        config.validate_settings(make_settings(tool_provider_type="databricks_mcp"))
 
     with pytest.raises(ValueError, match="at least 1"):
         config.validate_settings(make_settings(max_agent_steps=0))
