@@ -16,6 +16,7 @@ from ..providers.factory import get_tool_provider
 from ..storage.schema import safe_jsonable, serialize_event_row
 from ..storage.write import write_event_rows
 from ..tools.runtime import RuntimeTool, inventory_hash
+from ..tools.validation import ToolValidationError, validate_tool_arguments
 
 logger = logging.getLogger(__name__)
 
@@ -301,7 +302,12 @@ class AgentRunner:
             request_id=request_id,
         )
         try:
-            content = runtime_tool.execute(**tool_call.arguments)
+            validated_arguments = validate_tool_arguments(
+                tool_name=runtime_tool.name,
+                tool_spec=runtime_tool.spec,
+                arguments=tool_call.arguments,
+            )
+            content = runtime_tool.execute(**validated_arguments)
             logger.info("Executed tool %s from %s", tool_name, runtime_tool.source.type)
             return ToolResult(
                 tool_name=tool_name,
@@ -312,6 +318,23 @@ class AgentRunner:
                     "source_id": runtime_tool.source.id,
                     "request_id": request_id,
                 },
+            )
+        except ToolValidationError as exc:
+            logger.info("Tool validation failed for %s: %s", tool_name, exc.message)
+            return ToolResult(
+                tool_name=tool_name,
+                status="error",
+                content={
+                    "error_type": exc.error_type,
+                    "message": exc.message,
+                },
+                metadata={
+                    "error_type": exc.error_type,
+                    "source_type": runtime_tool.source.type,
+                    "source_id": runtime_tool.source.id,
+                    "request_id": request_id,
+                },
+                error=exc.message,
             )
         except Exception as exc:  # noqa: BLE001
             logger.exception("Tool execution failed for %s", tool_name)

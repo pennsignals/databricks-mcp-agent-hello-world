@@ -225,6 +225,117 @@ def test_agent_runner_marks_malformed_tool_arguments_as_error_without_crashing(
     assert tool_result_event["status"] == "error"
 
 
+def test_agent_runner_rejects_invalid_tool_arguments_before_execution(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    calls = []
+    runtime_tool = RuntimeTool(
+        name="lookup_remote_user",
+        spec={
+            "type": "function",
+            "function": {
+                "name": "lookup_remote_user",
+                "description": "Lookup a remote user.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["user_id"],
+                    "properties": {"user_id": {"type": "string"}},
+                    "additionalProperties": False,
+                },
+            },
+        },
+        execute=lambda **kwargs: calls.append(kwargs) or {"ok": True},
+        source=ToolSource(type="databricks_mcp", id="uc_functions"),
+    )
+    runner = _runner(
+        tmp_path,
+        StubLLM(
+            [
+                _response(tool_calls=[_tool_call("lookup_remote_user", "{}")]),
+                _response(content="Finished after validation error."),
+            ]
+        ),
+        tools=[runtime_tool],
+    )
+    _capture_event_rows(runner, monkeypatch)
+
+    record = runner.run(
+        AgentTaskRequest(
+            task_name="workspace_onboarding_brief",
+            instructions="Write the report.",
+            run_id="run-invalid-args",
+        )
+    )
+
+    assert calls == []
+    assert record.status == "success"
+    assert record.result["tool_calls"][0]["status"] == "error"
+    assert (
+        "Invalid arguments for tool `lookup_remote_user`" in record.result["tool_calls"][0]["error"]
+    )
+    tool_result_event = next(
+        row for row in runner.persisted_event_rows if row["event_type"] == "tool_result"
+    )
+    payload = _payload(tool_result_event)
+    assert payload["content"]["error_type"] == "invalid_tool_arguments"
+    assert payload["metadata"]["error_type"] == "invalid_tool_arguments"
+    assert payload["metadata"]["source_type"] == "databricks_mcp"
+
+
+def test_agent_runner_reports_invalid_remote_tool_schema_separately(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    calls = []
+    runtime_tool = RuntimeTool(
+        name="bad_remote_tool",
+        spec={
+            "type": "function",
+            "function": {
+                "name": "bad_remote_tool",
+                "description": "Remote tool with bad schema.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"value": {"type": "not-a-json-schema-type"}},
+                },
+            },
+        },
+        execute=lambda **kwargs: calls.append(kwargs) or {"ok": True},
+        source=ToolSource(type="databricks_mcp", id="uc_functions"),
+    )
+    runner = _runner(
+        tmp_path,
+        StubLLM(
+            [
+                _response(tool_calls=[_tool_call("bad_remote_tool", '{"value":"x"}')]),
+                _response(content="Finished after schema error."),
+            ]
+        ),
+        tools=[runtime_tool],
+    )
+    _capture_event_rows(runner, monkeypatch)
+
+    record = runner.run(
+        AgentTaskRequest(
+            task_name="workspace_onboarding_brief",
+            instructions="Write the report.",
+            run_id="run-invalid-schema",
+        )
+    )
+
+    assert calls == []
+    assert record.result["tool_calls"][0]["status"] == "error"
+    assert "Invalid schema for tool `bad_remote_tool`" in record.result["tool_calls"][0]["error"]
+    tool_result_event = next(
+        row for row in runner.persisted_event_rows if row["event_type"] == "tool_result"
+    )
+    payload = _payload(tool_result_event)
+    assert payload["content"]["error_type"] == "invalid_tool_schema"
+    assert payload["metadata"]["error_type"] == "invalid_tool_schema"
+    assert payload["metadata"]["source_type"] == "databricks_mcp"
+
+
 def test_agent_runner_returns_max_steps_exceeded_when_llm_never_finishes(
     tmp_path: Path,
     monkeypatch,

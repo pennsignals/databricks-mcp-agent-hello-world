@@ -74,6 +74,18 @@ def test_models_and_schema_additional_validation_paths() -> None:
                 fn=lambda: {},
             )
         )
+    with pytest.raises(ValueError, match="Local tool 'tool' has invalid input_schema"):
+        local_definition_to_runtime_tool(
+            LocalToolDefinition(
+                name="tool",
+                description="desc",
+                input_schema={
+                    "type": "object",
+                    "properties": {"value": {"type": "not-a-json-schema-type"}},
+                },
+                fn=lambda: {},
+            )
+        )
     with pytest.raises(ValueError, match="description"):
         local_definition_to_runtime_tool(
             LocalToolDefinition(
