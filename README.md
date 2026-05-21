@@ -245,7 +245,7 @@ Targeted unit tests only:
 pytest
 ```
 
-Coverage is configured centrally in `pyproject.toml`, so a normal `pytest` measures only the package under `src/databricks_mcp_agent_hello_world`, prints missing lines, writes `coverage.xml`, and fails if package coverage drops below 100%. Use `pytest` when you intentionally want the fastest test-focused feedback loop rather than the full repo validation flow.
+Coverage is configured centrally in `pyproject.toml`, so a normal `pytest` measures only the package under `src/databricks_mcp_agent_hello_world`, prints a skipped-covered terminal report, writes HTML coverage to `htmlcov/`, and fails if package coverage drops below 100%. CI also appends a Markdown coverage report to the GitHub job summary. Generate Cobertura-compatible XML only when an external coverage consumer requires it, for example `pytest --cov-report=xml`.
 
 Live integration evals against the configured Databricks endpoint:
 

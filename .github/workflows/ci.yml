@@ -52,9 +52,9 @@ jobs:
       - name: Run manual-stage pre-commit hooks
         run: python -m pre_commit run --all-files --hook-stage manual --show-diff-on-failure
 
-      - name: Upload coverage.xml
+      - name: Upload HTML coverage report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-xml
-          path: coverage.xml
+          name: coverage-html
+          path: htmlcov
