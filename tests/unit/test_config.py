@@ -59,7 +59,7 @@ def test_build_settings_uses_dotenv_for_optional_values_when_yaml_omits_them(
     raw = load_yaml_config(str(config_path))
     del raw["databricks_config_profile"]
     (tmp_path / ".env").write_text(
-        "DATABRICKS_CONFIG_PROFILE=FROM_DOTENV\nLOG_LEVEL=DEBUG\n",
+        "DATABRICKS_CONFIG_PROFILE=FROM_DOTENV\nLOG_LEVEL=DEBUG\nSTORAGE_REQUIRE_SPARK=true\n",
         encoding="utf-8",
     )
     dotenv_path, dotenv_values = load_dotenv_values(str(config_path))
@@ -73,6 +73,7 @@ def test_build_settings_uses_dotenv_for_optional_values_when_yaml_omits_them(
 
     assert settings.databricks_config_profile == "FROM_DOTENV"
     assert settings.log_level == "DEBUG"
+    assert settings.storage.require_spark is True
 
 
 def test_databricks_host_allowed_in_local_dotenv(tmp_path: Path) -> None:
@@ -111,6 +112,28 @@ def test_canonical_config_keys_load_successfully(tmp_path: Path) -> None:
 
     assert settings.tool_provider_type == "local_python"
     assert settings.storage.agent_events_table == "main.agent.agent_events"
+    assert settings.storage.require_spark is False
+
+
+def test_load_settings_reads_storage_require_spark(tmp_path: Path) -> None:
+    config_path = tmp_path / "workspace-config.yml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "llm_endpoint_name: endpoint-a",
+                "tool_provider_type: local_python",
+                "storage:",
+                "  require_spark: true",
+                "  agent_events_table: main.agent.agent_events",
+                "  local_data_dir: ./.local_state",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(str(config_path))
+
+    assert settings.storage.require_spark is True
 
 
 @pytest.mark.parametrize(
@@ -185,6 +208,7 @@ def test_canonical_key_wins_over_deprecated_alias(tmp_path: Path, caplog) -> Non
         (
             [
                 "storage:",
+                "  require_spark: false",
                 "  local_data_dir: ./.local_state",
                 "  agent_events_table: main.agent.agent_events",
                 "  agent_runs_table: main.agent.agent_runs",

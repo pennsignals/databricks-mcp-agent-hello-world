@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import logging
 import sys
 from pathlib import Path
@@ -499,6 +500,21 @@ def test_provider_storage_and_runner_support_branches(tmp_path: Path, monkeypatc
     assert spark.get_spark_session() == "created"
     assert builder_calls == [True]
 
+    sys.modules["pyspark.sql"].SparkSession = SimpleNamespace(
+        getActiveSession=lambda: "required-active"
+    )
+    assert spark.require_spark_session() == "required-active"
+
+    required_builder_calls = []
+    sys.modules["pyspark.sql"].SparkSession = SimpleNamespace(
+        getActiveSession=lambda: None,
+        builder=SimpleNamespace(
+            getOrCreate=lambda: required_builder_calls.append(True) or "required-created"
+        ),
+    )
+    assert spark.require_spark_session() == "required-created"
+    assert required_builder_calls == [True]
+
     spark._logged_local_fallback = False
     monkeypatch.delenv("DATABRICKS_RUNTIME_VERSION", raising=False)
     sys.modules["pyspark.sql"].SparkSession = SimpleNamespace(
@@ -508,6 +524,20 @@ def test_provider_storage_and_runner_support_branches(tmp_path: Path, monkeypatc
         assert spark.get_spark_session() is None
         assert spark.get_spark_session() is None
     assert len([message for message in caplog.messages if "Local mode" in message]) == 1
+    with pytest.raises(RuntimeError, match="Spark session initialization failed") as exc_info:
+        spark.require_spark_session()
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+    real_import = builtins.__import__
+
+    def _raise_for_pyspark_sql(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "pyspark.sql":
+            raise ImportError("no pyspark")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _raise_for_pyspark_sql)
+    with pytest.raises(RuntimeError, match="Refusing to fall back to local JSONL"):
+        spark.require_spark_session()
 
     assert write._event_rows_jsonl_path(str(tmp_path)).name == "agent_events.jsonl"
     assert (

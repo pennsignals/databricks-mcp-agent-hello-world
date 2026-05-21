@@ -164,6 +164,53 @@ def test_preflight_requires_agent_events_table_when_spark_is_available(
     }
 
 
+def test_preflight_fails_when_spark_is_required_but_unavailable(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    config_path = tmp_path / "workspace-config.yml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "llm_endpoint_name: endpoint-a",
+                "tool_provider_type: local_python",
+                "storage:",
+                "  require_spark: true",
+                "  agent_events_table: main.agent.agent_events",
+                "  local_data_dir: ./.local_state",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def _raise_missing_spark():
+        raise RuntimeError(
+            "Spark is required by storage.require_spark=true, but no Spark session is "
+            "available. Refusing to fall back to local JSONL."
+        )
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.require_spark_session",
+        _raise_missing_spark,
+    )
+
+    report = run_preflight(str(config_path))
+    target_check = next(check for check in report.checks if check.name == "persistence_targets")
+    reachability_check = next(
+        check for check in report.checks if check.name == "persistence_reachability"
+    )
+
+    assert report.overall_status == "fail"
+    assert target_check.status == "pass"
+    assert reachability_check.status == "fail"
+    assert "storage.require_spark=true" in reachability_check.message
+    assert "Refusing to fall back to local JSONL" in reachability_check.message
+
+
 def test_preflight_reports_uninitialized_remote_storage_with_next_step(
     tmp_path: Path,
     monkeypatch,

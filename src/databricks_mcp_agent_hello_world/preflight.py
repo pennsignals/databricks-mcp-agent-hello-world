@@ -10,7 +10,7 @@ from .config import (
 from .models import PreflightCheck, PreflightReport
 from .providers.factory import get_tool_provider
 from .storage.bootstrap import storage_table_exists
-from .storage.spark import get_spark_session
+from .storage.spark import get_spark_session, require_spark_session
 
 
 def run_preflight(config_path: str) -> PreflightReport:
@@ -172,7 +172,7 @@ def _check_persistence_target_names(settings: Settings) -> PreflightCheck:
             details={"missing": ["local_data_dir"]},
         )
 
-    spark = get_spark_session()
+    spark = None if settings.storage.require_spark else get_spark_session()
     agent_events_table = (settings.storage.agent_events_table or "").strip()
     if spark is not None and not agent_events_table:
         return PreflightCheck(
@@ -195,7 +195,15 @@ def _check_persistence_target_names(settings: Settings) -> PreflightCheck:
 
 
 def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
-    spark = get_spark_session()
+    try:
+        spark = require_spark_session() if settings.storage.require_spark else get_spark_session()
+    except RuntimeError as exc:
+        return PreflightCheck(
+            name="persistence_reachability",
+            status="fail",
+            message=str(exc),
+            details={"require_spark": True},
+        )
     if spark is None:
         local_data_dir = Path(settings.storage.local_data_dir).expanduser()
         return PreflightCheck(

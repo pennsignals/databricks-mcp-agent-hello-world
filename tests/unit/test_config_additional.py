@@ -64,6 +64,42 @@ def test_validate_settings_requires_remote_table_when_spark_is_available(monkeyp
         config.validate_settings(make_settings(storage={"agent_events_table": "  "}))
 
 
+def test_validate_settings_requires_remote_table_when_spark_is_required(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.config.get_spark_session",
+        lambda: None,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="storage.require_spark=true requires storage.agent_events_table",
+    ):
+        config.validate_settings(
+            make_settings(storage={"require_spark": True, "agent_events_table": "  "})
+        )
+
+
+def test_validate_settings_does_not_probe_spark_when_required_table_is_configured(
+    monkeypatch,
+) -> None:
+    def _unexpected_spark_probe():
+        raise AssertionError("validate_settings should not probe Spark for required mode")
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.config.get_spark_session",
+        _unexpected_spark_probe,
+    )
+
+    config.validate_settings(
+        make_settings(
+            storage={
+                "require_spark": True,
+                "agent_events_table": "main.demo.events",
+            }
+        )
+    )
+
+
 def test_load_settings_bundle_can_skip_validation(tmp_path: Path) -> None:
     config_path = write_workspace_config(tmp_path, llm_endpoint_name="''")
 
@@ -133,3 +169,10 @@ def test_parse_dotenv_rejects_invalid_lines_and_coerce_int_rejects_non_int(tmp_p
 
     with pytest.raises(ValueError, match="max_agent_steps must be an integer"):
         config._coerce_int("nope", name="max_agent_steps")
+
+    assert config._coerce_bool("true", name="storage.require_spark") is True
+    assert config._coerce_bool("off", name="storage.require_spark") is False
+    with pytest.raises(ValueError, match="storage.require_spark"):
+        config._coerce_bool("sometimes", name="storage.require_spark")
+    with pytest.raises(ValueError, match="storage.require_spark"):
+        config._coerce_bool(1, name="storage.require_spark")

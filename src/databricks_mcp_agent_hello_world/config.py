@@ -37,7 +37,7 @@ ALLOWED_TOP_LEVEL_CONFIG_KEYS = {
     "mcp",
 }
 ALLOWED_NESTED_CONFIG_KEYS = {
-    "storage": {"agent_events_table", "local_data_dir"},
+    "storage": {"agent_events_table", "local_data_dir", "require_spark"},
     "prompts": {"agent_system_prompt"},
     "mcp": {"server"},
 }
@@ -57,6 +57,7 @@ logger = logging.getLogger(__name__)
 class StorageConfig:
     agent_events_table: str | None
     local_data_dir: str = "./.local_state"
+    require_spark: bool = False
 
 
 @dataclass(slots=True)
@@ -240,6 +241,15 @@ def build_settings(
                 )
                 or "./.local_state"
             ),
+            require_spark=_coerce_bool(
+                _resolve_value(
+                    yaml_value=_deep_get(raw, "storage", "require_spark"),
+                    dotenv_values=dotenv_values,
+                    dotenv_key="STORAGE_REQUIRE_SPARK",
+                    default=False,
+                ),
+                name="storage.require_spark",
+            ),
         ),
         prompts=PromptConfig(
             agent_system_prompt_path=agent_prompt_path,
@@ -284,7 +294,13 @@ def validate_settings(settings: Settings) -> None:
         missing_required.append("llm_endpoint_name")
     if not (settings.storage.local_data_dir or "").strip():
         missing_required.append("storage.local_data_dir")
-    if get_spark_session() is not None and not (settings.storage.agent_events_table or "").strip():
+    if settings.storage.require_spark and not (settings.storage.agent_events_table or "").strip():
+        raise ValueError("storage.require_spark=true requires storage.agent_events_table")
+    if (
+        not settings.storage.require_spark
+        and get_spark_session() is not None
+        and not (settings.storage.agent_events_table or "").strip()
+    ):
         missing_required.append("storage.agent_events_table")
     if missing_required:
         formatted = ", ".join(missing_required)
@@ -368,7 +384,7 @@ def _resolve_value(
     yaml_value: Any = None,
     dotenv_values: dict[str, str],
     dotenv_key: str,
-    default: str | None = None,
+    default: Any = None,
 ) -> Any:
     if yaml_value is not None:
         return yaml_value
@@ -425,3 +441,15 @@ def _coerce_int(value: Any, *, name: str) -> int:
         return int(value)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{name} must be an integer.") from exc
+
+
+def _coerce_bool(value: Any, *, name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    raise ValueError(f"{name} must be a boolean.")
