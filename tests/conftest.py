@@ -16,10 +16,10 @@ DEMO_TASK_PATH = EXAMPLES_DIR / "demo_run_task.json"
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     for item in items:
-        path = str(item.path)
-        if "/tests/unit/" in path:
+        parts = item.path.parts
+        if "tests" in parts and "unit" in parts:
             item.add_marker(pytest.mark.unit)
-        elif "/tests/contract/" in path:
+        elif "tests" in parts and "contract" in parts:
             item.add_marker(pytest.mark.contract)
 
 
