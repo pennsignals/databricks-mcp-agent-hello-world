@@ -1,13 +1,26 @@
 from __future__ import annotations
 
 import json
+import logging
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
+from databricks_mcp_agent_hello_world.clients import databricks as db_clients
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES_DIR = REPO_ROOT / "examples"
 DEMO_TASK_PATH = EXAMPLES_DIR / "demo_run_task.json"
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    for item in items:
+        path = str(item.path)
+        if "/tests/unit/" in path:
+            item.add_marker(pytest.mark.unit)
+        elif "/tests/contract/" in path:
+            item.add_marker(pytest.mark.contract)
 
 
 def load_demo_task_input() -> dict[str, object]:
@@ -51,3 +64,26 @@ def demo_task_path() -> Path:
 @pytest.fixture
 def demo_task_input() -> dict[str, object]:
     return load_demo_task_input()
+
+
+@pytest.fixture(autouse=True)
+def reset_databricks_client_caches() -> Iterator[None]:
+    db_clients._cached_config.cache_clear()
+    db_clients._cached_workspace_client.cache_clear()
+    db_clients._cached_openai_client.cache_clear()
+    yield
+    db_clients._cached_config.cache_clear()
+    db_clients._cached_workspace_client.cache_clear()
+    db_clients._cached_openai_client.cache_clear()
+
+
+@pytest.fixture
+def isolated_root_logger() -> Iterator[logging.Logger]:
+    root_logger = logging.getLogger()
+    original_handlers = list(root_logger.handlers)
+    original_level = root_logger.level
+    try:
+        yield root_logger
+    finally:
+        root_logger.handlers = original_handlers
+        root_logger.setLevel(original_level)

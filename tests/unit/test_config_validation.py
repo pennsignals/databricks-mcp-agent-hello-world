@@ -32,26 +32,48 @@ def test_load_dotenv_values_returns_empty_when_no_env_file(tmp_path: Path) -> No
     assert config.load_dotenv_values(str(config_path)) == (None, {})
 
 
-def test_validate_settings_rejects_remaining_invalid_shapes(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("settings_overrides", "message"),
+    [
+        pytest.param(
+            {"storage": {"local_data_dir": "   "}},
+            r"storage\.local_data_dir",
+            id="blank-local-data-dir",
+        ),
+        pytest.param(
+            {"tool_provider_type": "unknown"},
+            "Unsupported tool_provider_type",
+            id="unknown-provider",
+        ),
+        pytest.param(
+            {"tool_provider_type": "managed_mcp"},
+            "managed_mcp has been replaced",
+            id="removed-managed-mcp",
+        ),
+        pytest.param(
+            {"tool_provider_type": "databricks_mcp"},
+            r"mcp\.server\.url",
+            id="missing-mcp-server-url",
+        ),
+        pytest.param(
+            {"max_agent_steps": 0},
+            "at least 1",
+            id="zero-max-agent-steps",
+        ),
+    ],
+)
+def test_validate_settings_rejects_invalid_shapes(
+    monkeypatch,
+    settings_overrides: dict[str, object],
+    message: str,
+) -> None:
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.config.get_spark_session",
         lambda: None,
     )
 
-    with pytest.raises(ValueError, match="storage.local_data_dir"):
-        config.validate_settings(make_settings(storage={"local_data_dir": "   "}))
-
-    with pytest.raises(ValueError, match="Unsupported tool_provider_type"):
-        config.validate_settings(make_settings(tool_provider_type="unknown"))
-
-    with pytest.raises(ValueError, match="managed_mcp has been replaced"):
-        config.validate_settings(make_settings(tool_provider_type="managed_mcp"))
-
-    with pytest.raises(ValueError, match="mcp.server.url"):
-        config.validate_settings(make_settings(tool_provider_type="databricks_mcp"))
-
-    with pytest.raises(ValueError, match="at least 1"):
-        config.validate_settings(make_settings(max_agent_steps=0))
+    with pytest.raises(ValueError, match=message):
+        config.validate_settings(make_settings(**settings_overrides))
 
 
 def test_validate_settings_requires_remote_table_when_spark_is_available(monkeypatch) -> None:
@@ -60,7 +82,7 @@ def test_validate_settings_requires_remote_table_when_spark_is_available(monkeyp
         lambda: object(),
     )
 
-    with pytest.raises(ValueError, match="storage.agent_events_table"):
+    with pytest.raises(ValueError, match=r"storage\.agent_events_table"):
         config.validate_settings(make_settings(storage={"agent_events_table": "  "}))
 
 
@@ -72,7 +94,7 @@ def test_validate_settings_requires_remote_table_when_spark_is_required(monkeypa
 
     with pytest.raises(
         ValueError,
-        match="storage.require_spark=true requires storage.agent_events_table",
+        match=r"storage\.require_spark=true requires storage\.agent_events_table",
     ):
         config.validate_settings(
             make_settings(storage={"require_spark": True, "agent_events_table": "  "})
@@ -164,7 +186,7 @@ def test_parse_dotenv_rejects_invalid_lines_and_coerce_int_rejects_non_int(tmp_p
     dotenv_path = tmp_path / ".env"
     dotenv_path.write_text("# comment\n\nBROKEN_LINE\n", encoding="utf-8")
 
-    with pytest.raises(ValueError, match="Invalid .env line 3"):
+    with pytest.raises(ValueError, match=r"Invalid \.env line 3"):
         config._parse_dotenv(dotenv_path)
 
     with pytest.raises(ValueError, match="max_agent_steps must be an integer"):
@@ -172,7 +194,7 @@ def test_parse_dotenv_rejects_invalid_lines_and_coerce_int_rejects_non_int(tmp_p
 
     assert config._coerce_bool("true", name="storage.require_spark") is True
     assert config._coerce_bool("off", name="storage.require_spark") is False
-    with pytest.raises(ValueError, match="storage.require_spark"):
+    with pytest.raises(ValueError, match=r"storage\.require_spark"):
         config._coerce_bool("sometimes", name="storage.require_spark")
-    with pytest.raises(ValueError, match="storage.require_spark"):
+    with pytest.raises(ValueError, match=r"storage\.require_spark"):
         config._coerce_bool(1, name="storage.require_spark")

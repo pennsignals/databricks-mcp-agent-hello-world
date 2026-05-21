@@ -77,12 +77,8 @@ def test_provider_factory_selects_databricks_mcp_provider(monkeypatch) -> None:
 
 
 def test_provider_factory_rejects_old_managed_mcp_value() -> None:
-    try:
+    with pytest.raises(ValueError, match="managed_mcp has been replaced by databricks_mcp"):
         get_tool_provider(make_settings(tool_provider_type="managed_mcp"))
-    except ValueError as exc:
-        assert "managed_mcp has been replaced by databricks_mcp" in str(exc)
-    else:  # pragma: no cover
-        raise AssertionError("managed_mcp should fail fast")
 
 
 def _install_fake_databricks_mcp_modules(monkeypatch):
@@ -183,5 +179,5 @@ def test_databricks_mcp_provider_uses_default_workspace_client_without_profile(m
 
 
 def test_databricks_mcp_provider_requires_server_config() -> None:
-    with pytest.raises(ValueError, match="databricks_mcp requires mcp.server.url"):
+    with pytest.raises(ValueError, match=r"databricks_mcp requires mcp\.server\.url"):
         DatabricksMCPToolProvider(make_settings(tool_provider_type="databricks_mcp"))

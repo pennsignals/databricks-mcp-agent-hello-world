@@ -39,7 +39,7 @@ class FakeSqlResult:
 
 
 class FakeCatalogApi:
-    def __init__(self, spark: "FakeSpark") -> None:
+    def __init__(self, spark: FakeSpark) -> None:
         self.spark = spark
 
     def tableExists(self, table_name: str) -> bool:

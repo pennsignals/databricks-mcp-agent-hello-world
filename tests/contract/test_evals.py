@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Literal
+from typing import ClassVar, Literal
 
 import pytest
 
@@ -17,8 +17,8 @@ from tests.helpers import make_settings
 
 
 class StubRunner:
-    instances: list["StubRunner"] = []
-    queued_outcomes: list[AgentRunRecord | Exception] = []
+    instances: ClassVar[list[StubRunner]] = []
+    queued_outcomes: ClassVar[list[AgentRunRecord | Exception]] = []
 
     def __init__(self, settings):
         self.settings = settings

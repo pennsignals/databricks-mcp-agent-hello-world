@@ -46,7 +46,7 @@ def test_local_registry_rejects_duplicate_tool_names(monkeypatch) -> None:
         name="duplicate",
         description="Duplicate tool",
         input_schema={"type": "object", "properties": {}},
-        fn=lambda: {},
+        fn=dict,
     )
     monkeypatch.setattr(
         registry,

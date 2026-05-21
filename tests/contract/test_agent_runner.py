@@ -1,142 +1,43 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from types import SimpleNamespace
 
 from databricks_mcp_agent_hello_world.models import (
     AgentRunRecord,
     AgentTaskRequest,
 )
-from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
 from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool, ToolSource
-
-
-class StubProvider:
-    def __init__(self, tools: list[RuntimeTool]) -> None:
-        self.tools = tools
-        self.calls = []
-
-    def list_tools(self) -> list[RuntimeTool]:
-        return list(self.tools)
-
-
-class RaisingProvider(StubProvider):
-    pass
-
-
-class StubLLM:
-    def __init__(self, responses):
-        self.responses = responses
-        self.calls = 0
-        self.call_args = []
-
-    def tool_step(self, messages, tools, tool_choice=None):
-        self.call_args.append({"messages": messages, "tools": tools, "tool_choice": tool_choice})
-        response = self.responses[self.calls]
-        self.calls += 1
-        if isinstance(response, Exception):
-            raise response
-        return response
-
-
-def _tool(name: str, calls: list | None = None, *, raises: bool = False) -> RuntimeTool:
-    def _execute(**kwargs):
-        if calls is not None:
-            calls.append({"tool_name": name, "arguments": kwargs})
-        if raises:
-            raise RuntimeError(f"tool boom: {name}")
-        return {"echo": kwargs}
-
-    return RuntimeTool(
-        name=name,
-        spec={
-            "type": "function",
-            "function": {
-                "name": name,
-                "description": f"{name} description",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"value": {"type": "string"}},
-                    "required": [],
-                },
-            },
-        },
-        execute=_execute,
-        source=ToolSource(type="local_python", id="builtin_tools"),
-    )
-
-
-def _discovered_tools(calls: list | None = None) -> list[RuntimeTool]:
-    return [
-        _tool("get_user_profile", calls),
-        _tool("search_onboarding_docs", calls),
-        _tool("get_workspace_setting", calls),
-        _tool("list_recent_job_runs", calls),
-        _tool("create_support_ticket", calls),
-    ]
-
-
-def _response(content: str | None = None, tool_calls=None):
-    message = SimpleNamespace(content=content, tool_calls=tool_calls)
-    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
-
-
-def _tool_call(name: str, arguments: str, call_id: str = "call-1"):
-    function = SimpleNamespace(name=name, arguments=arguments)
-    return SimpleNamespace(id=call_id, function=function)
-
-
-def _runner(
-    tmp_path: Path,
-    llm,
-    *,
-    tools: list[RuntimeTool] | None = None,
-    max_agent_steps: int = 2,
-    provider=None,
-) -> AgentRunner:
-    runner = AgentRunner.__new__(AgentRunner)
-    runner.settings = SimpleNamespace(
-        prompts=SimpleNamespace(agent_system_prompt="system"),
-        max_agent_steps=max_agent_steps,
-        llm_endpoint_name="databricks-meta-llama",
-        storage=SimpleNamespace(local_data_dir=str(tmp_path)),
-    )
-    runner.provider = provider or StubProvider(tools or _discovered_tools())
-    runner.persisted_event_rows = []
-    runner.llm = llm
-    return runner
-
-
-def _capture_event_rows(runner: AgentRunner, monkeypatch) -> None:
-    def _stub_write_event_rows(settings, rows) -> None:
-        del settings
-        runner.persisted_event_rows.extend(dict(row) for row in rows)
-
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.runner.agent_runner.write_event_rows",
-        _stub_write_event_rows,
-    )
-
-
-def _payload(row: dict) -> dict:
-    return json.loads(row["payload_json"])
+from tests.contract.agent_runner_helpers import (
+    RaisingProvider,
+    StubLLM,
+    capture_event_rows,
+    discovered_tools,
+    event_payload,
+    llm_response,
+    runtime_tool,
+    tool_call,
+)
+from tests.contract.agent_runner_helpers import (
+    runner as make_runner,
+)
 
 
 def test_agent_runner_persists_run_contract_for_success(tmp_path: Path, monkeypatch) -> None:
     calls = []
-    tools = _discovered_tools(calls)
-    runner = _runner(
+    tools = discovered_tools(calls)
+    runner = make_runner(
         tmp_path,
         StubLLM(
             [
-                _response(tool_calls=[_tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')]),
-                _response(content="## Onboarding Brief\nAda Lovelace"),
+                llm_response(
+                    tool_calls=[tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')]
+                ),
+                llm_response(content="## Onboarding Brief\nAda Lovelace"),
             ]
         ),
         tools=tools,
     )
-    _capture_event_rows(runner, monkeypatch)
+    capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(
@@ -165,7 +66,7 @@ def test_agent_runner_persists_run_contract_for_success(tmp_path: Path, monkeypa
     assert {row["run_key"] for row in events} == {"run-123"}
     assert all("conversation_id" not in row for row in events)
     assert all("event_id" not in row for row in events)
-    assert _payload(events[0])["available_tools_count"] == len(tools)
+    assert event_payload(events[0])["available_tools_count"] == len(tools)
     assert events[-1]["status"] == "success"
 
 
@@ -173,17 +74,17 @@ def test_agent_runner_rejects_unknown_tool_calls_without_executing_provider(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    runner = _runner(
+    runner = make_runner(
         tmp_path,
         StubLLM(
             [
-                _response(tool_calls=[_tool_call("create_support_ticket", '{"summary":"help"}')]),
-                _response(content="Finished after the error."),
+                llm_response(tool_calls=[tool_call("create_support_ticket", '{"summary":"help"}')]),
+                llm_response(content="Finished after the error."),
             ]
         ),
-        tools=_discovered_tools()[:-1],
+        tools=discovered_tools()[:-1],
     )
-    _capture_event_rows(runner, monkeypatch)
+    capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(
@@ -202,16 +103,16 @@ def test_agent_runner_marks_malformed_tool_arguments_as_error_without_crashing(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    runner = _runner(
+    runner = make_runner(
         tmp_path,
         StubLLM(
             [
-                _response(tool_calls=[_tool_call("get_user_profile", '{"user_id":')]),
-                _response(content="Finished after malformed tool args."),
+                llm_response(tool_calls=[tool_call("get_user_profile", '{"user_id":')]),
+                llm_response(content="Finished after malformed tool args."),
             ]
         ),
     )
-    _capture_event_rows(runner, monkeypatch)
+    capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(task_name="workspace_onboarding_brief", instructions="Write the report.")
@@ -248,17 +149,17 @@ def test_agent_runner_rejects_invalid_tool_arguments_before_execution(
         execute=lambda **kwargs: calls.append(kwargs) or {"ok": True},
         source=ToolSource(type="databricks_mcp", id="uc_functions"),
     )
-    runner = _runner(
+    runner = make_runner(
         tmp_path,
         StubLLM(
             [
-                _response(tool_calls=[_tool_call("lookup_remote_user", "{}")]),
-                _response(content="Finished after validation error."),
+                llm_response(tool_calls=[tool_call("lookup_remote_user", "{}")]),
+                llm_response(content="Finished after validation error."),
             ]
         ),
         tools=[runtime_tool],
     )
-    _capture_event_rows(runner, monkeypatch)
+    capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(
@@ -277,7 +178,7 @@ def test_agent_runner_rejects_invalid_tool_arguments_before_execution(
     tool_result_event = next(
         row for row in runner.persisted_event_rows if row["event_type"] == "tool_result"
     )
-    payload = _payload(tool_result_event)
+    payload = event_payload(tool_result_event)
     assert payload["content"]["error_type"] == "invalid_tool_arguments"
     assert payload["metadata"]["error_type"] == "invalid_tool_arguments"
     assert payload["metadata"]["source_type"] == "databricks_mcp"
@@ -304,17 +205,17 @@ def test_agent_runner_reports_invalid_remote_tool_schema_separately(
         execute=lambda **kwargs: calls.append(kwargs) or {"ok": True},
         source=ToolSource(type="databricks_mcp", id="uc_functions"),
     )
-    runner = _runner(
+    runner = make_runner(
         tmp_path,
         StubLLM(
             [
-                _response(tool_calls=[_tool_call("bad_remote_tool", '{"value":"x"}')]),
-                _response(content="Finished after schema error."),
+                llm_response(tool_calls=[tool_call("bad_remote_tool", '{"value":"x"}')]),
+                llm_response(content="Finished after schema error."),
             ]
         ),
         tools=[runtime_tool],
     )
-    _capture_event_rows(runner, monkeypatch)
+    capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(
@@ -330,7 +231,7 @@ def test_agent_runner_reports_invalid_remote_tool_schema_separately(
     tool_result_event = next(
         row for row in runner.persisted_event_rows if row["event_type"] == "tool_result"
     )
-    payload = _payload(tool_result_event)
+    payload = event_payload(tool_result_event)
     assert payload["content"]["error_type"] == "invalid_tool_schema"
     assert payload["metadata"]["error_type"] == "invalid_tool_schema"
     assert payload["metadata"]["source_type"] == "databricks_mcp"
@@ -340,17 +241,19 @@ def test_agent_runner_returns_max_steps_exceeded_when_llm_never_finishes(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    runner = _runner(
+    runner = make_runner(
         tmp_path,
         StubLLM(
             [
-                _response(tool_calls=[_tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')]),
-                _response(content="Finished after tool error."),
+                llm_response(
+                    tool_calls=[tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')]
+                ),
+                llm_response(content="Finished after tool error."),
             ]
         ),
         max_agent_steps=1,
     )
-    _capture_event_rows(runner, monkeypatch)
+    capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(
@@ -369,17 +272,19 @@ def test_agent_runner_emits_error_event_when_tool_execution_raises(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    runner = _runner(
+    runner = make_runner(
         tmp_path,
         StubLLM(
             [
-                _response(tool_calls=[_tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')]),
-                _response(content="Finished after tool error."),
+                llm_response(
+                    tool_calls=[tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')]
+                ),
+                llm_response(content="Finished after tool error."),
             ]
         ),
-        provider=RaisingProvider([_tool("get_user_profile", raises=True)]),
+        provider=RaisingProvider([runtime_tool("get_user_profile", raises=True)]),
     )
-    _capture_event_rows(runner, monkeypatch)
+    capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(

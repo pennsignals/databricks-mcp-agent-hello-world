@@ -6,18 +6,25 @@ import pytest
 
 from databricks_mcp_agent_hello_world.models import AgentTaskRequest
 from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
-from tests.contract.test_agent_runner import StubLLM, _capture_event_rows, _response, _runner
+from tests.contract.agent_runner_helpers import (
+    StubLLM,
+    capture_event_rows,
+    llm_response,
+)
+from tests.contract.agent_runner_helpers import (
+    runner as make_runner,
+)
 
 
 def test_agent_runner_records_run_failed_event_when_llm_step_raises(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    runner = _runner(
+    runner = make_runner(
         tmp_path,
         StubLLM([RuntimeError("llm boom")]),
     )
-    _capture_event_rows(runner, monkeypatch)
+    capture_event_rows(runner, monkeypatch)
 
     with pytest.raises(RuntimeError, match="llm boom"):
         runner.run(
@@ -62,8 +69,8 @@ def test_agent_runner_success_without_tool_calls_truncates_terminal_excerpt(
     monkeypatch,
 ) -> None:
     long_response = "x" * 600
-    runner = _runner(tmp_path, StubLLM([_response(content=long_response)]))
-    _capture_event_rows(runner, monkeypatch)
+    runner = make_runner(tmp_path, StubLLM([llm_response(content=long_response)]))
+    capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(

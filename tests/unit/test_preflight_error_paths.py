@@ -36,7 +36,7 @@ def test_preflight_direct_helper_branches(monkeypatch, tmp_path: Path) -> None:
     assert provider_check.status == "fail"
 
     empty_tool_check, tool_count = preflight._check_tool_registry_nonempty(
-        SimpleNamespace(list_tools=lambda: [])
+        SimpleNamespace(list_tools=list)
     )
     assert tool_count == 0
     assert empty_tool_check.status == "fail"
@@ -60,7 +60,7 @@ def test_preflight_direct_helper_branches(monkeypatch, tmp_path: Path) -> None:
     assert missing_local_dir.status == "fail"
 
     spark = SimpleNamespace(
-        table=lambda name: SimpleNamespace(limit=lambda n: SimpleNamespace(collect=lambda: []))
+        table=lambda name: SimpleNamespace(limit=lambda n: SimpleNamespace(collect=list))
     )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.preflight.get_spark_session",

@@ -344,5 +344,5 @@ def test_load_settings_rejects_non_mapping_mcp_server(tmp_path: Path) -> None:
         ],
     )
 
-    with pytest.raises(ValueError, match="mcp.server must be a YAML mapping"):
+    with pytest.raises(ValueError, match=r"mcp\.server must be a YAML mapping"):
         load_settings(str(config_path))

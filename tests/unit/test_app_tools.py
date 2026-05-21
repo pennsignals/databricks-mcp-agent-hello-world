@@ -1,6 +1,8 @@
 import pytest
 
+from databricks_mcp_agent_hello_world.app import registry
 from databricks_mcp_agent_hello_world.app.tools import (
+    _ranked_result_sort_key,
     create_support_ticket,
     get_user_profile,
     get_workspace_setting,
@@ -34,6 +36,11 @@ def test_get_workspace_setting_returns_runtime_target() -> None:
     assert get_workspace_setting("runtime_target")["value"] == "Databricks Serverless Jobs"
 
 
+def test_get_workspace_setting_rejects_unknown_key() -> None:
+    with pytest.raises(ValueError, match="unknown setting key"):
+        get_workspace_setting("missing")
+
+
 def test_list_recent_job_runs_handles_limits() -> None:
     assert len(list_recent_job_runs()["runs"]) == 3
     assert len(list_recent_job_runs(limit=1)["runs"]) == 1
@@ -47,3 +54,28 @@ def test_create_support_ticket_is_deterministic() -> None:
         "status": "created",
         "severity": "medium",
     }
+
+
+@pytest.mark.parametrize(
+    ("summary", "severity", "message"),
+    [
+        pytest.param("   ", "low", "summary must not be empty", id="blank-summary"),
+        pytest.param("need help", "urgent", "invalid severity", id="invalid-severity"),
+    ],
+)
+def test_create_support_ticket_rejects_invalid_inputs(
+    summary: str,
+    severity: str,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        create_support_ticket(summary, severity=severity)
+
+
+def test_ranked_result_sort_key_rejects_non_numeric_score() -> None:
+    with pytest.raises(TypeError, match="ranked result score"):
+        _ranked_result_sort_key({"score": object(), "title": "Demo"})
+
+
+def test_app_registry_returns_registered_tool_function() -> None:
+    assert registry.get_tool_function("get_user_profile") is get_user_profile
