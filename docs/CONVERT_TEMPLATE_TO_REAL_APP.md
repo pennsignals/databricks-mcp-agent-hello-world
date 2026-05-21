@@ -85,6 +85,24 @@ In GitHub CD, `${workspace.current_user.userName}` resolves under the authentica
 
 The starter CD workflow suppresses Databricks job stdout and stderr in GitHub Actions logs. Downstream apps should still avoid printing secrets, credentials, sensitive prompts, sensitive model responses, row-level data, or private config to stdout and stderr. Databricks-side logs may retain output according to workspace and job permissions; the workflow only suppresses GitHub Actions log output.
 
+## Review persisted event data before using real inputs
+
+Before running a downstream app with real data, review what the default event store will capture.
+
+The template persists detailed execution events for debugging. Depending on your task and tools, the event store may contain prompts, task payloads, tool-call arguments, tool results, model responses, errors, and final outputs.
+
+For the MVP template, no automatic redaction or truncation is applied.
+
+Before production use, decide whether your downstream app should:
+
+1. keep the default rich event trace
+2. restrict access to the event table and local JSONL files
+3. reduce sensitive content returned by tools
+4. add app-specific redaction or truncation
+5. define retention and cleanup expectations
+
+Do not assume `storage.agent_events_table` is sanitized telemetry. Treat it as application data.
+
 ## Step 7 — Verify the full workflow
 
 Use this checklist:

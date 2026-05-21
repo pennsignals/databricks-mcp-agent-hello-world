@@ -148,6 +148,32 @@ Everything event-specific and potentially nested stays in `payload_json`.
 
 This keeps the schema stable and flat while still preserving fidelity for later debugging, SQL analysis, and future resumability work.
 
+### Persisted event payload sensitivity
+
+`payload_json` is intentionally rich so local and Databricks runs can be debugged after the fact. It should be treated as application data.
+
+Depending on the task and tools, persisted event payloads may include:
+
+- the original task payload
+- system and user prompt content
+- LLM request messages
+- model responses
+- tool-call names and arguments
+- tool-result content
+- exception messages
+- final response text
+
+The template does not apply application-level redaction, truncation, classification, encryption, or filtering to these fields before persistence. Downstream apps that handle sensitive data should decide whether to:
+
+- restrict access to the local JSONL directory and Delta event table
+- point `storage.agent_events_table` at an appropriately protected schema
+- reduce what their tools return
+- avoid placing secrets in task payloads or prompts
+- add app-specific redaction or truncation before persistence
+- define retention and cleanup rules for event data
+
+This is intentionally a downstream application decision. The MVP template keeps persistence simple and observable by default.
+
 ### Local and Databricks parity
 
 Both backends use the same logical row shape:

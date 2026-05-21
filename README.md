@@ -402,6 +402,16 @@ The template uses one append-only event store shared across local JSONL and Data
 
 For the event schema, `run_key + event_index` identity model, and `payload_json` rationale, see [Architecture](docs/ARCHITECTURE.md).
 
+### Event payload sensitivity
+
+The event store is an execution trace, not a sanitized audit log.
+
+Persisted event payloads may include task inputs, prompt messages, LLM request messages, model responses, tool-call arguments, tool results, errors, and final outputs.
+
+For the demo app, this is useful for debugging. Before adapting the template to a downstream app that handles real customer, employee, regulated, proprietary, or otherwise sensitive data, review whether the default persisted payloads are appropriate for your access controls and retention requirements.
+
+For design details, see [Architecture](docs/ARCHITECTURE.md). For downstream adaptation guidance, see [Convert the template into a real app](docs/CONVERT_TEMPLATE_TO_REAL_APP.md).
+
 ## What you should customize vs keep
 
 For the full downstream customization guide, use [Convert the template into a real app](docs/CONVERT_TEMPLATE_TO_REAL_APP.md).
