@@ -24,10 +24,6 @@ def test_command_helpers_delegate_to_runtime_operations(tmp_path: Path, monkeypa
     task_file.write_text('{"task_name":"demo","instructions":"hi","payload":{}}', encoding="utf-8")
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.commands.run_preflight",
-        lambda path: SimpleNamespace(overall_status="fail"),
-    )
-    monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.commands._load_settings_for_command",
         lambda config_path, command_name, next_step=None: "settings",
     )
@@ -37,7 +33,11 @@ def test_command_helpers_delegate_to_runtime_operations(tmp_path: Path, monkeypa
     )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.commands.load_settings",
-        lambda path: "settings",
+        lambda path: SimpleNamespace(log_level="INFO"),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.configure_logging",
+        lambda level=None: None,
     )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.commands.init_storage",
@@ -66,6 +66,46 @@ def test_command_helpers_delegate_to_runtime_operations(tmp_path: Path, monkeypa
         ).run_id
         == "run-123"
     )
+
+
+def test_preflight_command_configures_logging_from_loaded_settings(monkeypatch) -> None:
+    loaded = SimpleNamespace(settings=SimpleNamespace(log_level="DEBUG"))
+    configured_levels: list[str] = []
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.load_settings_bundle",
+        lambda path: loaded,
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.configure_logging",
+        configured_levels.append,
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.run_preflight_loaded",
+        lambda path, actual_loaded: SimpleNamespace(overall_status="pass"),
+    )
+
+    result = run_preflight_command("workspace-config.yml")
+
+    assert result.exit_code == 0
+    assert configured_levels == ["DEBUG"]
+
+
+def test_preflight_command_reports_config_errors_without_reloading(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.load_settings_bundle",
+        lambda path: (_ for _ in ()).throw(FileNotFoundError(path)),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.run_preflight_loaded",
+        lambda path, loaded: (_ for _ in ()).throw(AssertionError("should not run")),
+    )
+
+    result = run_preflight_command("missing.yml")
+
+    assert result.exit_code == 1
+    assert result.payload.checks[0].name == "config"
+    assert result.payload.checks[0].details == {"config_path": "missing.yml"}
 
 
 def test_load_settings_for_command_explains_missing_config_next_step(
@@ -105,7 +145,11 @@ def test_run_evals_command_wraps_config_and_runtime_errors(
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.commands.load_settings",
-        lambda path: "settings",
+        lambda path: SimpleNamespace(log_level="INFO"),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.configure_logging",
+        lambda level=None: None,
     )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.commands.run_evals",
@@ -120,6 +164,48 @@ def test_run_evals_command_wraps_config_and_runtime_errors(
     )
     with pytest.raises(EvalSetupError, match="already wrapped"):
         run_evals_command(str(config_path))
+
+
+def test_load_settings_for_command_configures_logging_from_settings(monkeypatch) -> None:
+    settings = SimpleNamespace(log_level="DEBUG")
+    configured_levels: list[str | None] = []
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.load_settings",
+        lambda path: settings,
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.configure_logging",
+        configured_levels.append,
+    )
+
+    assert _load_settings_for_command("workspace-config.yml", "discover-tools") is settings
+    assert configured_levels == ["DEBUG"]
+
+
+def test_init_storage_command_configures_default_log_level_when_missing(
+    monkeypatch,
+) -> None:
+    settings = SimpleNamespace(log_level="INFO")
+    configured_levels: list[str] = []
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.load_settings",
+        lambda path: settings,
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.configure_logging",
+        configured_levels.append,
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.init_storage",
+        lambda actual_settings: SimpleNamespace(exit_code=0, messages=[]),
+    )
+
+    result = run_init_storage_command("workspace-config.yml")
+
+    assert result.exit_code == 0
+    assert configured_levels == ["INFO"]
 
 
 @pytest.mark.parametrize(

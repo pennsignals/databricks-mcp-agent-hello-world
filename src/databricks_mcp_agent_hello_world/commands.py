@@ -4,14 +4,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .config import load_settings, parse_task_input, parse_task_input_file
+from .config import load_settings, load_settings_bundle, parse_task_input, parse_task_input_file
 from .discovery import discover_tools
 from .evals.harness import EvalSetupError, run_evals
+from .logging_utils import configure_logging
 from .models import (
     AgentRunRecord,
     AgentTaskRequest,
 )
-from .preflight import run_preflight
+from .preflight import build_preflight_config_error_report, run_preflight_loaded
 from .runner.agent_runner import AgentRunner
 from .storage.bootstrap import init_storage
 
@@ -23,7 +24,13 @@ class CommandResult:
 
 
 def run_preflight_command(config_path: str) -> CommandResult:
-    report = run_preflight(config_path)
+    try:
+        loaded = load_settings_bundle(config_path)
+    except Exception as exc:
+        report = build_preflight_config_error_report(config_path, exc)
+    else:
+        configure_logging(loaded.settings.log_level)
+        report = run_preflight_loaded(config_path, loaded)
     return CommandResult(exit_code=0 if report.overall_status == "pass" else 1, payload=report)
 
 
@@ -64,6 +71,7 @@ def run_evals_command(
 ) -> CommandResult:
     try:
         settings = load_settings(config_path)
+        configure_logging(settings.log_level)
     except Exception as exc:
         raise EvalSetupError(
             f"Unable to load config from {Path(config_path)} while running run-evals: {exc}"
@@ -81,6 +89,7 @@ def run_evals_command(
 
 def run_init_storage_command(config_path: str) -> CommandResult:
     settings = load_settings(config_path)
+    configure_logging(settings.log_level)
     report = init_storage(settings)
     return CommandResult(exit_code=report.exit_code, payload=report)
 
@@ -126,7 +135,7 @@ def _load_settings_for_command(
     next_step: str | None = None,
 ):
     try:
-        return load_settings(config_path)
+        settings = load_settings(config_path)
     except FileNotFoundError as exc:
         location = Path(config_path)
         if next_step:
@@ -137,6 +146,8 @@ def _load_settings_for_command(
         raise RuntimeError(
             f"Missing config file at {location} while running {command_name}."
         ) from exc
+    configure_logging(settings.log_level)
+    return settings
 
 
 def _agent_run_exit_code(record: AgentRunRecord) -> int:

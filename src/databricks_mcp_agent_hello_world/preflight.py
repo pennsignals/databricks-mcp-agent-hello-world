@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .clients.databricks import get_workspace_client
 from .config import (
+    LoadedSettings,
     Settings,
     load_settings_bundle,
 )
@@ -14,21 +15,32 @@ from .storage.spark import get_spark_session, require_spark_session
 
 
 def run_preflight(config_path: str) -> PreflightReport:
-    checks: list[PreflightCheck] = []
-
     try:
         loaded = load_settings_bundle(config_path)
     except Exception as exc:
-        checks.append(
+        return build_preflight_config_error_report(config_path, exc)
+
+    return run_preflight_loaded(config_path, loaded)
+
+
+def build_preflight_config_error_report(
+    config_path: str,
+    exc: Exception,
+) -> PreflightReport:
+    return _finalize_preflight_report(
+        [
             PreflightCheck(
                 name="config",
                 status="fail",
                 message=str(exc),
                 details={"config_path": str(Path(config_path))},
             )
-        )
-        return _finalize_preflight_report(checks)
+        ]
+    )
 
+
+def run_preflight_loaded(config_path: str, loaded: LoadedSettings) -> PreflightReport:
+    checks: list[PreflightCheck] = []
     settings = loaded.settings
 
     checks.append(

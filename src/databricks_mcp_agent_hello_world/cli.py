@@ -15,7 +15,6 @@ from .commands import (
 )
 from .config import DEFAULT_CONFIG_PATH
 from .evals.harness import EvalSetupError
-from .logging_utils import configure_logging
 
 OUTPUT_CHOICES = ("text", "json")
 COMMAND_NAMES = (
@@ -71,7 +70,6 @@ def run_named_command(
     *,
     prog: str | None = None,
 ) -> int:
-    configure_logging()
     parser = build_parser(command_name, prog=prog or command_name)
     try:
         args = parser.parse_args(argv)

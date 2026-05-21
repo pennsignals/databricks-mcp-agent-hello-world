@@ -84,9 +84,15 @@ def test_run_agent_task_command_requires_current_task_fields(monkeypatch) -> Non
 
 
 def test_run_evals_command_returns_nonzero_when_report_fails(monkeypatch) -> None:
+    configured_levels: list[str | None] = []
+
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.commands.load_settings",
-        lambda config_path: SimpleNamespace(),
+        lambda config_path: SimpleNamespace(log_level="DEBUG"),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.configure_logging",
+        configured_levels.append,
     )
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.commands.run_evals",
@@ -104,3 +110,4 @@ def test_run_evals_command_returns_nonzero_when_report_fails(monkeypatch) -> Non
 
     assert isinstance(result, CommandResult)
     assert result.exit_code == 1
+    assert configured_levels == ["DEBUG"]

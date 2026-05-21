@@ -76,6 +76,12 @@ def test_build_settings_uses_dotenv_for_optional_values_when_yaml_omits_them(
     assert settings.storage.require_spark is True
 
 
+def test_load_settings_defaults_log_level_to_info_when_omitted(tmp_path: Path) -> None:
+    settings = load_settings(str(write_workspace_config(tmp_path)))
+
+    assert settings.log_level == "INFO"
+
+
 def test_databricks_host_allowed_in_local_dotenv(tmp_path: Path) -> None:
     config_path = write_workspace_config(tmp_path)
     (tmp_path / ".env").write_text(
