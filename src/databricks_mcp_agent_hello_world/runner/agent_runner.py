@@ -336,7 +336,7 @@ class AgentRunner:
                 },
                 error=exc.message,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.exception("Tool execution failed for %s", tool_name)
             return ToolResult(
                 tool_name=tool_name,

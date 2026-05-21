@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -44,8 +44,8 @@ class AgentRunRecord(BaseModel):
     result: dict[str, Any] = Field(default_factory=dict)
     error_message: str | None = None
     inventory_hash: str | None = None
-    started_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    started_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 class DiscoveryReport(BaseModel):
@@ -89,7 +89,7 @@ class EvalScenario(BaseModel):
     forbidden_output_substrings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_tool_call_bounds(self) -> "EvalScenario":
+    def validate_tool_call_bounds(self) -> EvalScenario:
         if (self.task_input is None) == (self.task_input_file is None):
             raise ValueError("exactly one of task_input or task_input_file must be provided")
         if (

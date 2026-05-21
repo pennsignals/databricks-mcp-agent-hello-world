@@ -13,10 +13,7 @@ def write_event_rows(settings: Settings, rows: list[dict[str, object]]) -> None:
     if not rows:
         return
 
-    if settings.storage.require_spark:
-        spark = require_spark_session()
-    else:
-        spark = get_spark_session()
+    spark = require_spark_session() if settings.storage.require_spark else get_spark_session()
     if spark is not None:
         table_name = (getattr(settings.storage, "agent_events_table", "") or "").strip()
         if not table_name:

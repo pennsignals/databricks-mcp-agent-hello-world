@@ -18,7 +18,7 @@ def run_preflight(config_path: str) -> PreflightReport:
 
     try:
         loaded = load_settings_bundle(config_path)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         checks.append(
             PreflightCheck(
                 name="config",
@@ -74,7 +74,7 @@ def _check_databricks_client(settings: Settings) -> PreflightCheck:
             message="Databricks client initialized successfully.",
             details={"host": getattr(client.config, "host", None)},
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return PreflightCheck(
             name="databricks_client",
             status="fail",
@@ -116,7 +116,7 @@ def _check_provider_factory(settings: Settings):
             ),
             provider,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return (
             PreflightCheck(
                 name="provider_factory",
@@ -151,7 +151,7 @@ def _check_tool_registry_nonempty(provider) -> tuple[PreflightCheck, int]:
             ),
             len(tools),
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return (
             PreflightCheck(
                 name="tool_registry_nonempty",
@@ -236,7 +236,7 @@ def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
             message="Configured Delta event store is reachable in read-only mode.",
             details={"agent_events_table": table_name},
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return PreflightCheck(
             name="persistence_reachability",
             status="fail",

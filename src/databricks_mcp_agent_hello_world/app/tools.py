@@ -21,7 +21,7 @@ def get_user_profile(user_id: str) -> dict[str, object]:
         profile = DEMO_USERS[user_id]
     except KeyError as exc:
         raise ValueError(f"unknown user_id: {user_id}") from exc
-    return {key: value for key, value in profile.items()}
+    return dict(profile)
 
 
 def search_onboarding_docs(query: str, max_results: int = 3) -> dict[str, object]:

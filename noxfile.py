@@ -68,6 +68,22 @@ def tests(session: nox.Session) -> None:
 
 
 @nox.session(python=PYTHON)
+def unit(session: nox.Session) -> None:
+    """Run unit tests only."""
+    _install_tool_requirements(session, *NOX_DEV_REQUIREMENTS)
+    _install_project_editable(session)
+    session.run("pytest", "-m", "unit", "--no-cov")
+
+
+@nox.session(python=PYTHON)
+def contract(session: nox.Session) -> None:
+    """Run contract tests only."""
+    _install_tool_requirements(session, *NOX_DEV_REQUIREMENTS)
+    _install_project_editable(session)
+    session.run("pytest", "-m", "contract", "--no-cov")
+
+
+@nox.session(python=PYTHON)
 def build_wheel(session: nox.Session) -> None:
     """Build the wheel after cleaning local build artifacts."""
     _install_tool_requirements(session, *NOX_BUILD_REQUIREMENTS)

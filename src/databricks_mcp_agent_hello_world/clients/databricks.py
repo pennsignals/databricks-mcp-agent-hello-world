@@ -21,7 +21,7 @@ def _workspace_client_config_kwargs(settings: Settings) -> dict[str, str]:
 
 
 @lru_cache(maxsize=8)
-def _cached_config(profile: str | None, host: str | None) -> "Config":
+def _cached_config(profile: str | None, host: str | None) -> Config:
     from databricks.sdk.config import Config
 
     if profile and host:
@@ -34,24 +34,24 @@ def _cached_config(profile: str | None, host: str | None) -> "Config":
 
 
 @lru_cache(maxsize=8)
-def _cached_workspace_client(profile: str | None, host: str | None) -> "WorkspaceClient":
+def _cached_workspace_client(profile: str | None, host: str | None) -> WorkspaceClient:
     from databricks.sdk import WorkspaceClient
 
     return WorkspaceClient(config=_cached_config(profile, host))
 
 
-def get_workspace_client(settings: Settings) -> "WorkspaceClient":
+def get_workspace_client(settings: Settings) -> WorkspaceClient:
     kwargs = _workspace_client_config_kwargs(settings)
     return _cached_workspace_client(kwargs.get("profile"), kwargs.get("host"))
 
 
 @lru_cache(maxsize=8)
-def _cached_openai_client(profile: str | None, host: str | None) -> "DatabricksOpenAI":
+def _cached_openai_client(profile: str | None, host: str | None) -> DatabricksOpenAI:
     from databricks_openai import DatabricksOpenAI
 
     return DatabricksOpenAI(workspace_client=_cached_workspace_client(profile, host))
 
 
-def get_openai_client(settings: Settings) -> "DatabricksOpenAI":
+def get_openai_client(settings: Settings) -> DatabricksOpenAI:
     kwargs = _workspace_client_config_kwargs(settings)
     return _cached_openai_client(kwargs.get("profile"), kwargs.get("host"))

@@ -54,7 +54,7 @@ def run_evals(settings: Settings, scenario_file: str) -> EvalRunReport:
         try:
             run_record = runner.run(_require_task_input(scenario))
             results.append(_score_scenario(scenario, run_record))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             results.append(_execution_error_result(scenario, exc))
 
     report = EvalRunReport(

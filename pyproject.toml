@@ -50,17 +50,26 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B"]
+select = ["E", "F", "I", "B", "UP", "SIM", "C4", "PIE", "PT", "RUF"]
 
 [tool.pytest.ini_options]
 addopts = """
 --cov=databricks_mcp_agent_hello_world
 --cov-report=term-missing
 --cov-report=xml
+--cov-report=html
+--cov-context=test
 --cov-fail-under=100
 """
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+  "unit: fast isolated tests",
+  "contract: cross-module tests that validate repo wiring and behavior contracts",
+]
+
+[tool.coverage.html]
+show_contexts = true
 
 [tool.coverage.run]
 source = ["src/databricks_mcp_agent_hello_world"]

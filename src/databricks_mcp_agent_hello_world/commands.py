@@ -64,7 +64,7 @@ def run_evals_command(
 ) -> CommandResult:
     try:
         settings = load_settings(config_path)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise EvalSetupError(
             f"Unable to load config from {Path(config_path)} while running run-evals: {exc}"
         ) from exc
@@ -73,7 +73,7 @@ def run_evals_command(
         report = run_evals(settings, scenario_file)
     except EvalSetupError:
         raise
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise EvalSetupError(str(exc)) from exc
 
     return CommandResult(exit_code=0 if report.all_passed else 1, payload=report)

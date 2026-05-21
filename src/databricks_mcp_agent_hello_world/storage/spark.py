@@ -24,7 +24,7 @@ def get_spark_session():
             return active
         if os.getenv("DATABRICKS_RUNTIME_VERSION"):
             return SparkSession.builder.getOrCreate()
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
     if not _logged_local_fallback:
         logger.info(

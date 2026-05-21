@@ -40,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         result = build_wheel(clean=not args.no_clean, no_isolation=not args.isolation)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(str(exc), file=sys.stderr)
         return 1
 

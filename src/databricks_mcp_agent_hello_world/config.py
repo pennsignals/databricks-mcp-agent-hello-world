@@ -317,12 +317,12 @@ def validate_settings(settings: Settings) -> None:
             "Unsupported tool_provider_type "
             f"{settings.tool_provider_type!r}. Supported values: {supported}"
         )
-    if settings.tool_provider_type == "databricks_mcp":
-        if settings.mcp.server is None or not settings.mcp.server.url.strip():
-            raise ValueError(
-                "databricks_mcp requires mcp.server.url. "
-                "Configure mcp.server.url and mcp.server.name."
-            )
+    if settings.tool_provider_type == "databricks_mcp" and (
+        settings.mcp.server is None or not settings.mcp.server.url.strip()
+    ):
+        raise ValueError(
+            "databricks_mcp requires mcp.server.url. Configure mcp.server.url and mcp.server.name."
+        )
     if settings.max_agent_steps < 1:
         raise ValueError("max_agent_steps must be at least 1.")
 

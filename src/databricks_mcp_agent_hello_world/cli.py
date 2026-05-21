@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from .commands import (
     CommandResult,
@@ -82,7 +83,7 @@ def run_named_command(
     except EvalSetupError as exc:
         print(str(exc), file=sys.stderr)
         return 1
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(str(exc), file=sys.stderr)
         return 1
 
