@@ -71,6 +71,18 @@ cp .env.example .env
 
 `pre-commit` is the canonical repo-wide validation entrypoint in this repository. Install the git hooks once on your workstation, let them run automatically on commit, and use the full-repo command below when you want to validate everything manually.
 
+### Should `workspace-config.yml` be committed?
+
+`workspace-config.yml` is normal application configuration.
+
+For a private downstream application repo, it is usually reasonable to commit `workspace-config.yml` so the team shares the same endpoint names, table names, tool-provider settings, and deployment defaults.
+
+For a public repo, public fork, demo, or reusable template, do not commit a `workspace-config.yml` containing real organization-specific Databricks values. Use placeholders, local untracked config, environment variables, or CI/CD-rendered config instead.
+
+Values to avoid exposing publicly include real workspace hosts, serving endpoint names, catalog/schema/table names, MCP server URLs, organization-specific paths, and customer/internal identifiers.
+
+Never commit credentials such as Databricks tokens, client secrets, passwords, PATs, or private keys.
+
 ## Required edits before your first run
 
 For the smoothest first pass, start with the local-only setup below and leave deployment-specific changes for the later Databricks section.
@@ -356,6 +368,8 @@ databricks bundle run --target local run_agent_task_job
 Run `init_storage_job` only after the bundle has been deployed. It initializes the remote Delta table inside Databricks before the first remote workload run.
 
 Both deployed jobs read the workspace copy of `workspace-config.yml` from `${workspace.file_path}/workspace-config.yml`, so keep that deployed config aligned with the local config you validated.
+
+For private downstream repos, the deployed `workspace-config.yml` may be the same committed app config you validated locally. For public repos, prefer rendering deployment config from protected CI/CD variables or secrets, environment variables, or placeholder examples.
 
 The default deployed sample job also reads the workspace copy of [`examples/demo_run_task.json`](examples/demo_run_task.json), so the sample app runs the same canonical task locally and when deployed.
 
