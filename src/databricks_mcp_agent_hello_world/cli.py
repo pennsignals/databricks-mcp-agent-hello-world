@@ -240,6 +240,10 @@ def print_json_report(payload: Any) -> None:
 
 def print_preflight_summary(report) -> None:
     print(f"Preflight: {report.overall_status}")
+    print(
+        "Scope: local configuration sanity check; "
+        "does not call the LLM endpoint or verify serving permissions."
+    )
     for check in report.checks:
         print(f"- {check.name}: {check.status} - {check.message}")
 

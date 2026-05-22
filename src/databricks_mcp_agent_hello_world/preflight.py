@@ -83,7 +83,7 @@ def _check_databricks_client(settings: Settings) -> PreflightCheck:
         return PreflightCheck(
             name="databricks_client",
             status="pass",
-            message="Databricks client initialized successfully.",
+            message="Databricks client configuration can be constructed locally.",
             details={"host": getattr(client.config, "host", None)},
         )
     except Exception as exc:
@@ -91,8 +91,8 @@ def _check_databricks_client(settings: Settings) -> PreflightCheck:
             name="databricks_client",
             status="fail",
             message=(
-                "Unable to initialize Databricks client. For local development, the "
-                "recommended path is Databricks CLI auth with "
+                "Unable to construct Databricks client configuration. For local development, "
+                "the recommended path is Databricks CLI auth with "
                 "`DATABRICKS_CONFIG_PROFILE` pointing to a valid profile in "
                 "`~/.databrickscfg`."
             ),
@@ -106,7 +106,10 @@ def _check_llm_endpoint_name(settings: Settings) -> PreflightCheck:
         return PreflightCheck(
             name="llm_endpoint_name",
             status="pass",
-            message="llm_endpoint_name is present.",
+            message=(
+                "llm_endpoint_name is configured. Preflight does not verify that this "
+                "endpoint exists or that you have serving permissions."
+            ),
             details={"llm_endpoint_name": endpoint_name},
         )
     return PreflightCheck(
@@ -123,7 +126,7 @@ def _check_provider_factory(settings: Settings):
             PreflightCheck(
                 name="provider_factory",
                 status="pass",
-                message="Provider factory resolved successfully.",
+                message="Tool provider can be constructed from local configuration.",
                 details={"tool_provider_type": settings.tool_provider_type},
             ),
             provider,
@@ -158,7 +161,7 @@ def _check_tool_registry_nonempty(provider) -> tuple[PreflightCheck, int]:
             PreflightCheck(
                 name="tool_registry_nonempty",
                 status="pass",
-                message="At least one tool is registered.",
+                message="At least one tool is discoverable from the configured provider.",
                 details={"tool_count": len(tools)},
             ),
             len(tools),
@@ -197,7 +200,7 @@ def _check_persistence_target_names(settings: Settings) -> PreflightCheck:
     return PreflightCheck(
         name="persistence_targets",
         status="pass",
-        message="Persistence targets are configured for the active runtime.",
+        message="Persistence target names are configured for the detected local runtime.",
         details={
             "agent_events_table": agent_events_table or None,
             "local_data_dir": local_data_dir,
@@ -221,7 +224,10 @@ def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
         return PreflightCheck(
             name="persistence_reachability",
             status="pass",
-            message="Spark is unavailable, so local JSONL event-log storage would be used.",
+            message=(
+                "Spark is unavailable in this environment, so a local run would use JSONL "
+                "event-log storage."
+            ),
             details={"local_data_dir": str(local_data_dir)},
         )
     try:
@@ -233,7 +239,8 @@ def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
                 name="persistence_reachability",
                 status="fail",
                 message=(
-                    "Configured Delta event store is not initialized yet. "
+                    "Spark is available, but the configured Delta event store is not "
+                    "initialized yet. "
                     "Run init_storage_job before the first Spark-backed workload run."
                 ),
                 details={
@@ -245,7 +252,10 @@ def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
         return PreflightCheck(
             name="persistence_reachability",
             status="pass",
-            message="Configured Delta event store is reachable in read-only mode.",
+            message=(
+                "Spark is available and the configured Delta event store is readable from "
+                "this environment."
+            ),
             details={"agent_events_table": table_name},
         )
     except Exception as exc:

@@ -18,6 +18,10 @@ def test_preflight_direct_helper_branches(monkeypatch, tmp_path: Path) -> None:
     assert (
         preflight._check_llm_endpoint_name(make_settings(llm_endpoint_name="  ")).status == "fail"
     )
+    endpoint_check = preflight._check_llm_endpoint_name(make_settings(llm_endpoint_name="demo"))
+    assert endpoint_check.status == "pass"
+    assert "configured" in endpoint_check.message
+    assert "does not verify" in endpoint_check.message
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
@@ -25,7 +29,16 @@ def test_preflight_direct_helper_branches(monkeypatch, tmp_path: Path) -> None:
     )
     failed_client = preflight._check_databricks_client(settings)
     assert failed_client.status == "fail"
+    assert "construct Databricks client configuration" in failed_client.message
     assert failed_client.details["error"] == "auth failed"
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        lambda actual_settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    client_check = preflight._check_databricks_client(settings)
+    assert client_check.status == "pass"
+    assert "can be constructed locally" in client_check.message
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.preflight.get_tool_provider",

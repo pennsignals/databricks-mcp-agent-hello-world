@@ -171,12 +171,20 @@ This checks that:
 
 - `workspace-config.yml` and optional `.env` load through the shared runtime config path
 - deprecated or unused config keys are surfaced as warnings instead of load failures
-- the Databricks CLI profile resolves
-- the Databricks client initializes
-- `llm_endpoint_name` is present
-- the tool provider can be created
-- the tool registry is non-empty
-- persistence is configured for the active runtime
+- Databricks auth/client configuration can be loaded locally
+- Databricks SDK client configuration can be constructed locally
+- `llm_endpoint_name` is configured
+- the configured tool provider can be constructed locally
+- at least one tool is discoverable
+- persistence target names are configured for the detected local runtime
+
+#### What `preflight` checks
+
+`preflight` is a local configuration sanity check. It loads the same config path used by the runtime, reports deprecated or unused config keys, checks that required local settings are present, constructs the configured tool provider, confirms tools can be discovered, and reports which event-log persistence path this environment would use.
+
+It intentionally stays lightweight and mostly offline. It does not call the LLM endpoint, verify that the serving endpoint exists, verify serving permissions, run an agent task, or prove that a deployed Databricks job will succeed.
+
+For an end-to-end live check, run the sample agent task or evals after preflight passes.
 
 If `workspace-config.yml` or `.env` still contains deprecated or stale keys such as `provider_type`, `databricks_cli_profile`, `auth_mode`, or `local_tool_backend_mode`, config loading still succeeds and preflight reports warnings so you can clean them up without blocking the run.
 
@@ -485,6 +493,10 @@ The project will use `./.local_state` instead of Delta when Spark is not availab
 Your Spark-backed storage target is configured, but the Delta table has not been created yet.
 
 Fix: run `init_storage_job`.
+
+### `preflight` passes but `run-agent-task` fails
+
+`preflight` does not call the LLM endpoint or execute an agent task. If preflight passes but runtime fails, check Databricks auth, serving endpoint name, endpoint permissions, model availability, and event-log storage permissions.
 
 ### `preflight` fails for `managed_mcp`
 

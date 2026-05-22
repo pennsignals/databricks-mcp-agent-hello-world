@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from databricks_mcp_agent_hello_world.cli import print_preflight_summary
+from databricks_mcp_agent_hello_world.models import PreflightReport
 from databricks_mcp_agent_hello_world.preflight import run_preflight
 from tests.conftest import write_workspace_config
 
@@ -42,7 +43,23 @@ def test_preflight_returns_expected_checks_for_local_mode(
         "llm_endpoint_name": "endpoint-a",
         "dotenv_path": None,
     }
-    assert capsys.readouterr().out.startswith("Preflight: pass\n")
+    out = capsys.readouterr().out
+    assert out.startswith("Preflight: pass\n")
+    assert "Scope: local configuration sanity check" in out
+    assert "does not call the LLM endpoint" in out
+    assert "verify serving permissions" in out
+
+
+def test_preflight_summary_prints_scope(capsys) -> None:
+    report = PreflightReport(overall_status="pass", checks=[], settings_summary={})
+
+    print_preflight_summary(report)
+
+    out = capsys.readouterr().out
+    assert "Preflight: pass" in out
+    assert "Scope: local configuration sanity check" in out
+    assert "does not call the LLM endpoint" in out
+    assert "verify serving permissions" in out
 
 
 def test_preflight_reports_local_event_store_targets(tmp_path: Path, monkeypatch) -> None:
