@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from ..tools.local import LocalToolDefinition
@@ -8,8 +8,8 @@ from . import tools as app_tools
 
 # TEMPLATE_CUSTOMIZE_HERE
 # Replace these example app registry entries with your real local tools.
-TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {
-    "get_user_profile": LocalToolDefinition(
+LOCAL_TOOL_DEFINITIONS: tuple[LocalToolDefinition, ...] = (
+    LocalToolDefinition(
         name="get_user_profile",
         description=(
             "Fetch a user's information by user_id. Use this when a task "
@@ -23,7 +23,7 @@ TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {
         },
         fn=app_tools.get_user_profile,
     ),
-    "search_onboarding_docs": LocalToolDefinition(
+    LocalToolDefinition(
         name="search_onboarding_docs",
         description=(
             "Search onboarding and setup documentation by keyword. Use this "
@@ -44,7 +44,7 @@ TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {
         },
         fn=app_tools.search_onboarding_docs,
     ),
-    "get_workspace_setting": LocalToolDefinition(
+    LocalToolDefinition(
         name="get_workspace_setting",
         description=(
             "Fetch a named workspace setting. Use this when a task needs "
@@ -59,7 +59,7 @@ TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {
         },
         fn=app_tools.get_workspace_setting,
     ),
-    "list_recent_job_runs": LocalToolDefinition(
+    LocalToolDefinition(
         name="list_recent_job_runs",
         description=(
             "List recent job runs and their summary notes. Use this when a "
@@ -73,7 +73,7 @@ TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {
         },
         fn=app_tools.list_recent_job_runs,
     ),
-    "create_support_ticket": LocalToolDefinition(
+    LocalToolDefinition(
         name="create_support_ticket",
         description=(
             "Create a support ticket with a short summary and severity. Use "
@@ -91,20 +91,35 @@ TOOL_DEFINITIONS: dict[str, LocalToolDefinition] = {
         },
         fn=app_tools.create_support_ticket,
     ),
-}
+)
+
+
+def build_local_tool_registry(
+    definitions: Iterable[LocalToolDefinition],
+) -> dict[str, LocalToolDefinition]:
+    registry: dict[str, LocalToolDefinition] = {}
+
+    for definition in definitions:
+        if not definition.name.strip():
+            raise ValueError("Local tool definition has empty name.")
+
+        if not callable(definition.fn):
+            raise ValueError(f"Local tool `{definition.name}` has non-callable fn.")
+
+        if definition.name in registry:
+            raise ValueError(f"Duplicate local tool name: {definition.name}")
+
+        registry[definition.name] = definition
+
+    return registry
+
+
+LOCAL_TOOL_REGISTRY = build_local_tool_registry(LOCAL_TOOL_DEFINITIONS)
 
 
 def list_local_tools() -> list[LocalToolDefinition]:
-    _validate_unique_names(TOOL_DEFINITIONS.values())
-    return list(TOOL_DEFINITIONS.values())
+    return list(LOCAL_TOOL_DEFINITIONS)
 
 
 def get_tool_function(name: str) -> Callable[..., Any]:
-    return TOOL_DEFINITIONS[name].fn
-
-
-def _validate_unique_names(definitions) -> None:
-    names = [definition.name for definition in definitions]
-    duplicates = sorted({name for name in names if names.count(name) > 1})
-    if duplicates:
-        raise ValueError(f"Local tool names must be unique: {', '.join(duplicates)}")
+    return LOCAL_TOOL_REGISTRY[name].fn
