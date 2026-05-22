@@ -1,3 +1,10 @@
+"""Canonical persisted event-row schema and serialization helpers.
+
+Persisted event identity is the pair (run_key, event_index). We do not store
+conversation_id because it duplicated run_key, and we do not store event_id
+because callers can derive that composite when needed.
+"""
+
 from __future__ import annotations
 
 import json
@@ -6,13 +13,6 @@ from datetime import UTC, datetime
 from typing import Protocol, cast
 
 import pyarrow as pa
-
-"""Canonical persisted event-row schema and serialization helpers.
-
-Persisted event identity is the pair (run_key, event_index). We do not store
-conversation_id because it duplicated run_key, and we do not store event_id
-because callers can derive that composite when needed.
-"""
 
 SCHEMA_VERSION = "v1"
 _FINAL_RESPONSE_EXCERPT_LIMIT = 500
