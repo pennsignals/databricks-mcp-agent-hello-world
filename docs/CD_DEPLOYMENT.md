@@ -22,6 +22,14 @@ Local/manual deployment remains the best path for initial debugging. CD deployme
 
 For `dev` and `prod`, the bundle root is `/Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}`. In GitHub CD, `${workspace.current_user.userName}` resolves to the authenticated service principal, so deployment files and Terraform state are owned by the deployer identity instead of being stored under a workspace-wide shared path.
 
+## `workspace-config.yml` commit policy
+
+`workspace-config.yml` is app config, not a credential file.
+
+Private downstream repos may commit it when the values are appropriate for the team to share in source control. Public repos should not commit real Databricks workspace hosts, endpoint names, table names, MCP URLs, or organization-specific paths or identifiers.
+
+For public repos or public forks, keep checked-in files generic and provide real values through protected CI/CD variables or secrets, environment variables, or generated deployment config.
+
 ## Security model
 
 - The workflow uses GitHub OIDC and a Databricks service principal. No PATs are used.

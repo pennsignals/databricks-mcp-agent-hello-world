@@ -1,4 +1,6 @@
 # Copy this file to workspace-config.yml at the repo root before validating or deploying.
+# Private downstream repos may commit workspace-config.yml if team policy allows.
+# Public repos should keep real organization-specific Databricks values out of committed config.
 # Local CLI commands read workspace-config.yml from the repo root.
 # Databricks Jobs read the deployed copy at ${workspace.file_path}/workspace-config.yml.
 
