@@ -6,6 +6,9 @@ resources:
         - task_key: run_init_storage
           environment_key: default
           python_wheel_task:
+            # Package-root callable invoked by Databricks as:
+            # databricks_mcp_agent_hello_world.run_init_storage()
+            # This is separate from local [project.scripts] console commands.
             package_name: databricks_mcp_agent_hello_world
             entry_point: run_init_storage
             parameters:
@@ -23,6 +26,9 @@ resources:
         - task_key: run_agent_task
           environment_key: default
           python_wheel_task:
+            # Package-root callable invoked by Databricks as:
+            # databricks_mcp_agent_hello_world.run_agent_task()
+            # This is separate from local [project.scripts] console commands.
             package_name: databricks_mcp_agent_hello_world
             entry_point: run_agent_task
             parameters:

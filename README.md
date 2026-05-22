@@ -381,6 +381,8 @@ The deployed wheel tasks intentionally use **separate Databricks job entry point
 - `run_init_storage` loads settings, calls the shared bootstrap logic, and exits non-zero on mismatch
 - the runtime job passes `--config-path`, `--task-input-file`, and `--output` through `python_wheel_task.parameters`, and the wrapper forwards `sys.argv[1:]` into the existing `argparse` command handler
 
+Databricks can resolve these wheel task entry points as package-root callables (`$packageName.$entryPoint()`) when they are not declared as package metadata entry points.
+
 The deployed jobs install the **built wheel artifact** through job environment dependencies such as `../dist/databricks_mcp_agent_hello_world-*.whl`. That keeps serverless wheel jobs compatible with Databricks job environments and points the bundle at the artifact that was actually built.
 
 Package versions are derived from Git state with `hatch-vcs`. Release tags like `v1.2.3` build `1.2.3`, tagged post-release commits build SCM-derived development versions, and no-tag repos bootstrap through `scripts/build_wheel.py` as `0.1.0.dev...+g...` builds so local/manual deploys stay visibly non-release and traceable.

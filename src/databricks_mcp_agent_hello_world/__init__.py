@@ -6,6 +6,9 @@ __all__ = ["__version__", "run_agent_task", "run_init_storage"]
 __version__ = read_installed_package_version("databricks-mcp-agent-hello-world")
 
 
+# Databricks Python wheel tasks in resources/jobs.yml call these package-root
+# functions via package_name + entry_point. They are intentionally separate from
+# the local console scripts declared in pyproject.toml.
 def run_agent_task() -> None:
     import argparse
     import sys
