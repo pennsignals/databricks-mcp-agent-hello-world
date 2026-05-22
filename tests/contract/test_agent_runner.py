@@ -50,18 +50,29 @@ def test_agent_runner_persists_run_contract_for_success(tmp_path: Path, monkeypa
 
     assert isinstance(record, AgentRunRecord)
     assert record.status == "success"
+    assert record.result["final_response"] == "## Onboarding Brief\nAda Lovelace"
     assert record.result["available_tools"] == [tool.name for tool in tools]
+    assert record.result["tool_calls"][0]["tool_name"] == "get_user_profile"
+    assert record.result["tool_calls"][0]["status"] == "ok"
     assert calls == [{"tool_name": "get_user_profile", "arguments": {"user_id": "usr_ada_01"}}]
+    assert runner.llm.call_args[0]["tools"] == [tool.spec for tool in tools]
+    assert runner.llm.call_args[0]["tool_choice"] == "auto"
+    assert any(
+        message["role"] == "tool" and message["tool_call_id"] == "call-1"
+        for message in runner.llm.call_args[1]["messages"]
+    )
 
     events = runner.persisted_event_rows
-    assert {
+    assert [row["event_type"] for row in events] == [
         "run_started",
         "llm_request",
         "llm_response",
         "tool_call",
         "tool_result",
+        "llm_request",
+        "llm_response",
         "run_completed",
-    } <= {row["event_type"] for row in events}
+    ]
     assert [row["event_index"] for row in events] == list(range(len(events)))
     assert {row["run_key"] for row in events} == {"run-123"}
     assert all("conversation_id" not in row for row in events)
