@@ -184,6 +184,14 @@ def test_load_eval_scenarios_keeps_inline_task_input_when_authored_inline(
     assert scenarios[0].task_input_file is None
 
 
+def test_load_eval_scenarios_rejects_empty_scenario_file(tmp_path: Path) -> None:
+    scenario_file = tmp_path / "empty-scenarios.json"
+    scenario_file.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(EvalSetupError, match="at least one scenario"):
+        load_eval_scenarios(str(scenario_file))
+
+
 def test_load_eval_scenarios_rejects_duplicate_scenario_ids(
     tmp_path: Path,
     demo_task_input,

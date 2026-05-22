@@ -32,6 +32,9 @@ def load_eval_scenarios(path: str) -> list[EvalScenario]:
     if not isinstance(raw, list):
         raise EvalSetupError("Scenario file must contain a top-level JSON list.")
 
+    if not raw:
+        raise EvalSetupError("Scenario file must contain at least one scenario.")
+
     try:
         scenarios = [_load_scenario(item, scenario_path.parent) for item in raw]
     except ValidationError as exc:
