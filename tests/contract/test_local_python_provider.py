@@ -46,7 +46,7 @@ def test_provider_factory_selects_databricks_mcp_provider(monkeypatch) -> None:
     captured_settings = []
 
     class FakeDatabricksMCPToolProvider:
-        provider_type = "databricks_mcp"
+        tool_provider_type = "databricks_mcp"
         provider_id = "fake"
 
         def __init__(self, settings) -> None:
@@ -76,9 +76,9 @@ def test_provider_factory_selects_databricks_mcp_provider(monkeypatch) -> None:
     assert captured_settings == [settings]
 
 
-def test_provider_factory_rejects_old_managed_mcp_value() -> None:
-    with pytest.raises(ValueError, match="managed_mcp has been replaced by databricks_mcp"):
-        get_tool_provider(make_settings(tool_provider_type="managed_mcp"))
+def test_provider_factory_rejects_unknown_provider_value() -> None:
+    with pytest.raises(ValueError, match="Unsupported tool_provider_type"):
+        get_tool_provider(make_settings(tool_provider_type="unknown_provider"))
 
 
 def _install_fake_databricks_mcp_modules(monkeypatch):
@@ -142,7 +142,7 @@ def test_databricks_mcp_provider_passes_profile_workspace_client(monkeypatch) ->
     )
     tools = provider.list_tools()
 
-    assert provider.provider_type == "databricks_mcp"
+    assert provider.tool_provider_type == "databricks_mcp"
     assert provider.provider_id == "uc_functions"
     assert tools[0].name == "uc_functions_lookup"
     assert tools[0].source.type == "databricks_mcp"
@@ -179,5 +179,5 @@ def test_databricks_mcp_provider_uses_default_workspace_client_without_profile(m
 
 
 def test_databricks_mcp_provider_requires_server_config() -> None:
-    with pytest.raises(ValueError, match=r"databricks_mcp requires mcp\.server\.url"):
+    with pytest.raises(ValueError, match=r"databricks_mcp requires databricks_mcp_server\.url"):
         DatabricksMCPToolProvider(make_settings(tool_provider_type="databricks_mcp"))

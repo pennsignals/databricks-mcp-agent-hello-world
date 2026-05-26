@@ -127,7 +127,7 @@ If `DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, `DEV_LLM_ENDPOINT_NAME`, or `DEV_A
 
 ### Schema mismatch in `init_storage_job`
 
-`init_storage_job` intentionally fails on schema mismatch. CD does not perform schema migrations. Inspect the reported schema difference, then migrate the table manually, replace it intentionally, or point `DEV_AGENT_EVENTS_TABLE` at a fresh target.
+`init_storage_job` intentionally fails on schema mismatch. CD does not alter existing schemas automatically. Inspect the reported schema difference, then update the table manually, replace it intentionally, or point `DEV_AGENT_EVENTS_TABLE` at a fresh target.
 
 ### Dev workspace permission failure
 
@@ -137,7 +137,7 @@ If deployment or job execution fails with permission errors, verify that the Dat
 
 The bundle does not store workspace hosts in `databricks.yml`. Local validation uses local Databricks auth, and GitHub CD uses the `dev` environment secrets plus OIDC.
 
-The current CD flow does not handle schema migrations, prod deployment, rollback, or compute model changes away from the current serverless pattern.
+The current CD flow does not handle automatic schema changes, prod deployment, rollback, or compute model changes away from the current serverless pattern.
 
 ## Future work: prod deployment
 

@@ -8,7 +8,7 @@ from .base import ToolProvider
 
 
 class LocalPythonToolProvider(ToolProvider):
-    provider_type = "local_python"
+    tool_provider_type = "local_python"
     provider_id = "builtin_tools"
 
     def __init__(self, settings: Settings | None = None):

@@ -6,14 +6,11 @@ import pytest
 
 from databricks_mcp_agent_hello_world.config import (
     build_settings,
-    collect_config_warnings,
-    collect_dotenv_warnings,
     load_dotenv_values,
     load_settings,
     load_yaml_config,
-    resolve_deprecated_config_aliases,
 )
-from tests.conftest import write_workspace_config
+from tests.conftest import REPO_ROOT, write_workspace_config
 
 
 def test_load_settings_reads_agent_prompt_file(tmp_path: Path) -> None:
@@ -52,14 +49,27 @@ def test_load_settings_prefers_yaml_over_dotenv(tmp_path: Path) -> None:
     assert settings.databricks_config_profile == "DEFAULT"
 
 
-def test_build_settings_uses_dotenv_for_optional_values_when_yaml_omits_them(
-    tmp_path: Path,
-) -> None:
-    config_path = write_workspace_config(tmp_path)
+def test_supported_env_vars_override_defaults_when_yaml_omits_values(tmp_path: Path) -> None:
+    config_path = write_workspace_config(tmp_path, include_databricks_profile=False)
     raw = load_yaml_config(str(config_path))
-    del raw["databricks_config_profile"]
+    del raw["storage"]["agent_events_table"]
+    del raw["storage"]["local_data_dir"]
     (tmp_path / ".env").write_text(
-        "DATABRICKS_CONFIG_PROFILE=FROM_DOTENV\nLOG_LEVEL=DEBUG\nSTORAGE_REQUIRE_SPARK=true\n",
+        "\n".join(
+            [
+                "LLM_ENDPOINT_NAME=dotenv-endpoint",
+                "TOOL_PROVIDER_TYPE=local_python",
+                "AGENT_SYSTEM_PROMPT_PATH=tests/prompt.txt",
+                "MAX_AGENT_STEPS=12",
+                "LOG_LEVEL=DEBUG",
+                "DATABRICKS_CONFIG_PROFILE=FROM_DOTENV",
+                "DATABRICKS_HOST=https://example.cloud.databricks.com",
+                "DATABRICKS_MCP_SERVER_NAME=uc_functions",
+                "DATABRICKS_MCP_SERVER_URL=https://example.cloud.databricks.com/api/2.0/mcp",
+                "AGENT_EVENTS_TABLE=main.agent.env_events",
+                "LOCAL_DATA_DIR=./env_state",
+            ]
+        ),
         encoding="utf-8",
     )
     dotenv_path, dotenv_values = load_dotenv_values(str(config_path))
@@ -71,27 +81,24 @@ def test_build_settings_uses_dotenv_for_optional_values_when_yaml_omits_them(
         dotenv_values=dotenv_values,
     )
 
-    assert settings.databricks_config_profile == "FROM_DOTENV"
+    assert settings.llm_endpoint_name == "endpoint-a"
+    assert settings.tool_provider_type == "local_python"
+    assert settings.prompts.agent_system_prompt_path == "tests/prompt.txt"
+    assert settings.max_agent_steps == 12
     assert settings.log_level == "DEBUG"
-    assert settings.storage.require_spark is True
+    assert settings.databricks_config_profile == "FROM_DOTENV"
+    assert settings.workspace_host == "https://example.cloud.databricks.com"
+    assert settings.mcp.server is not None
+    assert settings.mcp.server.name == "uc_functions"
+    assert settings.mcp.server.url == "https://example.cloud.databricks.com/api/2.0/mcp"
+    assert settings.storage.agent_events_table == "main.agent.env_events"
+    assert settings.storage.local_data_dir == "./env_state"
 
 
 def test_load_settings_defaults_log_level_to_info_when_omitted(tmp_path: Path) -> None:
     settings = load_settings(str(write_workspace_config(tmp_path)))
 
     assert settings.log_level == "INFO"
-
-
-def test_databricks_host_allowed_in_local_dotenv(tmp_path: Path) -> None:
-    config_path = write_workspace_config(tmp_path)
-    (tmp_path / ".env").write_text(
-        "DATABRICKS_HOST=https://example.cloud.databricks.com\n",
-        encoding="utf-8",
-    )
-
-    settings = load_settings(str(config_path))
-
-    assert settings.workspace_host == "https://example.cloud.databricks.com"
 
 
 @pytest.mark.parametrize(
@@ -114,14 +121,62 @@ def test_load_dotenv_rejects_forbidden_databricks_auth_material(
 
 
 def test_canonical_config_keys_load_successfully(tmp_path: Path) -> None:
-    settings = load_settings(str(write_workspace_config(tmp_path)))
+    config_path = write_workspace_config(
+        tmp_path,
+        extra_lines=[
+            "agent_system_prompt_path: tests/prompt.txt",
+            "max_agent_steps: 4",
+            "log_level: DEBUG",
+            "workspace_host: https://example.cloud.databricks.com",
+            "databricks_mcp_server:",
+            "  name: uc_functions",
+            "  url: https://example.cloud.databricks.com/api/2.0/mcp",
+        ],
+    )
+
+    settings = load_settings(str(config_path))
 
     assert settings.tool_provider_type == "local_python"
     assert settings.storage.agent_events_table == "main.agent.agent_events"
-    assert settings.storage.require_spark is False
+    assert settings.mcp.server is not None
+    assert settings.mcp.server.name == "uc_functions"
 
 
-def test_load_settings_reads_storage_require_spark(tmp_path: Path) -> None:
+def test_checked_in_example_config_loads_cleanly() -> None:
+    settings = load_settings(str(REPO_ROOT / "workspace-config.example.yml"), validate=False)
+
+    assert settings.tool_provider_type == "local_python"
+    assert settings.mcp.server is None
+
+
+@pytest.mark.parametrize(
+    ("extra_lines", "message"),
+    [
+        (["arbitrary_key: true"], "Unknown config key: arbitrary_key"),
+    ],
+)
+def test_unknown_top_level_config_keys_fail(
+    tmp_path: Path,
+    extra_lines: list[str],
+    message: str,
+) -> None:
+    config_path = write_workspace_config(tmp_path, extra_lines=extra_lines)
+
+    with pytest.raises(ValueError, match=message):
+        load_settings(str(config_path))
+
+
+@pytest.mark.parametrize(
+    ("nested_key", "message"),
+    [
+        ("arbitrary_nested", r"Unknown config key: storage\.arbitrary_nested"),
+    ],
+)
+def test_unknown_storage_config_keys_fail(
+    tmp_path: Path,
+    nested_key: str,
+    message: str,
+) -> None:
     config_path = tmp_path / "workspace-config.yml"
     config_path.write_text(
         "\n".join(
@@ -129,195 +184,43 @@ def test_load_settings_reads_storage_require_spark(tmp_path: Path) -> None:
                 "llm_endpoint_name: endpoint-a",
                 "tool_provider_type: local_python",
                 "storage:",
-                "  require_spark: true",
                 "  agent_events_table: main.agent.agent_events",
                 "  local_data_dir: ./.local_state",
+                f"  {nested_key}: stale",
             ]
         ),
         encoding="utf-8",
     )
 
-    settings = load_settings(str(config_path))
-
-    assert settings.storage.require_spark is True
-
-
-@pytest.mark.parametrize(
-    ("replacement", "expected_value", "warning_substring"),
-    [
-        (
-            "provider_type: databricks_mcp",
-            "databricks_mcp",
-            "Deprecated config key 'provider_type' used",
-        ),
-        (
-            "databricks_cli_profile: LEGACY",
-            "LEGACY",
-            "Deprecated config key 'databricks_cli_profile' used",
-        ),
-    ],
-)
-def test_deprecated_aliases_load_and_warn(
-    tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
-    replacement: str,
-    expected_value: str,
-    warning_substring: str,
-) -> None:
-    config_path = write_workspace_config(tmp_path)
-    original = (
-        "tool_provider_type: local_python"
-        if replacement.startswith("provider_type")
-        else "databricks_config_profile: DEFAULT"
-    )
-    config_path.write_text(
-        config_path.read_text(encoding="utf-8").replace(original, replacement),
-        encoding="utf-8",
-    )
-    if replacement.startswith("provider_type"):
-        config_path.write_text(
-            config_path.read_text(encoding="utf-8")
-            + "\nmcp:\n"
-            + "  server:\n"
-            + "    url: https://example.cloud.databricks.com/api/2.0/mcp/functions/main/demo\n",
-            encoding="utf-8",
-        )
-
-    with caplog.at_level("WARNING"):
-        settings = load_settings(str(config_path))
-
-    loaded_value = (
-        settings.tool_provider_type
-        if replacement.startswith("provider_type")
-        else settings.databricks_config_profile
-    )
-    assert loaded_value == expected_value
-    assert any(warning_substring in message for message in caplog.messages)
-
-
-def test_canonical_key_wins_over_deprecated_alias(tmp_path: Path, caplog) -> None:
-    config_path = write_workspace_config(tmp_path, extra_lines=["provider_type: databricks_mcp"])
-
-    with caplog.at_level("WARNING"):
-        settings = load_settings(str(config_path))
-
-    assert settings.tool_provider_type == "local_python"
-    assert any(
-        "Deprecated config key 'provider_type' used" in message for message in caplog.messages
-    )
-
-
-@pytest.mark.parametrize(
-    ("extra_lines", "warning_path"),
-    [
-        (["auth_mode: local-dev"], "auth_mode"),
-        (
-            [
-                "storage:",
-                "  require_spark: false",
-                "  local_data_dir: ./.local_state",
-                "  agent_events_table: main.agent.agent_events",
-                "  agent_runs_table: main.agent.agent_runs",
-            ],
-            "storage.agent_runs_table",
-        ),
-        (["extra_section: true"], "extra_section"),
-    ],
-)
-def test_unused_or_unknown_config_keys_warn_without_changing_runtime_behavior(
-    tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
-    extra_lines: list[str],
-    warning_path: str,
-) -> None:
-    config_path = write_workspace_config(tmp_path)
-    if warning_path.startswith("storage."):
-        config_path.write_text(
-            "\n".join(
-                [
-                    "llm_endpoint_name: endpoint-a",
-                    "tool_provider_type: local_python",
-                    "databricks_config_profile: DEFAULT",
-                    "storage:",
-                    "  agent_events_table: main.agent.agent_events",
-                    "  local_data_dir: ./.local_state",
-                    "  agent_runs_table: main.agent.agent_runs",
-                ]
-            ),
-            encoding="utf-8",
-        )
-    else:
-        config_path = write_workspace_config(tmp_path, extra_lines=extra_lines)
-
-    with caplog.at_level("WARNING"):
-        settings = load_settings(str(config_path))
-
-    assert settings.tool_provider_type == "local_python"
-    assert any(warning_path in message for message in caplog.messages)
-
-
-def test_sql_section_warns_once_at_top_level_only(tmp_path: Path, caplog) -> None:
-    config_path = write_workspace_config(
-        tmp_path,
-        extra_lines=[
-            "sql:",
-            "  warehouse_id: warehouse-id",
-            "  catalog: main",
-            "  schema: demo",
-        ],
-    )
-
-    with caplog.at_level("WARNING"):
+    with pytest.raises(ValueError, match=message):
         load_settings(str(config_path))
 
-    assert any("Unused config key 'sql'" in message for message in caplog.messages)
-    assert not any("sql." in message for message in caplog.messages)
+
+@pytest.mark.parametrize(
+    ("extra_lines", "message"),
+    [
+        (["storage: not-a-mapping"], "storage must be a YAML mapping"),
+        (
+            ["databricks_mcp_server: not-a-mapping"],
+            "databricks_mcp_server must be a YAML mapping",
+        ),
+    ],
+)
+def test_mapping_config_sections_reject_scalar_values(
+    tmp_path: Path,
+    extra_lines: list[str],
+    message: str,
+) -> None:
+    config_path = write_workspace_config(tmp_path, extra_lines=extra_lines)
+
+    with pytest.raises(ValueError, match=message):
+        load_settings(str(config_path))
 
 
-def test_removed_dotenv_keys_warn_but_do_not_fail(tmp_path: Path) -> None:
-    warnings = collect_dotenv_warnings(
-        {
-            "AUTH_MODE": "legacy",
-            "LOCAL_TOOL_BACKEND_MODE": "legacy",
-        }
-    )
+def test_load_settings_rejects_unknown_provider_value(tmp_path: Path) -> None:
+    config_path = write_workspace_config(tmp_path, tool_provider_type="unknown_provider")
 
-    assert len(warnings) == 2
-    assert all("Unused .env key" in warning for warning in warnings)
-
-
-def test_collect_config_warnings_returns_stable_warning_categories() -> None:
-    warnings = collect_config_warnings(
-        {
-            "provider_type": "local_python",
-            "unknown_key": True,
-            "storage": {
-                "agent_events_table": "main.agent.agent_events",
-                "agent_output_table": "main.agent.agent_output",
-            },
-        }
-    )
-
-    assert any("provider_type" in warning for warning in warnings)
-    assert any("unknown_key" in warning for warning in warnings)
-    assert any("storage.agent_output_table" in warning for warning in warnings)
-
-
-def test_resolve_deprecated_aliases_preserves_canonical_values() -> None:
-    resolved = resolve_deprecated_config_aliases(
-        {
-            "tool_provider_type": "local_python",
-            "provider_type": "databricks_mcp",
-        }
-    )
-
-    assert resolved["tool_provider_type"] == "local_python"
-
-
-def test_load_settings_rejects_old_managed_mcp_value(tmp_path: Path) -> None:
-    config_path = write_workspace_config(tmp_path, tool_provider_type="managed_mcp")
-
-    with pytest.raises(ValueError, match="managed_mcp has been replaced by databricks_mcp"):
+    with pytest.raises(ValueError, match="Unsupported tool_provider_type"):
         load_settings(str(config_path))
 
 
@@ -326,10 +229,9 @@ def test_load_settings_accepts_databricks_mcp_config(tmp_path: Path) -> None:
         tmp_path,
         tool_provider_type="databricks_mcp",
         extra_lines=[
-            "mcp:",
-            "  server:",
-            "    name: uc_functions",
-            "    url: https://example.cloud.databricks.com/api/2.0/mcp/functions/main/demo",
+            "databricks_mcp_server:",
+            "  name: uc_functions",
+            "  url: https://example.cloud.databricks.com/api/2.0/mcp/functions/main/demo",
         ],
     )
 
@@ -338,17 +240,3 @@ def test_load_settings_accepts_databricks_mcp_config(tmp_path: Path) -> None:
     assert settings.tool_provider_type == "databricks_mcp"
     assert settings.mcp.server is not None
     assert settings.mcp.server.name == "uc_functions"
-
-
-def test_load_settings_rejects_non_mapping_mcp_server(tmp_path: Path) -> None:
-    config_path = write_workspace_config(
-        tmp_path,
-        tool_provider_type="databricks_mcp",
-        extra_lines=[
-            "mcp:",
-            "  server: not-a-mapping",
-        ],
-    )
-
-    with pytest.raises(ValueError, match=r"mcp\.server must be a YAML mapping"):
-        load_settings(str(config_path))

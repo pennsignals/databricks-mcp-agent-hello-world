@@ -11,9 +11,4 @@ def get_tool_provider(settings: Settings) -> ToolProvider:
         return LocalPythonToolProvider(settings)
     if settings.tool_provider_type == "databricks_mcp":
         return DatabricksMCPToolProvider(settings)
-    if settings.tool_provider_type == "managed_mcp":
-        raise ValueError(
-            "managed_mcp has been replaced by databricks_mcp. "
-            "Configure mcp.server.url and mcp.server.name."
-        )
     raise ValueError(f"Unsupported tool_provider_type: {settings.tool_provider_type}")

@@ -6,7 +6,7 @@ from ..tools.runtime import RuntimeTool
 
 
 class ToolProvider(ABC):
-    provider_type: str
+    tool_provider_type: str
     provider_id: str
 
     @abstractmethod

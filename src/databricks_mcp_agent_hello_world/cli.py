@@ -249,7 +249,7 @@ def print_preflight_summary(report) -> None:
 
 
 def print_discovery_report(report) -> None:
-    print(f"Provider type: {report.provider_type}")
+    print(f"Tool provider type: {report.tool_provider_type}")
     print(f"Total tools: {report.tool_count}")
     for tool in report.tools:
         function_spec = tool.spec.get("function", {})

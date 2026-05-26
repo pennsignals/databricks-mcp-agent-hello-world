@@ -6,13 +6,13 @@ from .base import ToolProvider
 
 
 class DatabricksMCPToolProvider(ToolProvider):
-    provider_type = "databricks_mcp"
+    tool_provider_type = "databricks_mcp"
 
     def __init__(self, settings: Settings):
         if settings.mcp.server is None:
             raise ValueError(
-                "databricks_mcp requires mcp.server.url. "
-                "Configure mcp.server.url and mcp.server.name."
+                "databricks_mcp requires databricks_mcp_server.url. "
+                "Configure databricks_mcp_server.url and databricks_mcp_server.name."
             )
         self.settings = settings
         self.provider_id = settings.mcp.server.name

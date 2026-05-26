@@ -59,7 +59,7 @@ Edit these files:
 - [`workspace-config.example.yml`](../workspace-config.example.yml)
 - [`src/databricks_mcp_agent_hello_world/config.py`](../src/databricks_mcp_agent_hello_world/config.py) only if you are making a true platform-level config change
 
-When you extend config, keep `src/databricks_mcp_agent_hello_world/config.py` as the only place that decides config behavior. For canonical keys, deprecated aliases, stale-key warnings, and the current `sql:` note, follow the config-loading contract in [Architecture](./ARCHITECTURE.md).
+When you extend config, keep `src/databricks_mcp_agent_hello_world/config.py` as the only place that decides config behavior. Add new supported keys to the strict config-loading contract in [Architecture](./ARCHITECTURE.md) before documenting or using them.
 
 ## Step 6.5 — Customize CD deployment inputs
 

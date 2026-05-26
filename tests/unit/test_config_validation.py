@@ -10,10 +10,6 @@ from tests.conftest import write_workspace_config
 from tests.helpers import make_settings
 
 
-def test_settings_provider_type_property_reflects_tool_provider_type() -> None:
-    assert make_settings(tool_provider_type="databricks_mcp").provider_type == "databricks_mcp"
-
-
 def test_resolve_config_path_defaults_to_workspace_config() -> None:
     assert config.resolve_config_path() == "workspace-config.yml"
 
@@ -46,13 +42,13 @@ def test_load_dotenv_values_returns_empty_when_no_env_file(tmp_path: Path) -> No
             id="unknown-provider",
         ),
         pytest.param(
-            {"tool_provider_type": "managed_mcp"},
-            "managed_mcp has been replaced",
-            id="removed-managed-mcp",
+            {"tool_provider_type": "unknown_provider"},
+            "Unsupported tool_provider_type",
+            id="unknown-provider-value",
         ),
         pytest.param(
             {"tool_provider_type": "databricks_mcp"},
-            r"mcp\.server\.url",
+            r"databricks_mcp_server\.url",
             id="missing-mcp-server-url",
         ),
         pytest.param(
@@ -84,42 +80,6 @@ def test_validate_settings_requires_remote_table_when_spark_is_available(monkeyp
 
     with pytest.raises(ValueError, match=r"storage\.agent_events_table"):
         config.validate_settings(make_settings(storage={"agent_events_table": "  "}))
-
-
-def test_validate_settings_requires_remote_table_when_spark_is_required(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.config.get_spark_session",
-        lambda: None,
-    )
-
-    with pytest.raises(
-        ValueError,
-        match=r"storage\.require_spark=true requires storage\.agent_events_table",
-    ):
-        config.validate_settings(
-            make_settings(storage={"require_spark": True, "agent_events_table": "  "})
-        )
-
-
-def test_validate_settings_does_not_probe_spark_when_required_table_is_configured(
-    monkeypatch,
-) -> None:
-    def _unexpected_spark_probe():
-        raise AssertionError("validate_settings should not probe Spark for required mode")
-
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.config.get_spark_session",
-        _unexpected_spark_probe,
-    )
-
-    config.validate_settings(
-        make_settings(
-            storage={
-                "require_spark": True,
-                "agent_events_table": "main.demo.events",
-            }
-        )
-    )
 
 
 def test_load_settings_bundle_can_skip_validation(tmp_path: Path) -> None:
@@ -191,10 +151,3 @@ def test_parse_dotenv_rejects_invalid_lines_and_coerce_int_rejects_non_int(tmp_p
 
     with pytest.raises(ValueError, match="max_agent_steps must be an integer"):
         config._coerce_int("nope", name="max_agent_steps")
-
-    assert config._coerce_bool("true", name="storage.require_spark") is True
-    assert config._coerce_bool("off", name="storage.require_spark") is False
-    with pytest.raises(ValueError, match=r"storage\.require_spark"):
-        config._coerce_bool("sometimes", name="storage.require_spark")
-    with pytest.raises(ValueError, match=r"storage\.require_spark"):
-        config._coerce_bool(1, name="storage.require_spark")

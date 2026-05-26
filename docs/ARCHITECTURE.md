@@ -78,14 +78,12 @@ Tool source metadata is for logging and discovery output only. Fields that do no
 `src/databricks_mcp_agent_hello_world/config.py` is the single source of truth for runtime config validity.
 
 - `tool_provider_type` and `databricks_config_profile` are the canonical YAML keys
-- `provider_type` and `databricks_cli_profile` are accepted as deprecated aliases and produce warnings
 - `tool_provider_type` supports `local_python` and `databricks_mcp`
-- `databricks_mcp` requires `mcp.server.url`; `mcp.server.name` defaults to `databricks_mcp`
-- the old `managed_mcp` value fails fast with a replacement message
-- deprecated, stale, or unknown config keys do not fail config load by themselves
-- `preflight` consumes the same config warning list instead of maintaining a second set of config rules
+- `databricks_mcp` requires `databricks_mcp_server.url`; `databricks_mcp_server.name` defaults to `databricks_mcp`
+- unknown top-level and nested YAML keys fail config loading with a clear `ValueError`
+- `preflight` consumes the same strict config validation path instead of maintaining a second set of config rules
 
-The commented `sql:` block in `workspace-config.example.yml` is documentation for a future extension path only. It is not part of the active runtime config surface today.
+`workspace-config.example.yml` only includes supported config keys. Downstream apps should add new keys only after extending the strict config-loading contract.
 
 ## Persistence model
 

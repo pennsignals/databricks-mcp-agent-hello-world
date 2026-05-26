@@ -7,7 +7,7 @@ This is the internal maintainer guide for the template. For setup, first run, da
 - a non-interactive LLM agent template
 - Databricks-only
 - local Python tools are the MVP runtime path today
-- `managed_mcp` is retained as a near-term extension point and is intentionally present in the codebase, but it is not implemented yet
+- supports local Python tools and optional Databricks MCP tool discovery
 - a scheduled Job template, not a Databricks App
 
 ## Maintainer workflow expectations

@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 
 import pyarrow as pa
-import pytest
 
 from databricks_mcp_agent_hello_world.storage.schema import (
     EVENT_SCHEMA,
@@ -63,35 +62,6 @@ def test_write_event_rows_appends_jsonl_in_event_index_order(tmp_path, monkeypat
     assert json.loads(persisted[1]["payload_json"]) == {"step": 2}
 
 
-def test_write_event_rows_refuses_local_fallback_when_spark_is_required(
-    tmp_path, monkeypatch
-) -> None:
-    def _raise_missing_spark():
-        raise RuntimeError(
-            "Spark is required by storage.require_spark=true, but no Spark session is "
-            "available. Refusing to fall back to local JSONL."
-        )
-
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.write.require_spark_session",
-        _raise_missing_spark,
-    )
-    settings = make_settings(
-        storage={
-            "require_spark": True,
-            "local_data_dir": str(tmp_path),
-            "agent_events_table": "main.agent.agent_events",
-        }
-    )
-
-    with pytest.raises(RuntimeError) as exc_info:
-        write_event_rows(settings, [_event_row()])
-
-    assert "storage.require_spark=true" in str(exc_info.value)
-    assert "Refusing to fall back to local JSONL" in str(exc_info.value)
-    assert not (tmp_path / "agent_events.jsonl").exists()
-
-
 class _FakeDeltaWriter:
     def __init__(self, frame):
         self.frame = frame
@@ -143,24 +113,4 @@ def test_write_event_rows_uses_arrow_table_for_spark_writes(monkeypatch) -> None
     assert spark.arrow_table.schema == EVENT_SCHEMA
     assert spark.last_dataframe is not None
     assert spark.last_dataframe.write.mode_name == "append"
-    assert spark.last_dataframe.write.table_name == "main.agent.agent_events"
-
-
-def test_write_event_rows_uses_delta_when_required_spark_exists(monkeypatch) -> None:
-    spark = _FakeSparkSession()
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.write.require_spark_session",
-        lambda: spark,
-    )
-    settings = make_settings(
-        storage={
-            "require_spark": True,
-            "local_data_dir": ".local_state",
-            "agent_events_table": "main.agent.agent_events",
-        }
-    )
-
-    write_event_rows(settings, [_event_row()])
-
-    assert spark.last_dataframe is not None
     assert spark.last_dataframe.write.table_name == "main.agent.agent_events"

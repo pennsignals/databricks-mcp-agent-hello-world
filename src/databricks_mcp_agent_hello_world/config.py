@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -18,46 +18,26 @@ FORBIDDEN_LOCAL_DOTENV_KEYS = {
     "DATABRICKS_CLIENT_SECRET",
 }
 SUPPORTED_TOOL_PROVIDER_TYPES = {"local_python", "databricks_mcp"}
-DEPRECATED_CONFIG_ALIASES = {
-    "provider_type": "tool_provider_type",
-    "databricks_cli_profile": "databricks_config_profile",
+ALLOWED_CONFIG_KEYS = {
+    "llm_endpoint_name": None,
+    "tool_provider_type": None,
+    "agent_system_prompt_path": None,
+    "max_agent_steps": None,
+    "log_level": None,
+    "databricks_config_profile": None,
+    "workspace_host": None,
+    "databricks_mcp_server": {"name": None, "url": None},
+    "storage": {
+        "local_data_dir": None,
+        "agent_events_table": None,
+    },
 }
-ALLOWED_TOP_LEVEL_CONFIG_KEYS = {
-    "tool_provider_type",
-    "provider_type",
-    "llm_endpoint_name",
-    "max_agent_steps",
-    "storage",
-    "prompts",
-    "agent_system_prompt_path",
-    "databricks_config_profile",
-    "databricks_cli_profile",
-    "workspace_host",
-    "log_level",
-    "mcp",
-}
-ALLOWED_NESTED_CONFIG_KEYS = {
-    "storage": {"agent_events_table", "local_data_dir", "require_spark"},
-    "prompts": {"agent_system_prompt"},
-    "mcp": {"server"},
-}
-IGNORED_TOP_LEVEL_CONFIG_KEYS = {"auth_mode", "local_tool_backend_mode", "sql"}
-IGNORED_NESTED_CONFIG_KEYS = {
-    "storage": {"agent_runs_table", "agent_output_table"},
-}
-REMOVED_DOTENV_KEYS = {
-    "AUTH_MODE",
-    "LOCAL_TOOL_BACKEND_MODE",
-}
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
 class StorageConfig:
     agent_events_table: str | None
     local_data_dir: str = "./.local_state"
-    require_spark: bool = False
 
 
 @dataclass(slots=True)
@@ -91,15 +71,10 @@ class Settings:
     config_path: str | None = None
     dotenv_path: str | None = None
 
-    @property
-    def provider_type(self) -> str:
-        return self.tool_provider_type
-
 
 @dataclass(frozen=True, slots=True)
 class LoadedSettings:
     settings: Settings
-    warnings: list[str]
 
 
 def resolve_config_path(config_path: str | None = None) -> str:
@@ -117,6 +92,23 @@ def load_yaml_config(config_path: str | None = None) -> dict[str, Any]:
     return data
 
 
+def validate_unknown_keys(
+    data: Mapping[str, Any],
+    allowed: Mapping[str, Any],
+    prefix: str = "",
+) -> None:
+    for key, value in data.items():
+        key_path = f"{prefix}{key}"
+        if key not in allowed:
+            supported = ", ".join(f"{prefix}{supported_key}" for supported_key in sorted(allowed))
+            raise ValueError(f"Unknown config key: {key_path}. Supported keys: {supported}")
+        nested_allowed = allowed[key]
+        if isinstance(nested_allowed, dict) and not isinstance(value, Mapping):
+            raise ValueError(f"{key_path} must be a YAML mapping.")
+        if isinstance(nested_allowed, dict):
+            validate_unknown_keys(value, nested_allowed, f"{key_path}.")
+
+
 def load_dotenv_values(config_path: str | None = None) -> tuple[str | None, dict[str, str]]:
     config_dir = Path(resolve_config_path(config_path)).resolve().parent
     dotenv_path = config_dir / ".env"
@@ -131,57 +123,6 @@ def load_dotenv_values(config_path: str | None = None) -> tuple[str | None, dict
             f"quickstart path: {keys}"
         )
     return str(dotenv_path), values
-
-
-def collect_config_warnings(raw_config: dict[str, Any]) -> list[str]:
-    warnings_by_path: dict[str, str] = {}
-
-    for alias_key, canonical_key in DEPRECATED_CONFIG_ALIASES.items():
-        if alias_key in raw_config:
-            warnings_by_path[alias_key] = (
-                f"Deprecated config key '{alias_key}' used; use '{canonical_key}' instead."
-            )
-
-    for key in sorted(raw_config):
-        if key in IGNORED_TOP_LEVEL_CONFIG_KEYS:
-            warnings_by_path[key] = f"Unused config key '{key}' is ignored by the current runtime."
-            continue
-        if key not in ALLOWED_TOP_LEVEL_CONFIG_KEYS:
-            warnings_by_path[key] = f"Unused config key '{key}' is ignored by the current runtime."
-            continue
-
-        allowed_nested_keys = ALLOWED_NESTED_CONFIG_KEYS.get(key)
-        if not allowed_nested_keys:
-            continue
-        section = raw_config.get(key)
-        if not isinstance(section, dict):
-            continue
-        ignored_nested_keys = IGNORED_NESTED_CONFIG_KEYS.get(key, set())
-        for nested_key in sorted(section):
-            nested_path = f"{key}.{nested_key}"
-            if nested_key in ignored_nested_keys or nested_key not in allowed_nested_keys:
-                warnings_by_path[nested_path] = (
-                    f"Unused config key '{nested_path}' is ignored by the current runtime."
-                )
-
-    return [warnings_by_path[path] for path in sorted(warnings_by_path)]
-
-
-def collect_dotenv_warnings(dotenv_values: dict[str, str]) -> list[str]:
-    warnings_by_key = {
-        key: f"Unused .env key '{key}' is ignored by the current runtime."
-        for key in REMOVED_DOTENV_KEYS
-        if key in dotenv_values
-    }
-    return [warnings_by_key[key] for key in sorted(warnings_by_key)]
-
-
-def resolve_deprecated_config_aliases(raw_config: dict[str, Any]) -> dict[str, Any]:
-    resolved = dict(raw_config)
-    for alias_key, canonical_key in DEPRECATED_CONFIG_ALIASES.items():
-        if canonical_key not in resolved and alias_key in raw_config:
-            resolved[canonical_key] = raw_config[alias_key]
-    return resolved
 
 
 def build_settings(
@@ -241,26 +182,12 @@ def build_settings(
                 )
                 or "./.local_state"
             ),
-            require_spark=_coerce_bool(
-                _resolve_value(
-                    yaml_value=_deep_get(raw, "storage", "require_spark"),
-                    dotenv_values=dotenv_values,
-                    dotenv_key="STORAGE_REQUIRE_SPARK",
-                    default=False,
-                ),
-                name="storage.require_spark",
-            ),
         ),
         prompts=PromptConfig(
             agent_system_prompt_path=agent_prompt_path,
             agent_system_prompt=_read_prompt(
                 agent_prompt_path,
-                _deep_get(
-                    raw,
-                    "prompts",
-                    "agent_system_prompt",
-                    default="Use the provided tools when helpful.",
-                ),
+                "Use the provided tools when helpful.",
             ),
         ),
         mcp=_build_mcp_config(raw, dotenv_values),
@@ -294,23 +221,12 @@ def validate_settings(settings: Settings) -> None:
         missing_required.append("llm_endpoint_name")
     if not (settings.storage.local_data_dir or "").strip():
         missing_required.append("storage.local_data_dir")
-    if settings.storage.require_spark and not (settings.storage.agent_events_table or "").strip():
-        raise ValueError("storage.require_spark=true requires storage.agent_events_table")
-    if (
-        not settings.storage.require_spark
-        and get_spark_session() is not None
-        and not (settings.storage.agent_events_table or "").strip()
-    ):
+    if get_spark_session() is not None and not (settings.storage.agent_events_table or "").strip():
         missing_required.append("storage.agent_events_table")
     if missing_required:
         formatted = ", ".join(missing_required)
         raise ValueError(f"Missing required settings: {formatted}")
 
-    if settings.tool_provider_type == "managed_mcp":
-        raise ValueError(
-            "managed_mcp has been replaced by databricks_mcp. "
-            "Configure mcp.server.url and mcp.server.name."
-        )
     if settings.tool_provider_type not in SUPPORTED_TOOL_PROVIDER_TYPES:
         supported = ", ".join(sorted(SUPPORTED_TOOL_PROVIDER_TYPES))
         raise ValueError(
@@ -321,7 +237,8 @@ def validate_settings(settings: Settings) -> None:
         settings.mcp.server is None or not settings.mcp.server.url.strip()
     ):
         raise ValueError(
-            "databricks_mcp requires mcp.server.url. Configure mcp.server.url and mcp.server.name."
+            "databricks_mcp requires databricks_mcp_server.url. "
+            "Configure databricks_mcp_server.url and databricks_mcp_server.name."
         )
     if settings.max_agent_steps < 1:
         raise ValueError("max_agent_steps must be at least 1.")
@@ -333,20 +250,17 @@ def load_settings_bundle(
     validate: bool = True,
 ) -> LoadedSettings:
     raw = load_yaml_config(config_path)
+    validate_unknown_keys(raw, ALLOWED_CONFIG_KEYS)
     dotenv_path, dotenv_values = load_dotenv_values(config_path)
-    warnings = collect_config_warnings(raw) + collect_dotenv_warnings(dotenv_values)
-    resolved_raw = resolve_deprecated_config_aliases(raw)
     settings = build_settings(
-        resolved_raw,
+        raw,
         config_path=config_path,
         dotenv_path=dotenv_path,
         dotenv_values=dotenv_values,
     )
-    for warning in warnings:
-        logger.warning(warning)
     if validate:
         validate_settings(settings)
-    return LoadedSettings(settings=settings, warnings=warnings)
+    return LoadedSettings(settings=settings)
 
 
 def load_settings(config_path: str | None = None, *, validate: bool = True) -> Settings:
@@ -401,25 +315,23 @@ def _read_prompt(path: str, fallback: str) -> str:
 
 
 def _build_mcp_config(raw: dict[str, Any], dotenv_values: dict[str, str]) -> MCPConfig:
-    server = _deep_get(raw, "mcp", "server")
+    server = raw.get("databricks_mcp_server")
     url = _resolve_value(
-        yaml_value=_deep_get(raw, "mcp", "server", "url"),
+        yaml_value=_deep_get(raw, "databricks_mcp_server", "url"),
         dotenv_values=dotenv_values,
-        dotenv_key="MCP_SERVER_URL",
+        dotenv_key="DATABRICKS_MCP_SERVER_URL",
     )
     name = (
         _resolve_value(
-            yaml_value=_deep_get(raw, "mcp", "server", "name"),
+            yaml_value=_deep_get(raw, "databricks_mcp_server", "name"),
             dotenv_values=dotenv_values,
-            dotenv_key="MCP_SERVER_NAME",
+            dotenv_key="DATABRICKS_MCP_SERVER_NAME",
             default="databricks_mcp",
         )
         or "databricks_mcp"
     )
     if server is None and url is None:
         return MCPConfig()
-    if server is not None and not isinstance(server, dict):
-        raise ValueError("mcp.server must be a YAML mapping.")
     return MCPConfig(server=MCPServerConfig(name=str(name), url=str(url or "")))
 
 
@@ -441,15 +353,3 @@ def _coerce_int(value: Any, *, name: str) -> int:
         return int(value)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{name} must be an integer.") from exc
-
-
-def _coerce_bool(value: Any, *, name: str) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-        if normalized in {"0", "false", "no", "off"}:
-            return False
-    raise ValueError(f"{name} must be a boolean.")

@@ -16,7 +16,7 @@ def test_discover_tools_returns_current_app_inventory(tmp_path: Path) -> None:
 
     report = discover_tools(settings)
 
-    assert report.provider_type == "local_python"
+    assert report.tool_provider_type == "local_python"
     assert report.provider_id == "builtin_tools"
     assert report.tool_count == 5
     assert [tool.name for tool in report.tools] == [
@@ -35,7 +35,7 @@ def test_discovery_json_output_matches_runtime_shape(tmp_path: Path, capsys) -> 
     print_json_report(report)
     output = capsys.readouterr().out
 
-    assert '"provider_type": "local_python"' in output
+    assert '"tool_provider_type": "local_python"' in output
     assert '"tool_count": 5' in output
 
 

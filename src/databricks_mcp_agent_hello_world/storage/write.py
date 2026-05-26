@@ -4,7 +4,7 @@ from pathlib import Path
 
 from ..config import Settings
 from .schema import json_dumps_compact, validate_event_rows
-from .spark import get_spark_session, require_spark_session
+from .spark import get_spark_session
 
 EVENTS_JSONL_FILE_NAME = "agent_events.jsonl"
 
@@ -13,7 +13,7 @@ def write_event_rows(settings: Settings, rows: list[dict[str, object]]) -> None:
     if not rows:
         return
 
-    spark = require_spark_session() if settings.storage.require_spark else get_spark_session()
+    spark = get_spark_session()
     if spark is not None:
         table_name = (getattr(settings.storage, "agent_events_table", "") or "").strip()
         if not table_name:

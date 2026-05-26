@@ -8,13 +8,17 @@
 # `llm_endpoint_name` is the model endpoint used during runtime execution.
 tool_provider_type: local_python
 llm_endpoint_name: your-llm-endpoint-name
+agent_system_prompt_path: src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt
+max_agent_steps: 8
+log_level: INFO
+databricks_config_profile: DEFAULT
+workspace_host: null
 
 # To use one Databricks MCP server instead of the built-in local Python tools:
 # tool_provider_type: databricks_mcp
-# mcp:
-#   server:
-#     name: uc_functions
-#     url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
+# databricks_mcp_server:
+#   name: uc_functions
+#   url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
 
 storage:
   # One canonical event store backs both local JSONL and Databricks Delta persistence.
@@ -22,15 +26,3 @@ storage:
   agent_events_table: main.agent_demo.agent_events
   # Local runs fall back to JSONL event logs here when Spark is unavailable.
   local_data_dir: ./.local_state
-
-# The sql section below is an example for future extensions and is not used by the current runtime.
-# It remains here as a fully commented future/example block only.
-# sql:
-#   warehouse_id: your-sql-warehouse-id
-#   catalog: main
-#   schema: agent_demo
-#   incident_kb_table: main.agent_demo.incident_kb
-#   runbook_table: main.agent_demo.runbook_sections
-#   customer_summary_table: main.agent_demo.customer_summaries
-#   service_incidents_table: main.agent_demo.service_incidents
-#   service_dependencies_table: main.agent_demo.service_dependencies

@@ -114,15 +114,14 @@ tool_provider_type: local_python
 llm_endpoint_name: <your-serving-endpoint-name>
 ```
 
-To discover tools from one Databricks MCP server instead of the built-in local tools:
+With the current provider model, you can use one Databricks MCP server instead of the built-in local tools:
 
 ```yaml
 databricks_config_profile: DEFAULT
 tool_provider_type: databricks_mcp
-mcp:
-  server:
-    name: uc_functions
-    url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
+databricks_mcp_server:
+  name: uc_functions
+  url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
 ```
 
 When `databricks_config_profile` is set, the MCP provider uses that profile through the Databricks `WorkspaceClient`. Without it, the provider uses Databricks SDK default authentication.
@@ -140,10 +139,6 @@ storage:
 ```
 
 For your first local run, you usually do not need to change either value. When Spark is unavailable, the template automatically falls back to local JSONL under `./.local_state`.
-
-### 4) Ignore the commented SQL example for the demo
-
-The commented `sql:` block in `workspace-config.example.yml` is a future/example section only. It is **not used by the current runtime**.
 
 ## Quickstart: first successful local run
 
@@ -182,7 +177,7 @@ preflight --config-path workspace-config.yml
 This checks that:
 
 - `workspace-config.yml` and optional `.env` load through the shared runtime config path
-- deprecated or unused config keys are surfaced as warnings instead of load failures
+- unknown YAML keys fail fast through the shared runtime config path
 - Databricks auth/client configuration can be loaded locally
 - Databricks SDK client configuration can be constructed locally
 - `llm_endpoint_name` is configured
@@ -192,13 +187,11 @@ This checks that:
 
 #### What `preflight` checks
 
-`preflight` is a local configuration sanity check. It loads the same config path used by the runtime, reports deprecated or unused config keys, checks that required local settings are present, constructs the configured tool provider, confirms tools can be discovered, and reports which event-log persistence path this environment would use.
+`preflight` is a local configuration sanity check. It loads the same config path used by the runtime, checks that required local settings are present, constructs the configured tool provider, confirms tools can be discovered, and reports which event-log persistence path this environment would use.
 
 It intentionally stays lightweight and mostly offline. It does not call the LLM endpoint, verify that the serving endpoint exists, verify serving permissions, run an agent task, or prove that a deployed Databricks job will succeed.
 
 For an end-to-end live check, run the sample agent task or evals after preflight passes.
-
-If `workspace-config.yml` or `.env` still contains deprecated or stale keys such as `provider_type`, `databricks_cli_profile`, `auth_mode`, or `local_tool_backend_mode`, config loading still succeeds and preflight reports warnings so you can clean them up without blocking the run.
 
 When Spark is unavailable locally, `preflight` reports that local JSONL fallback would be used. When Spark is available but `storage.agent_events_table` has not been initialized yet, `preflight` fails intentionally and the required next step is `init_storage_job`.
 
@@ -210,13 +203,13 @@ discover-tools --config-path workspace-config.yml
 
 For the built-in example app, you should see **5 tools**. The discovery output shows each tool's source and Databricks/OpenAI-compatible function spec summary.
 
-For a manual Databricks MCP smoke test, create a separate config such as `workspace-config.databricks-mcp.yml` with `tool_provider_type: databricks_mcp`, `databricks_config_profile`, and `mcp.server` set, then run:
+For a manual Databricks MCP smoke test, create a separate config such as `workspace-config.databricks-mcp.yml` with `tool_provider_type: databricks_mcp`, `databricks_config_profile`, and `databricks_mcp_server` set, then run:
 
 ```bash
 discover-tools --config-path workspace-config.databricks-mcp.yml
 ```
 
-Expected result: provider type is `databricks_mcp`, provider id is the configured server name, and the command completes successfully. If the configured catalog/schema contains MCP-exposed tools, they should appear with source `databricks_mcp/<server-name>`. This check requires real workspace auth and is intentionally not part of CI.
+Expected result: tool provider type is `databricks_mcp`, provider id is the configured server name, and the command completes successfully. If the configured catalog/schema contains MCP-exposed tools, they should appear with source `databricks_mcp/<server-name>`. This check requires real workspace auth and is intentionally not part of CI.
 
 ### Step 4: run the demo task
 
@@ -513,12 +506,6 @@ Fix: run `init_storage_job`.
 ### `preflight` passes but `run-agent-task` fails
 
 `preflight` does not call the LLM endpoint or execute an agent task. If preflight passes but runtime fails, check Databricks auth, serving endpoint name, endpoint permissions, model availability, and event-log storage permissions.
-
-### `preflight` fails for `managed_mcp`
-
-`managed_mcp` has been replaced by `databricks_mcp`.
-
-Fix: use `local_python`, or configure `databricks_mcp` with `mcp.server.url` and `mcp.server.name`.
 
 ### The remote init job fails with a schema mismatch
 

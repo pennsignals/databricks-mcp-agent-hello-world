@@ -18,7 +18,7 @@ def test_local_python_provider_executes_registered_builtin_tool() -> None:
     ("tool_provider_type", "message"),
     [
         pytest.param("something-else", "Unsupported tool_provider_type", id="unsupported"),
-        pytest.param("managed_mcp", "managed_mcp has been replaced", id="removed-managed-mcp"),
+        pytest.param("unknown_provider", "Unsupported tool_provider_type", id="unknown-provider"),
     ],
 )
 def test_provider_factory_rejects_unsupported_provider_types(
@@ -31,7 +31,7 @@ def test_provider_factory_rejects_unsupported_provider_types(
 
 def test_base_tool_provider_requires_subclasses_to_implement_list_tools() -> None:
     class DummyProvider(base.ToolProvider):
-        provider_type = "dummy"
+        tool_provider_type = "dummy"
         provider_id = "dummy"
 
         def list_tools(self):

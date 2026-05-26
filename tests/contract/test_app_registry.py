@@ -54,7 +54,6 @@ def test_local_tool_definitions_include_required_runtime_contract() -> None:
 
 def test_local_registry_does_not_own_provider_or_governance_metadata() -> None:
     for definition in list_local_tools():
-        assert not hasattr(definition, "provider_type")
         assert not hasattr(definition, "provider_id")
         assert not hasattr(definition, "capability_tags")
         assert not hasattr(definition, "side_effect_level")
