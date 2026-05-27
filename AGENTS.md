@@ -33,7 +33,7 @@ Definition:
 
 - canonical maintainer workflow
 - local and CI use the same logical validation flow
-- includes repo hygiene hooks, Ruff, test execution, and wheel build validation
+- includes repo hygiene hooks, Ruff, Markdown linting, test execution, and wheel build validation
 
 ### Unit Tests
 

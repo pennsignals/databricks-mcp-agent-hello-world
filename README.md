@@ -122,6 +122,8 @@ Standard repo validation:
 python3.12 -m pre_commit run --all-files --show-diff-on-failure
 ```
 
+The standard pre-commit validation flow also lints Markdown documentation.
+
 Unit tests:
 
 ```bash

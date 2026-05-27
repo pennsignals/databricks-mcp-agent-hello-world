@@ -23,6 +23,11 @@ NOX_BUILD_REQUIREMENTS = (
     "hatchling>=1.27.0",
     "hatch-vcs>=0.5.0",
 )
+MARKDOWN_PATHS = [
+    "README.md",
+    "AGENTS.md",
+    "docs",
+]
 
 nox.options.default_venv_backend = "venv"
 nox.options.error_on_missing_interpreters = True
@@ -96,11 +101,19 @@ def build_wheel(session: nox.Session) -> None:
     session.run("python", "scripts/build_wheel.py")
 
 
+@nox.session(python=PYTHON)
+def markdown_lint(session: nox.Session) -> None:
+    """Lint Markdown documentation."""
+    session.install("pymarkdownlnt==0.9.37")
+    session.run("pymarkdown", "scan", *MARKDOWN_PATHS)
+
+
 def _run_validation_flow(session: nox.Session, *, check_only: bool) -> None:
     mode_arg = "--check" if check_only else "--fix"
 
     for name in ("lint", "tests", "build_wheel"):
         session.notify(name, posargs=[mode_arg])
+    session.notify("markdown_lint")
 
 
 @nox.session(python=PYTHON)

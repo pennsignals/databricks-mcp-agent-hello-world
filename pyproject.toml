@@ -52,6 +52,9 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "C4", "PIE", "PT", "RUF"]
 
+[tool.pymarkdown]
+plugins.line-length.enabled = false
+
 [tool.pytest.ini_options]
 addopts = """
 --cov=databricks_mcp_agent_hello_world
