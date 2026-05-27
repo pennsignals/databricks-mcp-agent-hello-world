@@ -16,7 +16,7 @@ resources:
       environments:
         - environment_key: default
           spec:
-            environment_version: "4"
+            environment_version: "5"
             dependencies:
               - ../dist/databricks_mcp_agent_hello_world-*.whl
     run_agent_task_job:
@@ -40,6 +40,6 @@ resources:
       environments:
         - environment_key: default
           spec:
-            environment_version: "4"
+            environment_version: "5"
             dependencies:
               - ../dist/databricks_mcp_agent_hello_world-*.whl

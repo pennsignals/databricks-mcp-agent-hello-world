@@ -126,6 +126,13 @@ Contributor rules:
 
 Do not commit caches, local state, or build artifacts. These paths are transient development or packaging artifacts and are not part of the template's authored source.
 
+Repo conventions:
+
+- Keep the existing small-template layout.
+- Python package directories under `src/databricks_mcp_agent_hello_world/` should include `__init__.py`.
+- GitHub-owned Actions use readable major-version tags; third-party actions may use exact release tags.
+- Avoid adding new directories or abstractions unless the template clearly needs them.
+
 Before commit, verify no content from these paths is staged:
 
 - `.pytest_cache/`
