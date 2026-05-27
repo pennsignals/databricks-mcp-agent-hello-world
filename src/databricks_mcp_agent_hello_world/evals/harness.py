@@ -44,7 +44,7 @@ def load_eval_scenarios(path: str) -> list[EvalScenario]:
         raise EvalSetupError(f"Task input file not found: {exc.filename}") from exc
     except json.JSONDecodeError as exc:
         raise EvalSetupError(f"Invalid task input JSON in scenario file: {scenario_path}") from exc
-    _ensure_unique_scenario_ids(scenarios, scenario_path)
+    _ensure_unique_scenario_ids(scenarios)
     return scenarios
 
 
@@ -72,7 +72,7 @@ def run_evals(settings: Settings, scenario_file: str) -> EvalRunReport:
     return report
 
 
-def _ensure_unique_scenario_ids(scenarios: list[EvalScenario], scenario_path: Path) -> None:
+def _ensure_unique_scenario_ids(scenarios: list[EvalScenario]) -> None:
     seen: set[str] = set()
     duplicates: list[str] = []
     for scenario in scenarios:
