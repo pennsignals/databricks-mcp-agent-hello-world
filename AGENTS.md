@@ -42,7 +42,7 @@ Definition:
 Command:
 
 ```bash
-pytest
+python -m nox -s unit
 ```
 
 Definition:
@@ -52,6 +52,28 @@ Definition:
 - no live LLM call required
 - no token usage expected
 - use when you intentionally want tests only instead of the full standard validation flow
+
+### Contract tests
+
+Command:
+
+```bash
+python -m nox -s contract
+```
+
+Definition:
+
+- validates public behavior and stable cross-module contracts
+- no live LLM call required
+- private helpers are tested only when they contain non-trivial isolated logic
+
+### All tests
+
+Command:
+
+```bash
+python -m nox -s tests
+```
 
 ### Build wheel in network-restricted agents
 

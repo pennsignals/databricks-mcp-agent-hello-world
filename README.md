@@ -261,13 +261,25 @@ This is the canonical full validation flow for local development and CI. It runs
 
 The first full run may take noticeably longer because `pre-commit` and `nox` may need to create their environments. Subsequent runs are normally much faster because those environments are reused.
 
-Targeted unit tests only:
+Run unit tests:
 
 ```bash
-pytest
+python -m nox -s unit
 ```
 
-Coverage is configured centrally in `pyproject.toml`, so a normal `pytest` measures only the package under `src/databricks_mcp_agent_hello_world`, prints a skipped-covered terminal report, writes HTML coverage to `htmlcov/`, and fails if package coverage drops below 100%. CI also appends a Markdown coverage report to the GitHub job summary. Generate Cobertura-compatible XML only when an external coverage consumer requires it, for example `pytest --cov-report=xml`.
+Run contract tests:
+
+```bash
+python -m nox -s contract
+```
+
+Run all tests:
+
+```bash
+python -m nox -s tests
+```
+
+Tests focus on public behavior and stable contracts. Private helpers are tested only when they contain non-trivial isolated logic. Coverage is configured centrally in `pyproject.toml`, so the full test session measures only the package under `src/databricks_mcp_agent_hello_world`, prints a skipped-covered terminal report, writes HTML coverage to `htmlcov/`, and fails if package coverage drops below the configured threshold. CI also appends a Markdown coverage report to the GitHub job summary. Generate Cobertura-compatible XML only when an external coverage consumer requires it, for example `pytest --cov-report=xml`.
 
 Live integration evals against the configured Databricks endpoint:
 
