@@ -1,28 +1,26 @@
 # databricks-mcp-agent-hello-world Operator Guide
 
-This is the internal maintainer guide for the template. For setup, first run, day-to-day commands, and troubleshooting, use [README.md](README.md). For runtime and storage design, use [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). For downstream customization steps, use [docs/CONVERT_TEMPLATE_TO_REAL_APP.md](docs/CONVERT_TEMPLATE_TO_REAL_APP.md).
+This is the internal maintainer guide for the template. For setup and first run, use [README.md](README.md). For runtime design, use [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). For downstream customization, use [docs/CONVERT_TEMPLATE_TO_REAL_APP.md](docs/CONVERT_TEMPLATE_TO_REAL_APP.md).
 
-## What this template is
+## What This Template Is
 
-- a non-interactive LLM agent template
+- a batch/non-interactive LLM agent template
 - Databricks-only
-- local Python tools are the MVP runtime path today
-- supports local Python tools and optional Databricks MCP tool discovery
-- a scheduled Job template, not a Databricks App
+- local Python tools plus optional Databricks MCP tool discovery
+- a Databricks Job template, not a Databricks App
 
-## Maintainer workflow expectations
+## Maintainer Workflow Expectations
 
-- Keep the README flow canonical for operator onboarding and day-to-day usage.
-- Do not introduce alternate beginner setup paths that diverge from the README.
-- Treat [`examples/demo_run_task.json`](examples/demo_run_task.json) as the canonical sample task reference instead of restating its payload in prose.
+- Keep the README flow canonical for operator onboarding.
+- Treat [examples/demo_run_task.json](examples/demo_run_task.json) as the canonical sample task reference.
 - Prefer the repo-local `.venv` for coding-agent local development when it already exists and has the needed tools installed.
-- Treat `python3.12 -m pre_commit run --all-files --show-diff-on-failure` as the maintainer-recommended standard validation command.
+- Treat `python3.12 -m pre_commit run --all-files --show-diff-on-failure` as the standard validation command.
 - Treat `python3.12 -m pre_commit install` as the one-time workstation setup step for automatic git-hook enforcement.
 - Do not document raw lint, test, and build commands as the normal full-validation workflow.
 
-## Testing levels
+## Testing Levels
 
-### Standard repo validation
+### Standard Repo Validation
 
 Commands:
 
@@ -35,9 +33,9 @@ Definition:
 
 - canonical maintainer workflow
 - local and CI use the same logical validation flow
-- includes repo hygiene hooks, Ruff, `pytest`, and wheel build validation
+- includes repo hygiene hooks, Ruff, test execution, and wheel build validation
 
-### Unit tests
+### Unit Tests
 
 Command:
 
@@ -51,9 +49,8 @@ Definition:
 - fast
 - no live LLM call required
 - no token usage expected
-- use when you intentionally want tests only instead of the full standard validation flow
 
-### Contract tests
+### Contract Tests
 
 Command:
 
@@ -65,9 +62,8 @@ Definition:
 
 - validates public behavior and stable cross-module contracts
 - no live LLM call required
-- private helpers are tested only when they contain non-trivial isolated logic
 
-### All tests
+### All Tests
 
 Command:
 
@@ -75,22 +71,12 @@ Command:
 python -m nox -s tests
 ```
 
-### Build wheel in network-restricted agents
-
-If an agent or sandbox cannot download packages, prime `.nox/build_wheel` outside the sandbox first, then run:
-
-```bash
-python -m nox -s build_wheel --reuse-venv=yes --no-install
-```
-
-`build_wheel` is intentionally build-only and does not rely on editable install.
-
-### Live integration evals
+### Live Integration Evals
 
 Command:
 
 ```bash
-run-evals --config-path workspace-config.yml
+run-evals --config-path workspace-config.yml --scenario-file evals/sample_scenarios.json
 ```
 
 Definition:
@@ -98,9 +84,9 @@ Definition:
 - uses the configured Databricks-hosted LLM endpoint
 - requires valid auth
 - consumes tokens
-- may vary slightly between runs
+- verifies run status, expected tool use, and required output text
 
-### Hello-world demo run
+### Hello-World Demo Run
 
 Command:
 
@@ -110,11 +96,10 @@ run-agent-task --config-path workspace-config.yml --task-input-file examples/dem
 
 Definition:
 
-- demonstrates the actual end-to-end hello-world workflow
-- not a test harness
+- demonstrates the end-to-end hello-world workflow
 - should be used after preflight and tool discovery succeed
 
-## Core template invariants
+## Core Template Invariants
 
 The `workspace_onboarding_brief` flow is the starter contract this template must preserve.
 
@@ -126,18 +111,18 @@ The `workspace_onboarding_brief` flow is the starter contract this template must
 Contributor rules:
 
 - keep the default template flow as runtime tool discovery plus model-driven tool selection
-- do not reintroduce precompiled profiles, manual allowlists, or deterministic Python-side tool routing into the default path
+- do not add manual allowlists or deterministic Python-side tool routing into the default path
 - keep the bundle flow and job names aligned with `databricks.yml` and `resources/jobs.yml`
 - update eval expectations when tool behavior changes
 
-## Maintainer touchpoints
+## Maintainer Touchpoints
 
 - Example app tool implementations live in `src/databricks_mcp_agent_hello_world/app/tools.py`.
 - Tool metadata and JSON schemas are registered in `src/databricks_mcp_agent_hello_world/app/registry.py`.
 - Runtime orchestration lives in `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`.
 - Runtime config rules live in `src/databricks_mcp_agent_hello_world/config.py`.
 
-## Repo hygiene
+## Repo Hygiene
 
 Do not commit caches, local state, or build artifacts. These paths are transient development or packaging artifacts and are not part of the template's authored source.
 

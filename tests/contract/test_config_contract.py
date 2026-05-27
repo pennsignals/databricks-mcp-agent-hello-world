@@ -355,7 +355,9 @@ def test_checked_in_example_config_loads_cleanly() -> None:
 
     assert settings.tools.local_python.enabled is True
     assert settings.tools.databricks_mcp.enabled is False
-    assert settings.tools.databricks_mcp.server is None
+    assert settings.tools.databricks_mcp.server is not None
+    assert settings.tools.databricks_mcp.server.name == "uc_functions"
+    assert settings.tools.databricks_mcp.server.url == ""
 
 
 @pytest.mark.parametrize(

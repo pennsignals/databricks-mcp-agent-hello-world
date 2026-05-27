@@ -1,129 +1,116 @@
-# Convert the template into a real app
+# Convert The Template To A Real App
 
 [Back to README](../README.md)
-[Reference: Architecture](./ARCHITECTURE.md)
+[Architecture](./ARCHITECTURE.md)
 
-Use this guide when you are adapting the template for a real downstream app. For setup, first run, and troubleshooting, use the [README](../README.md). For runtime, provider, config, and storage rationale, use [Architecture](./ARCHITECTURE.md).
+Use this checklist after the README quickstart works.
 
-Downstream apps built from this template should keep the same Python version policy unless they make an explicit platform decision to diverge: the template requires Python 3.12+ in wheel metadata, aligns local tooling and CI/CD to Python 3.12, and does not support older Databricks runtimes that are still on Python 3.11.
+## 1. Replace The Demo Task
 
-## Step 1 — Rename the demo task family
+Edit [examples/demo_run_task.json](../examples/demo_run_task.json).
 
-Edit these files:
+This file is the canonical sample task. The local demo command and default job wiring both point at it.
 
-- [`examples/demo_run_task.json`](../examples/demo_run_task.json)
-- [`evals/sample_scenarios.json`](../evals/sample_scenarios.json)
-- [`databricks.yml`](../databricks.yml)
-- [`resources/jobs.yml`](../resources/jobs.yml)
+## 2. Replace Local Python Tools
 
-## Step 2 — Replace the example app tools
+Edit:
 
-Edit these files:
+- [src/databricks_mcp_agent_hello_world/app/tools.py](../src/databricks_mcp_agent_hello_world/app/tools.py)
+- [src/databricks_mcp_agent_hello_world/app/registry.py](../src/databricks_mcp_agent_hello_world/app/registry.py)
 
-- [`src/databricks_mcp_agent_hello_world/app/tools.py`](../src/databricks_mcp_agent_hello_world/app/tools.py)
-- [`src/databricks_mcp_agent_hello_world/app/registry.py`](../src/databricks_mcp_agent_hello_world/app/registry.py)
+For each local tool, define:
 
-For each local tool, populate only the fields the runtime uses: `name`, `description`, `input_schema`, and `fn`. The local adapter turns those fields into a Databricks/OpenAI-compatible function spec.
+- `name`
+- `description`
+- `input_schema`
+- `fn`
 
-Do not replace LLM-driven tool selection with manual Python-side filtering or deterministic routing. The runtime boundary and tool-selection model are described in [Architecture](./ARCHITECTURE.md).
+The local adapter turns those fields into the function spec shown to the model.
 
-## Step 3 — Replace the runtime task file
+## 3. Configure Tool Sources
 
-Edit [`examples/demo_run_task.json`](../examples/demo_run_task.json).
+The agent can use tools from multiple enabled sources.
 
-This file carries the per-run payload the sample app executes by default. The local demo flow and the default deployed Databricks job both point at this same file, so replace it here instead of creating a second deployment-only sample task.
+Local Python tools are for app-specific logic. Databricks MCP tools are for governed/shared Databricks-hosted tools. Tool names must be unique across enabled sources.
 
-If you intentionally want deployed behavior to use a different task contract later, change [`resources/jobs.yml`](../resources/jobs.yml) on purpose.
+For local app logic, keep:
 
-## Step 4 — Update prompts only if needed
-
-Only edit [`src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt`](../src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt) if your new domain genuinely needs it.
-
-## Step 5 — Replace eval scenarios
-
-Edit [`evals/sample_scenarios.json`](../evals/sample_scenarios.json). You can point scenarios at the canonical sample task file with `task_input_file` instead of duplicating the full JSON payload inline.
-
-Use evals as a lightweight smoke test that verifies run status, expected tool use, and required output text. Create a small set of scenarios that cover:
-
-1. happy path
-2. expected read-tool use
-3. expected write-tool use, if your app has a write tool
-4. output facts users should see
-
-## Step 6 — Rename deployment resources
-
-Edit these files:
-
-- [`databricks.yml`](../databricks.yml)
-- [`resources/jobs.yml`](../resources/jobs.yml)
-- [`workspace-config.example.yml`](../workspace-config.example.yml)
-- [`src/databricks_mcp_agent_hello_world/config.py`](../src/databricks_mcp_agent_hello_world/config.py) only if you are making a true platform-level config change
-
-When you extend config, keep `src/databricks_mcp_agent_hello_world/config.py` as the only place that decides config behavior. Add new supported keys to the strict config-loading contract in [Architecture](./ARCHITECTURE.md) before documenting or using them.
-
-## Step 6.5 — Customize CD deployment inputs
-
-Downstream projects should customize the GitHub environment secrets, the serving endpoint name, the Delta table target, and the bundle name for their own workspace layout and naming. If you need production automation later, add a separate `prod` GitHub environment, a `prod` OIDC federation policy, and a gated prod workflow or job instead of overloading the starter `dev` flow.
-
-For a new downstream project, ask a Databricks administrator to complete [Databricks Admin Setup](./DATABRICKS_ADMIN_SETUP.md) for the new GitHub repo and environment pair. The OIDC federation policy subject is repo-specific and environment-specific:
-
-```text
-repo:<github-org>/<github-repo>:environment:<github-environment>
+```yaml
+tools:
+  local_python:
+    enabled: true
 ```
 
-Do not reuse another project's service principal, OIDC federation policy, serving endpoint grant, or events table without intentionally reviewing isolation requirements.
+For a Databricks MCP source, set:
 
-Keep or intentionally customize the target model:
+```yaml
+tools:
+  databricks_mcp:
+    enabled: true
+    server:
+      name: uc_functions
+      url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
+```
 
-- `local`: personal developer target using `~/.bundle/${bundle.name}/${bundle.target}`
-- `dev`: shared service-principal-owned non-prod target using `/Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}`
-- `prod`: future service-principal-owned production target using `/Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}`
+## 4. Update Prompt Behavior Only If Needed
 
-Keep human local testing on `local`, configure GitHub OIDC for `dev`, create separate secrets and tables for `dev`, and add prod CD only when you have a real production deployment process. Do not hardcode service principal IDs, user emails, or other deployer-specific identities in the template.
+`agent_system_prompt_path` is optional.
 
-In GitHub CD, `${workspace.current_user.userName}` resolves under the authenticated service principal identity. Keep the target-level `users` `CAN_VIEW` grant if workspace users should observe shared jobs and runs, but do not grant `users` `CAN_MANAGE` unless all workspace users should manage bundle resources.
+If omitted, the built-in default prompt is used. If set, the path must exist and contain non-empty text.
 
-The starter CD workflow suppresses Databricks job stdout and stderr in GitHub Actions logs. Downstream apps should still avoid printing secrets, credentials, sensitive prompts, sensitive model responses, row-level data, or private config to stdout and stderr. Databricks-side logs may retain output according to workspace and job permissions; the workflow only suppresses GitHub Actions log output.
+Edit [src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt](../src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt) only when the default prompt no longer fits your domain.
 
-## Review persisted event data before using real inputs
+## 5. Choose Storage Routing
 
-Before running a downstream app with real data, review what the default event store will capture.
+For local development, keep:
 
-The template persists detailed execution events for debugging. Depending on your task and tools, the event store may contain prompts, task payloads, tool-call arguments, tool results, model responses, errors, and final outputs.
+```yaml
+storage:
+  local_data_dir: ./.local_state
+  agent_events_table: null
+```
 
-For the MVP template, no automatic redaction or truncation is applied.
+If `storage.agent_events_table` is unset, events are written to local JSONL under `storage.local_data_dir`.
 
-Before production use, decide whether your downstream app should:
+If `storage.agent_events_table` is set, an active Spark session is required and events are written to that table.
 
-1. keep the default rich event trace
-2. restrict access to the event table and local JSONL files
-3. reduce sensitive content returned by tools
-4. add app-specific redaction or truncation
-5. define retention and cleanup expectations
+The template never silently falls back from table persistence to local persistence.
 
-Do not assume `storage.agent_events_table` is sanitized telemetry. Treat it as application data.
+## 6. Replace Eval Scenarios
 
-## Step 7 — Verify the full workflow
+Edit [evals/sample_scenarios.json](../evals/sample_scenarios.json).
 
-Use this checklist:
+Evals are a lightweight smoke-test harness that verifies run status, expected tool use, and required output text.
 
-1. run preflight locally
-2. if you are validating Databricks persistence locally, run `databricks bundle run --target local init_storage_job`
-3. discover tools locally
-4. run the agent locally
-5. run evals locally
-6. deploy the bundle
-7. run the Databricks job
-8. inspect persisted artifacts
+Supported scenario assertion fields are:
 
-The operator commands and troubleshooting live in the [README](../README.md). The persistence contract and event model live in [Architecture](./ARCHITECTURE.md).
+- `expected_status`
+- `required_executed_tools`
+- `required_output_substrings`
 
-## Definition of done
+Keep scenarios small and tied to behavior users expect from the app.
 
-Success means:
+## 7. Update Job Wiring
 
-- example app assets fully replaced
-- framework core unchanged except where the domain truly requires it
-- LLM-driven tool selection preserved
-- evals pass
-- the Databricks job path succeeds end to end
+Edit:
+
+- [databricks.yml](../databricks.yml)
+- [resources/jobs.yml](../resources/jobs.yml)
+- [workspace-config.example.yml](../workspace-config.example.yml)
+
+Keep local console commands and Databricks wheel task arguments aligned around the same config and task files unless your app intentionally needs separate task inputs.
+
+## 8. Validate
+
+Run:
+
+```bash
+preflight --config-path workspace-config.yml
+discover-tools --config-path workspace-config.yml
+run-agent-task --config-path workspace-config.yml --task-input-file examples/demo_run_task.json
+python -m nox -s unit
+python -m nox -s contract
+python -m nox -s tests
+```
+
+Before using real data, review persisted event payloads. They can include task inputs, prompt messages, tool arguments, tool results, model responses, errors, and final outputs.

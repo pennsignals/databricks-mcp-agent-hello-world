@@ -1,33 +1,19 @@
-# Copy this file to workspace-config.yml at the repo root before validating or deploying.
-# Private downstream repos may commit workspace-config.yml if team policy allows.
-# Public repos should keep real organization-specific Databricks values out of committed config.
-# Local CLI commands read workspace-config.yml from the repo root.
-# Databricks Jobs read the deployed copy at ${workspace.file_path}/workspace-config.yml.
-
-# `tools` controls which sources the runtime uses to discover tools for the agent.
-# `llm_endpoint_name` is the model endpoint used during runtime execution.
 llm_endpoint_name: your-llm-endpoint-name
-# Optional. If omitted, the built-in default prompt is used. If set, this path
-# must exist and contain non-empty text. Relative paths resolve from this file.
-agent_system_prompt_path: src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt
 max_agent_steps: 8
 log_level: INFO
-# Passed to the Databricks SDK through the shared client helper.
 databricks_config_profile: DEFAULT
 workspace_host: null
+agent_system_prompt_path: null
 
 tools:
   local_python:
     enabled: true
   databricks_mcp:
     enabled: false
-    # Enable this source to use a Databricks MCP server alongside local Python tools.
-    # server:
-    #   name: uc_functions
-    #   url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
+    server:
+      name: uc_functions
+      url: null
 
 storage:
-  # Default: local JSONL event logs. Set agent_events_table to a 3-part
-  # catalog.schema.table name to require Spark-backed Delta persistence.
-  agent_events_table: null
   local_data_dir: ./.local_state
+  agent_events_table: null
