@@ -148,12 +148,24 @@ def build_settings(
     dotenv_values: dict[str, str] | None = None,
 ) -> Settings:
     dotenv_values = dotenv_values or {}
-    agent_prompt_path = _resolve_value(
-        yaml_value=raw.get("agent_system_prompt_path"),
-        dotenv_values=dotenv_values,
-        dotenv_key="AGENT_SYSTEM_PROMPT_PATH",
-        default=str(DEFAULT_PROMPT_DIR / "agent_system_prompt.txt"),
+    yaml_agent_prompt_path = raw.get("agent_system_prompt_path")
+    agent_prompt_path_from_yaml = (
+        "agent_system_prompt_path" in raw and yaml_agent_prompt_path is not None
     )
+    agent_prompt_path_from_env = "AGENT_SYSTEM_PROMPT_PATH" in dotenv_values
+    agent_prompt_path_explicit = agent_prompt_path_from_yaml or agent_prompt_path_from_env
+    if agent_prompt_path_from_yaml:
+        agent_prompt_path = yaml_agent_prompt_path
+    elif agent_prompt_path_from_env:
+        agent_prompt_path = dotenv_values["AGENT_SYSTEM_PROMPT_PATH"]
+    else:
+        agent_prompt_path = str(DEFAULT_PROMPT_DIR / "agent_system_prompt.txt")
+    if agent_prompt_path_explicit and str(agent_prompt_path or "").strip():
+        prompt_path = Path(str(agent_prompt_path))
+        if not prompt_path.is_absolute():
+            config_dir = Path(resolve_config_path(config_path)).resolve().parent
+            agent_prompt_path = str(config_dir / prompt_path)
+    agent_prompt_path = str(agent_prompt_path or "")
 
     return Settings(
         llm_endpoint_name=(
@@ -195,6 +207,7 @@ def build_settings(
             agent_system_prompt=_read_prompt(
                 agent_prompt_path,
                 "Use the provided tools when helpful.",
+                explicit_path=agent_prompt_path_explicit,
             ),
         ),
         databricks_config_profile=_resolve_value(
@@ -320,11 +333,29 @@ def _resolve_value(
     return default
 
 
-def _read_prompt(path: str, fallback: str) -> str:
+def _read_prompt(path: str, fallback: str, *, explicit_path: bool = False) -> str:
+    if explicit_path and not path.strip():
+        raise ValueError("Configured agent system prompt path must not be empty.")
+
     prompt_path = Path(path)
-    if prompt_path.exists():
-        return prompt_path.read_text(encoding="utf-8").strip()
-    return fallback
+    if not prompt_path.exists():
+        if explicit_path:
+            raise FileNotFoundError(
+                f"Configured agent system prompt path does not exist: {prompt_path}"
+            )
+        return fallback
+
+    if not prompt_path.is_file():
+        if explicit_path:
+            raise ValueError(f"Configured agent system prompt path is not a file: {prompt_path}")
+        return fallback
+
+    text = prompt_path.read_text(encoding="utf-8").strip()
+    if not text:
+        if explicit_path:
+            raise ValueError(f"Configured agent system prompt file is empty: {prompt_path}")
+        raise ValueError(f"Agent system prompt file is empty: {prompt_path}")
+    return text
 
 
 def _build_tools_config(raw: dict[str, Any], dotenv_values: dict[str, str]) -> ToolsConfig:

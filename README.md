@@ -120,6 +120,8 @@ tools:
 
 The agent can use tools from multiple sources. Local Python tools are useful for app-specific logic. Databricks MCP tools are useful for governed/shared Databricks-hosted capabilities. Tool names must be unique across enabled sources.
 
+`agent_system_prompt_path` is optional. If omitted, the built-in default prompt is used. If set, the path must exist and contain non-empty text. Relative paths are resolved from the directory containing `workspace-config.yml`.
+
 To enable one Databricks MCP server alongside the built-in local tools:
 
 ```yaml

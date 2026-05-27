@@ -7,6 +7,8 @@
 # `tools` controls which sources the runtime uses to discover tools for the agent.
 # `llm_endpoint_name` is the model endpoint used during runtime execution.
 llm_endpoint_name: your-llm-endpoint-name
+# Optional. If omitted, the built-in default prompt is used. If set, this path
+# must exist and contain non-empty text. Relative paths resolve from this file.
 agent_system_prompt_path: src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt
 max_agent_steps: 8
 log_level: INFO

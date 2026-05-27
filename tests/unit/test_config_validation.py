@@ -132,9 +132,33 @@ def test_internal_config_helpers_cover_fallback_paths(tmp_path: Path) -> None:
         )
         == "default"
     )
+    # Non-explicit prompt reads represent the bundled default path and may fall back.
     assert (
         config._read_prompt(str(tmp_path / "missing.txt"), "fallback prompt") == "fallback prompt"
     )
+    with pytest.raises(FileNotFoundError, match="Configured agent system prompt path"):
+        config._read_prompt(
+            str(tmp_path / "missing.txt"),
+            "fallback prompt",
+            explicit_path=True,
+        )
+
+    empty_prompt = tmp_path / "empty.txt"
+    empty_prompt.write_text("\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Configured agent system prompt path must not be empty"):
+        config._read_prompt("", "fallback prompt", explicit_path=True)
+
+    prompt_dir = tmp_path / "prompt-dir"
+    prompt_dir.mkdir()
+    assert config._read_prompt(str(prompt_dir), "fallback prompt") == "fallback prompt"
+    with pytest.raises(ValueError, match="Configured agent system prompt path is not a file"):
+        config._read_prompt(str(prompt_dir), "fallback prompt", explicit_path=True)
+
+    with pytest.raises(ValueError, match="Agent system prompt file is empty"):
+        config._read_prompt(str(empty_prompt), "fallback prompt")
+    with pytest.raises(ValueError, match="Configured agent system prompt file is empty"):
+        config._read_prompt(str(empty_prompt), "fallback prompt", explicit_path=True)
+
     assert config._coerce_bool("true", name="enabled") is True
     assert config._coerce_bool("false", name="enabled") is False
 
