@@ -32,17 +32,15 @@ def test_bundle_uses_databricks_auth_configuration_for_workspace_hosts() -> None
     targets = bundle["targets"]
 
     assert "dev_workspace_host" not in bundle.get("variables", {})
-    assert "prod_workspace_host" not in bundle.get("variables", {})
     assert "host" not in targets["local"]["workspace"]
     assert "host" not in targets["dev"]["workspace"]
-    assert "host" not in targets["prod"]["workspace"]
 
 
-def test_bundle_targets_separate_local_dev_and_prod_deployments() -> None:
+def test_bundle_targets_local_and_dev_deployments() -> None:
     bundle = _load_yaml(Path("databricks.yml"))
     targets = bundle["targets"]
 
-    assert set(targets) == {"local", "dev", "prod"}
+    assert set(targets) == {"local", "dev"}
 
     assert targets["local"]["mode"] == "development"
     assert targets["local"]["default"] is True
@@ -53,10 +51,6 @@ def test_bundle_targets_separate_local_dev_and_prod_deployments() -> None:
     assert targets["dev"]["presets"]["name_prefix"] == "dev_"
     assert targets["dev"]["presets"]["trigger_pause_status"] == "PAUSED"
 
-    assert targets["prod"]["mode"] == "production"
-    assert targets["prod"]["workspace"]["root_path"] == SHARED_CD_ROOT_PATH
-    assert targets["prod"]["git"]["branch"] == "main"
-
 
 def test_bundle_target_permissions_grant_shared_visibility_without_management() -> None:
     bundle = _load_yaml(Path("databricks.yml"))
@@ -66,12 +60,10 @@ def test_bundle_target_permissions_grant_shared_visibility_without_management() 
 
     assert "permissions" not in targets["local"]
     assert targets["dev"]["permissions"] == expected_view_permission
-    assert targets["prod"]["permissions"] == expected_view_permission
 
-    for target_name in ("dev", "prod"):
-        for permission in targets[target_name].get("permissions", []):
-            if permission.get("group_name") == "users":
-                assert permission["level"] not in forbidden_levels
+    for permission in targets["dev"].get("permissions", []):
+        if permission.get("group_name") == "users":
+            assert permission["level"] not in forbidden_levels
 
 
 def test_cd_workflow_suppresses_databricks_job_output() -> None:

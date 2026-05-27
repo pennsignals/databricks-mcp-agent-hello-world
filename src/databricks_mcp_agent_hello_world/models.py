@@ -79,6 +79,7 @@ class EvalScenario(BaseModel):
 
     expected_status: Literal["success", "error", "max_steps_exceeded"] = "success"
     required_executed_tools: list[str] = Field(default_factory=list)
+    forbidden_executed_tools: list[str] = Field(default_factory=list)
     required_output_substrings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -96,9 +97,11 @@ class EvalScenarioResult(BaseModel):
     actual_status: str | None = None
     task_name: str
     run_record_id: str | None = None
+    available_tools: list[str] = Field(default_factory=list)
     executed_tools: list[str] = Field(default_factory=list)
     final_response_excerpt: str = ""
     missing_required_executed_tools: list[str] = Field(default_factory=list)
+    forbidden_executed_tools: list[str] = Field(default_factory=list)
     missing_required_output_substrings: list[str] = Field(default_factory=list)
     scenario_execution_error_message: str | None = None
 

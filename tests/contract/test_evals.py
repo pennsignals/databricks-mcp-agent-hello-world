@@ -238,8 +238,56 @@ def test_run_evals_records_required_executed_tools(
     )
 
     assert report.results[0].passed is True
+    assert report.results[0].available_tools == ["lookup_customer", "create_support_ticket"]
     assert report.results[0].executed_tools == ["lookup_customer"]
     assert (tmp_path / "evals" / "latest_eval_report.json").exists()
+
+
+def test_run_evals_records_forbidden_executed_tools(
+    tmp_path: Path,
+    monkeypatch,
+    demo_task_input: dict[str, object],
+) -> None:
+    report = _run_report(
+        tmp_path,
+        monkeypatch,
+        [
+            {
+                "scenario_id": "forbidden-tool",
+                "description": "Fails when the read-only task creates a ticket",
+                "task_input_file": "../examples/demo_run_task.json",
+                "required_executed_tools": ["lookup_customer"],
+                "forbidden_executed_tools": ["create_support_ticket"],
+            }
+        ],
+        [
+            _record(
+                available_tools=["lookup_customer", "create_support_ticket"],
+                tool_calls=[
+                    {
+                        "tool_name": "lookup_customer",
+                        "arguments": {"customer_id": "cust_acme"},
+                        "status": "ok",
+                        "error": None,
+                    },
+                    {
+                        "tool_name": "create_support_ticket",
+                        "arguments": {"summary": "bad"},
+                        "status": "ok",
+                        "error": None,
+                    },
+                ],
+            )
+        ],
+        demo_task_input=demo_task_input,
+    )
+
+    result = report.results[0]
+
+    assert result.passed is False
+    assert result.failed_checks == ["forbidden_executed_tools"]
+    assert result.forbidden_executed_tools == ["create_support_ticket"]
+    assert result.executed_tools == ["lookup_customer", "create_support_ticket"]
 
 
 def test_run_evals_marks_status_mismatch_and_missing_output_substrings(

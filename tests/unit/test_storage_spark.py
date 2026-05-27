@@ -44,7 +44,9 @@ def test_get_spark_session_does_not_create_session_inside_databricks_runtime(mon
     assert builder_calls == []
 
 
-def test_get_spark_session_returns_none_when_active_session_fails(monkeypatch) -> None:
+def test_get_spark_session_returns_none_when_active_session_has_runtime_error(
+    monkeypatch,
+) -> None:
     pyspark_sql = ModuleType("pyspark.sql")
     pyspark_sql.SparkSession = SimpleNamespace(
         getActiveSession=lambda: (_ for _ in ()).throw(RuntimeError("spark unavailable"))
@@ -52,6 +54,17 @@ def test_get_spark_session_returns_none_when_active_session_fails(monkeypatch) -
     monkeypatch.setitem(sys.modules, "pyspark.sql", pyspark_sql)
 
     assert spark.get_spark_session() is None
+
+
+def test_get_spark_session_surfaces_unexpected_active_session_errors(monkeypatch) -> None:
+    pyspark_sql = ModuleType("pyspark.sql")
+    pyspark_sql.SparkSession = SimpleNamespace(
+        getActiveSession=lambda: (_ for _ in ()).throw(ValueError("spark bug"))
+    )
+    monkeypatch.setitem(sys.modules, "pyspark.sql", pyspark_sql)
+
+    with pytest.raises(ValueError, match="spark bug"):
+        spark.get_spark_session()
 
 
 def test_require_spark_session_raises_clear_error_when_no_session(monkeypatch) -> None:

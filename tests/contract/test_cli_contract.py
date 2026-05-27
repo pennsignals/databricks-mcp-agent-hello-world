@@ -266,16 +266,18 @@ def test_run_named_command_renders_eval_failure_summary(monkeypatch, capsys) -> 
                 failed_checks=[
                     "missing_required_output_substrings",
                     "missing_required_executed_tools",
+                    "forbidden_executed_tools",
                     "status_mismatch",
                 ],
                 expected_status="success",
                 actual_status="error",
-                executed_tools=["get_user_profile"],
+                executed_tools=["get_user_profile", "create_support_ticket"],
                 final_response_excerpt="Grace Hopper uses python3.12 -m venv plus pip.",
                 task_name="workspace_onboarding_brief",
                 run_record_id="run-123",
                 missing_required_output_substrings=["Ada Lovelace"],
                 missing_required_executed_tools=["list_recent_job_runs"],
+                forbidden_executed_tools=["create_support_ticket"],
             )
         ],
     )
@@ -294,7 +296,7 @@ def test_run_named_command_renders_eval_failure_summary(monkeypatch, capsys) -> 
     assert "FAIL onboarding_happy_path" in output
     assert (
         "Checks failed: missing_required_output_substrings, "
-        "missing_required_executed_tools, status_mismatch" in output
+        "missing_required_executed_tools, forbidden_executed_tools, status_mismatch" in output
     )
     assert "Task name: workspace_onboarding_brief" in output
     assert "Run id: run-123" in output
@@ -302,7 +304,8 @@ def test_run_named_command_renders_eval_failure_summary(monkeypatch, capsys) -> 
     assert "Actual status: error" in output
     assert "Missing output substrings: Ada Lovelace" in output
     assert "Missing executed tools: list_recent_job_runs" in output
-    assert "Executed tools: get_user_profile" in output
+    assert "Forbidden executed tools: create_support_ticket" in output
+    assert "Executed tools: get_user_profile, create_support_ticket" in output
     assert "Final response excerpt: Grace Hopper uses python3.12 -m venv plus pip." in output
     assert "Passed 0/1 scenarios" in output
 

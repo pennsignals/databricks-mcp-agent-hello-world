@@ -35,6 +35,8 @@ The agent can use tools from multiple enabled sources.
 
 Local Python tools are for app-specific logic. Databricks MCP tools are for governed/shared Databricks-hosted tools. Tool names must be unique across enabled sources.
 
+The default local inventory includes `lookup_customer` plus the write-like `create_support_ticket` example on purpose. The read-only demo task should select `lookup_customer` and avoid `create_support_ticket`, demonstrating model-driven selection from the full inventory.
+
 Discovery returns `RuntimeTool` objects with:
 
 - a global tool name
@@ -68,7 +70,10 @@ Supported scenario assertion fields are:
 
 - `expected_status`
 - `required_executed_tools`
+- `forbidden_executed_tools`
 - `required_output_substrings`
+
+Eval summary reports are written locally under `storage.local_data_dir`; agent execution events still follow the configured storage route.
 
 ## CLI/Wheel Entrypoint Flow
 

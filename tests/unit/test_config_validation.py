@@ -86,12 +86,12 @@ def test_validate_settings_does_not_probe_spark(monkeypatch) -> None:
     config.validate_settings(make_settings(storage={"agent_events_table": "main.demo.events"}))
 
 
-def test_load_settings_bundle_can_skip_validation(tmp_path: Path) -> None:
+def test_load_settings_can_skip_validation(tmp_path: Path) -> None:
     config_path = write_workspace_config(tmp_path, llm_endpoint_name="''")
 
-    loaded = config.load_settings_bundle(str(config_path), validate=False)
+    settings = config.load_settings(str(config_path), validate=False)
 
-    assert loaded.settings.llm_endpoint_name == ""
+    assert settings.llm_endpoint_name == ""
 
 
 def test_parse_task_input_variants(tmp_path: Path) -> None:
@@ -112,6 +112,15 @@ def test_load_dotenv_values_rejects_invalid_lines(tmp_path: Path) -> None:
     dotenv_path.write_text("# comment\n\nBROKEN_LINE\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match=r"Invalid \.env line 3"):
+        config.load_dotenv_values(str(config_path))
+
+
+def test_load_dotenv_values_rejects_unknown_keys(tmp_path: Path) -> None:
+    config_path = write_workspace_config(tmp_path)
+    dotenv_path = tmp_path / ".env"
+    dotenv_path.write_text("UNSUPPORTED=value\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"Local \.env contains unsupported keys"):
         config.load_dotenv_values(str(config_path))
 
 

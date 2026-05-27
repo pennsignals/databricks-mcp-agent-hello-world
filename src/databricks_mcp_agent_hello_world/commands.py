@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .config import load_settings, load_settings_bundle, parse_task_input, parse_task_input_file
+from .config import load_settings, parse_task_input, parse_task_input_file
 from .discovery import discover_tools
 from .evals.harness import EvalSetupError, run_evals
 from .logging_utils import configure_logging
@@ -25,12 +25,12 @@ class CommandResult:
 
 def run_preflight_command(config_path: str) -> CommandResult:
     try:
-        loaded = load_settings_bundle(config_path)
+        settings = load_settings(config_path)
     except Exception as exc:
         report = build_preflight_config_error_report(config_path, exc)
     else:
-        configure_logging(loaded.settings.log_level)
-        report = run_preflight_loaded(config_path, loaded)
+        configure_logging(settings.log_level)
+        report = run_preflight_loaded(config_path, settings)
     return CommandResult(exit_code=0 if report.overall_status == "pass" else 1, payload=report)
 
 

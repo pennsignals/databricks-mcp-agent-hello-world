@@ -167,6 +167,7 @@ def test_supported_env_vars_override_defaults_when_yaml_omits_values(tmp_path: P
     env_prompt = tmp_path / "env-agent.txt"
     env_prompt.write_text("env agent prompt", encoding="utf-8")
     raw = load_yaml_config(str(config_path))
+    del raw["llm_endpoint_name"]
     del raw["storage"]["agent_events_table"]
     del raw["storage"]["local_data_dir"]
     raw["tools"]["databricks_mcp"]["enabled"] = True
@@ -196,7 +197,7 @@ def test_supported_env_vars_override_defaults_when_yaml_omits_values(tmp_path: P
         dotenv_values=dotenv_values,
     )
 
-    assert settings.llm_endpoint_name == "endpoint-a"
+    assert settings.llm_endpoint_name == "dotenv-endpoint"
     assert settings.tools.local_python.enabled is True
     assert settings.tools.databricks_mcp.enabled is True
     assert settings.prompts.agent_system_prompt_path == str(env_prompt)

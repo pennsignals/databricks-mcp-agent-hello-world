@@ -102,12 +102,16 @@ def _score_scenario(scenario: EvalScenario, run_record: AgentRunRecord) -> EvalS
     task = _require_task_input(scenario)
     result = dict(run_record.result)
     final_response = _as_string(result.get("final_response"))
+    available_tools = _as_string_list(result.get("available_tools"))
     tool_calls = _as_trace_list(result.get("tool_calls"))
     executed_tools = _ordered_unique_tools(tool_calls, statuses={"ok", "error"})
     missing_required_executed_tools = [
         tool_name
         for tool_name in scenario.required_executed_tools
         if tool_name not in executed_tools
+    ]
+    forbidden_executed_tools = [
+        tool_name for tool_name in scenario.forbidden_executed_tools if tool_name in executed_tools
     ]
     missing_required_output_substrings = [
         substring
@@ -120,6 +124,8 @@ def _score_scenario(scenario: EvalScenario, run_record: AgentRunRecord) -> EvalS
         failed_checks.append("status_mismatch")
     if missing_required_executed_tools:
         failed_checks.append("missing_required_executed_tools")
+    if forbidden_executed_tools:
+        failed_checks.append("forbidden_executed_tools")
     if missing_required_output_substrings:
         failed_checks.append("missing_required_output_substrings")
 
@@ -131,9 +137,11 @@ def _score_scenario(scenario: EvalScenario, run_record: AgentRunRecord) -> EvalS
         actual_status=run_record.status,
         task_name=task.task_name,
         run_record_id=run_record.run_id,
+        available_tools=available_tools,
         executed_tools=executed_tools,
         final_response_excerpt=final_response[:300] if final_response else "",
         missing_required_executed_tools=missing_required_executed_tools,
+        forbidden_executed_tools=forbidden_executed_tools,
         missing_required_output_substrings=missing_required_output_substrings,
     )
 
@@ -148,6 +156,7 @@ def _execution_error_result(scenario: EvalScenario, exc: Exception) -> EvalScena
         actual_status=None,
         task_name=task.task_name,
         run_record_id=None,
+        available_tools=[],
         executed_tools=[],
         final_response_excerpt="",
         scenario_execution_error_message=str(exc) or None,
@@ -164,6 +173,12 @@ def _require_task_input(scenario: EvalScenario) -> AgentTaskRequest:
 
 def _as_string(value: object) -> str:
     return value if isinstance(value, str) else ""
+
+
+def _as_string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
 
 
 def _as_trace_list(value: object) -> list[dict[str, object]]:

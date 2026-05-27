@@ -210,6 +210,9 @@ def _print_eval_summary(summary) -> None:
         if "missing_required_executed_tools" in result.failed_checks:
             print(f"  Missing executed tools: {', '.join(result.missing_required_executed_tools)}")
             print(f"  Executed tools: {_format_csv(result.executed_tools)}")
+        if "forbidden_executed_tools" in result.failed_checks:
+            print(f"  Forbidden executed tools: {', '.join(result.forbidden_executed_tools)}")
+            print(f"  Executed tools: {_format_csv(result.executed_tools)}")
         if "scenario_execution_error" in result.failed_checks:
             print("  Scenario execution failed before scoring.")
             if result.scenario_execution_error_message:

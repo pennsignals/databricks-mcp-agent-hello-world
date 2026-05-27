@@ -93,6 +93,8 @@ For the built-in example app, discovery should show:
 - `lookup_customer`
 - `create_support_ticket`
 
+The default local inventory intentionally includes a relevant read tool and an irrelevant write-like tool. The demo task should use `lookup_customer` and should not use `create_support_ticket`; this shows that the model sees the full inventory but should select only tools relevant to the task.
+
 ## Run The Demo Task
 
 ```bash
@@ -148,7 +150,10 @@ Supported scenario assertion fields are:
 
 - `expected_status`
 - `required_executed_tools`
+- `forbidden_executed_tools`
 - `required_output_substrings`
+
+Eval summary reports are written locally under `storage.local_data_dir`; agent execution events still follow the configured storage route.
 
 Run the sample evals only when Databricks auth and the configured LLM endpoint are ready:
 
@@ -176,6 +181,8 @@ See [Convert the template into a real app](docs/CONVERT_TEMPLATE_TO_REAL_APP.md)
 ## Deploy To Databricks
 
 After the local demo works, update [databricks.yml](databricks.yml) and [resources/jobs.yml](resources/jobs.yml) for your workspace, then validate and deploy with Databricks Asset Bundles.
+
+For tag-driven GitHub Actions deployment, see [CD deployment](docs/CD_DEPLOYMENT.md).
 
 Keep deployment-specific workspace hosts, endpoints, table names, and secrets out of public committed config.
 

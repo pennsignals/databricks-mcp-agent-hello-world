@@ -1,7 +1,7 @@
 [project]
 name = "databricks-mcp-agent-hello-world"
 dynamic = ["version"]
-description = "Provider-agnostic, non-interactive Databricks LLM agent template with local code tools and future MCP compatibility."
+description = "Databricks-only, non-interactive LLM agent template with local Python and optional Databricks MCP tools."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

@@ -9,7 +9,7 @@ def get_spark_session():
 
     try:
         return SparkSession.getActiveSession()
-    except Exception:
+    except RuntimeError:
         return None
 
 

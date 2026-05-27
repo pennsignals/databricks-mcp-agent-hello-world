@@ -15,6 +15,18 @@ FORBIDDEN_LOCAL_DOTENV_KEYS = {
     "DATABRICKS_CLIENT_ID",
     "DATABRICKS_CLIENT_SECRET",
 }
+ALLOWED_LOCAL_DOTENV_KEYS = {
+    "AGENT_EVENTS_TABLE",
+    "AGENT_SYSTEM_PROMPT_PATH",
+    "DATABRICKS_CONFIG_PROFILE",
+    "DATABRICKS_HOST",
+    "DATABRICKS_MCP_SERVER_NAME",
+    "DATABRICKS_MCP_SERVER_URL",
+    "LLM_ENDPOINT_NAME",
+    "LOCAL_DATA_DIR",
+    "LOG_LEVEL",
+    "MAX_AGENT_STEPS",
+}
 ALLOWED_CONFIG_KEYS = {
     "llm_endpoint_name": None,
     "agent_system_prompt_path": None,
@@ -85,11 +97,6 @@ class Settings:
     dotenv_path: str | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class LoadedSettings:
-    settings: Settings
-
-
 def resolve_config_path(config_path: str | None = None) -> str:
     return str(Path(config_path or DEFAULT_CONFIG_PATH))
 
@@ -134,6 +141,13 @@ def load_dotenv_values(config_path: str | None = None) -> tuple[str | None, dict
         raise ValueError(
             "Local .env must not contain forbidden Databricks auth material for the supported "
             f"quickstart path: {keys}"
+        )
+    unsupported_keys = sorted(set(values).difference(ALLOWED_LOCAL_DOTENV_KEYS))
+    if unsupported_keys:
+        keys = ", ".join(unsupported_keys)
+        raise ValueError(
+            "Local .env contains unsupported keys. Remove them or move them out of "
+            f"repo-local .env: {keys}"
         )
     return str(dotenv_path), values
 
@@ -257,11 +271,11 @@ def validate_settings(settings: Settings) -> None:
         raise ValueError("max_agent_steps must be at least 1.")
 
 
-def load_settings_bundle(
+def load_settings(
     config_path: str | None = None,
     *,
     validate: bool = True,
-) -> LoadedSettings:
+) -> Settings:
     raw = load_yaml_config(config_path)
     validate_unknown_keys(raw, ALLOWED_CONFIG_KEYS)
     dotenv_path, dotenv_values = load_dotenv_values(config_path)
@@ -273,11 +287,7 @@ def load_settings_bundle(
     )
     if validate:
         validate_settings(settings)
-    return LoadedSettings(settings=settings)
-
-
-def load_settings(config_path: str | None = None, *, validate: bool = True) -> Settings:
-    return load_settings_bundle(config_path, validate=validate).settings
+    return settings
 
 
 def enabled_tool_sources(settings: Settings) -> list[str]:

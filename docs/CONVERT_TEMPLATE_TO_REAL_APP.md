@@ -86,7 +86,10 @@ Supported scenario assertion fields are:
 
 - `expected_status`
 - `required_executed_tools`
+- `forbidden_executed_tools`
 - `required_output_substrings`
+
+Eval summary reports are written locally under `storage.local_data_dir`; agent execution events still follow the configured storage route.
 
 Keep scenarios small and tied to behavior users expect from the app.
 
