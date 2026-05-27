@@ -32,13 +32,18 @@ def test_preflight_direct_helper_branches(monkeypatch, tmp_path: Path) -> None:
     assert "construct Databricks client configuration" in failed_client.message
     assert failed_client.details["error"] == "auth failed"
 
+    workspace_client_settings = []
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
-        lambda actual_settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+        lambda actual_settings: (
+            workspace_client_settings.append(actual_settings)
+            or SimpleNamespace(config=SimpleNamespace(host="https://example.com"))
+        ),
     )
     client_check = preflight._check_databricks_client(settings)
     assert client_check.status == "pass"
     assert "can be constructed locally" in client_check.message
+    assert workspace_client_settings == [settings]
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.preflight.get_tool_provider",

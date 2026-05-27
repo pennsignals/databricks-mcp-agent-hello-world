@@ -10,6 +10,7 @@ llm_endpoint_name: your-llm-endpoint-name
 agent_system_prompt_path: src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt
 max_agent_steps: 8
 log_level: INFO
+# Passed to the Databricks SDK through the shared client helper.
 databricks_config_profile: DEFAULT
 workspace_host: null
 

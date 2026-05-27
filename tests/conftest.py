@@ -7,8 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from databricks_mcp_agent_hello_world.clients import databricks as db_clients
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES_DIR = REPO_ROOT / "examples"
 DEMO_TASK_PATH = EXAMPLES_DIR / "demo_run_task.json"
@@ -82,17 +80,6 @@ def demo_task_path() -> Path:
 @pytest.fixture
 def demo_task_input() -> dict[str, object]:
     return load_demo_task_input()
-
-
-@pytest.fixture(autouse=True)
-def reset_databricks_client_caches() -> Iterator[None]:
-    db_clients._cached_config.cache_clear()
-    db_clients._cached_workspace_client.cache_clear()
-    db_clients._cached_openai_client.cache_clear()
-    yield
-    db_clients._cached_config.cache_clear()
-    db_clients._cached_workspace_client.cache_clear()
-    db_clients._cached_openai_client.cache_clear()
 
 
 @pytest.fixture

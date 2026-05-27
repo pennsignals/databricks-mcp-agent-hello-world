@@ -134,7 +134,7 @@ tools:
       url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
 ```
 
-When `databricks_config_profile` is set, the MCP provider uses that profile through the Databricks `WorkspaceClient`. Without it, the provider uses Databricks SDK default authentication.
+Databricks authentication is handled by the Databricks SDK. The template passes `databricks_config_profile` and/or `workspace_host` to the SDK through one shared client helper used by LLM, MCP, and preflight code.
 
 You can also override `llm_endpoint_name` from `.env` with `LLM_ENDPOINT_NAME`, but keeping the main value in `workspace-config.yml` is the clearest beginner path.
 
@@ -213,7 +213,7 @@ discover-tools --config-path workspace-config.yml
 
 For the built-in example app, you should see **5 tools**. The discovery output shows each tool's source and Databricks/OpenAI-compatible function spec summary.
 
-For a manual Databricks MCP smoke test, create a separate config such as `workspace-config.databricks-mcp.yml` with `tools.databricks_mcp.enabled`, `tools.databricks_mcp.server`, and `databricks_config_profile` set, then run:
+For a manual Databricks MCP smoke test, create a separate config such as `workspace-config.databricks-mcp.yml` with `tools.databricks_mcp.enabled`, `tools.databricks_mcp.server`, and `databricks_config_profile` or `workspace_host` set as needed, then run:
 
 ```bash
 discover-tools --config-path workspace-config.databricks-mcp.yml

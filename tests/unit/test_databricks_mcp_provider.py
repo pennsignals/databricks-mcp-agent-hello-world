@@ -79,6 +79,49 @@ def test_databricks_mcp_provider_uses_shared_workspace_client(monkeypatch) -> No
     ]
 
 
+def test_databricks_mcp_provider_honors_workspace_host_through_shared_helper(
+    monkeypatch,
+) -> None:
+    captured = _install_fake_databricks_mcp_modules(monkeypatch)
+    workspace_client_kwargs = []
+
+    class FakeWorkspaceClient:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = kwargs
+            workspace_client_kwargs.append(kwargs)
+
+    sdk_module = ModuleType("databricks.sdk")
+    sdk_module.WorkspaceClient = FakeWorkspaceClient
+    monkeypatch.setitem(sys.modules, "databricks.sdk", sdk_module)
+
+    settings = make_settings(
+        databricks_config_profile="dev",
+        workspace_host="https://example.cloud.databricks.com",
+        tools={
+            "databricks_mcp": {
+                "enabled": True,
+                "server": {
+                    "name": "uc_functions",
+                    "url": "https://example.cloud.databricks.com/api/2.0/mcp/functions/main/demo",
+                },
+            }
+        },
+    )
+
+    DatabricksMCPToolProvider(settings)
+
+    assert workspace_client_kwargs == [
+        {
+            "profile": "dev",
+            "host": "https://example.cloud.databricks.com",
+        }
+    ]
+    assert captured["toolkit_calls"][0]["workspace_client"].kwargs == {
+        "profile": "dev",
+        "host": "https://example.cloud.databricks.com",
+    }
+
+
 def test_databricks_mcp_provider_requires_server_config() -> None:
     with pytest.raises(ValueError, match=r"databricks_mcp requires tools\.databricks_mcp"):
         DatabricksMCPToolProvider(make_settings())

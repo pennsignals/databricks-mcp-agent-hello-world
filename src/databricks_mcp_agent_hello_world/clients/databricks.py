@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from ..config import Settings
 
 if TYPE_CHECKING:
     from databricks.sdk import WorkspaceClient
-    from databricks.sdk.config import Config
     from databricks_openai import DatabricksOpenAI
 
 
-def _workspace_client_config_kwargs(settings: Settings) -> dict[str, str]:
+def _workspace_client_kwargs(settings: Settings) -> dict[str, str]:
     kwargs: dict[str, str] = {}
     if settings.databricks_config_profile:
         kwargs["profile"] = settings.databricks_config_profile
@@ -20,38 +18,13 @@ def _workspace_client_config_kwargs(settings: Settings) -> dict[str, str]:
     return kwargs
 
 
-@lru_cache(maxsize=8)
-def _cached_config(profile: str | None, host: str | None) -> Config:
-    from databricks.sdk.config import Config
-
-    if profile and host:
-        return Config(profile=profile, host=host)
-    if profile:
-        return Config(profile=profile)
-    if host:
-        return Config(host=host)
-    return Config()
-
-
-@lru_cache(maxsize=8)
-def _cached_workspace_client(profile: str | None, host: str | None) -> WorkspaceClient:
+def get_workspace_client(settings: Settings) -> WorkspaceClient:
     from databricks.sdk import WorkspaceClient
 
-    return WorkspaceClient(config=_cached_config(profile, host))
-
-
-def get_workspace_client(settings: Settings) -> WorkspaceClient:
-    kwargs = _workspace_client_config_kwargs(settings)
-    return _cached_workspace_client(kwargs.get("profile"), kwargs.get("host"))
-
-
-@lru_cache(maxsize=8)
-def _cached_openai_client(profile: str | None, host: str | None) -> DatabricksOpenAI:
-    from databricks_openai import DatabricksOpenAI
-
-    return DatabricksOpenAI(workspace_client=_cached_workspace_client(profile, host))
+    return WorkspaceClient(**_workspace_client_kwargs(settings))
 
 
 def get_openai_client(settings: Settings) -> DatabricksOpenAI:
-    kwargs = _workspace_client_config_kwargs(settings)
-    return _cached_openai_client(kwargs.get("profile"), kwargs.get("host"))
+    from databricks_openai import DatabricksOpenAI
+
+    return DatabricksOpenAI(workspace_client=get_workspace_client(settings))

@@ -90,6 +90,8 @@ The LLM sees plain global tool names. Source labels such as `local_python` and `
 
 `workspace-config.example.yml` only includes supported config keys. Downstream apps should add new keys only after extending the strict config-loading contract.
 
+Databricks authentication is handled by the Databricks SDK. The template passes `databricks_config_profile` and/or `workspace_host` to the SDK through one shared client helper used by LLM, MCP, and preflight code.
+
 ## Persistence model
 
 The persisted source of truth is an append-only event log with one row per execution event. Summary objects such as `AgentRunRecord` still exist as runtime conveniences for CLI output and evals, but they are no longer the authored storage contract.

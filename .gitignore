@@ -1,6 +1,9 @@
 .venv/
 .uv-cache/
 .pre-commit-cache/
+.DS_Store
+.codex/
+old_cruft/
 .pytest_cache/
 __pycache__/
 *.pyc
