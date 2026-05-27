@@ -42,6 +42,54 @@ def test_agent_runner_records_run_failed_event_when_llm_step_raises(
     assert failed_event["error_message"] == "llm boom"
 
 
+def test_agent_runner_preserves_original_error_when_run_failed_persistence_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    runner = make_runner(tmp_path, StubLLM([RuntimeError("llm boom")]))
+
+    def _raise_on_run_failed(settings, rows) -> None:
+        del settings
+        if rows[0]["event_type"] == "run_failed":
+            raise RuntimeError("persistence boom")
+        runner.persisted_event_rows.extend(dict(row) for row in rows)
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.runner.agent_runner.write_event_rows",
+        _raise_on_run_failed,
+    )
+
+    with pytest.raises(RuntimeError, match="llm boom"):
+        runner.run(
+            AgentTaskRequest(
+                task_name="workspace_onboarding_brief",
+                instructions="Write the report.",
+                run_id="run-error",
+            )
+        )
+
+
+def test_agent_runner_surfaces_normal_event_persistence_errors(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    runner = make_runner(tmp_path, StubLLM([llm_response(content="done")]))
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.runner.agent_runner.write_event_rows",
+        lambda settings, rows: (_ for _ in ()).throw(RuntimeError("persistence boom")),
+    )
+
+    with pytest.raises(RuntimeError, match="persistence boom"):
+        runner.run(
+            AgentTaskRequest(
+                task_name="workspace_onboarding_brief",
+                instructions="Write the report.",
+                run_id="run-error",
+            )
+        )
+
+
 def test_agent_runner_init_builds_provider_and_llm(monkeypatch) -> None:
     created = {}
     settings = object()

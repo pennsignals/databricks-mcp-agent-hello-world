@@ -68,10 +68,6 @@ def test_preflight_direct_helper_branches(monkeypatch, tmp_path: Path) -> None:
     assert tool_count == 0
     assert exploding_tool_check.status == "fail"
 
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
-        lambda: None,
-    )
     missing_local_dir = preflight._check_persistence_target_names(
         make_settings(storage={"local_data_dir": "   ", "agent_events_table": "main.demo.events"})
     )
@@ -81,7 +77,7 @@ def test_preflight_direct_helper_branches(monkeypatch, tmp_path: Path) -> None:
         table=lambda name: SimpleNamespace(limit=lambda n: SimpleNamespace(collect=list))
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
+        "databricks_mcp_agent_hello_world.preflight.require_spark_session",
         lambda: spark,
     )
     monkeypatch.setattr(
@@ -91,10 +87,11 @@ def test_preflight_direct_helper_branches(monkeypatch, tmp_path: Path) -> None:
     reachable = preflight._check_persistence_reachability(settings)
     assert reachable.status == "pass"
 
-    missing_table = preflight._check_persistence_reachability(
+    local_reachability = preflight._check_persistence_reachability(
         make_settings(storage={"local_data_dir": str(tmp_path), "agent_events_table": "   "})
     )
-    assert missing_table.status == "fail"
+    assert local_reachability.status == "pass"
+    assert local_reachability.details["storage_mode"] == "local_jsonl"
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.preflight.storage_table_exists",

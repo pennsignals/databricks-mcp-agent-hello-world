@@ -36,6 +36,7 @@ def write_workspace_config(
     mcp_source_server_name: str | None = None,
     mcp_source_server_url: str | None = None,
     include_databricks_profile: bool = True,
+    agent_events_table: str | None = "main.agent.agent_events",
 ) -> Path:
     lines = [
         f"llm_endpoint_name: {llm_endpoint_name}",
@@ -56,7 +57,7 @@ def write_workspace_config(
         if include_tools and mcp_source_server_url is not None
         else None,
         "storage:",
-        "  agent_events_table: main.agent.agent_events",
+        f"  agent_events_table: {agent_events_table}" if agent_events_table else None,
         "  local_data_dir: ./.local_state",
     ]
     if extra_lines:

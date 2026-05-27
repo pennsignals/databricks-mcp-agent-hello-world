@@ -8,8 +8,6 @@ from typing import Any
 
 import yaml
 
-from .storage.spark import get_spark_session
-
 DEFAULT_CONFIG_PATH = "workspace-config.yml"
 DEFAULT_PROMPT_DIR = Path(__file__).resolve().parent / "prompts"
 FORBIDDEN_LOCAL_DOTENV_KEYS = {
@@ -240,8 +238,6 @@ def validate_settings(settings: Settings) -> None:
         missing_required.append("llm_endpoint_name")
     if not (settings.storage.local_data_dir or "").strip():
         missing_required.append("storage.local_data_dir")
-    if get_spark_session() is not None and not (settings.storage.agent_events_table or "").strip():
-        missing_required.append("storage.agent_events_table")
     if missing_required:
         formatted = ", ".join(missing_required)
         raise ValueError(f"Missing required settings: {formatted}")

@@ -1,19 +1,12 @@
 from __future__ import annotations
 
 import logging
-import sys
-import types
 from pathlib import Path
 from types import SimpleNamespace
 
 from databricks_mcp_agent_hello_world.models import AgentTaskRequest
 from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
-from databricks_mcp_agent_hello_world.storage import spark
 from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool, ToolSource
-
-EXPECTED_SPARK_FALLBACK_MESSAGE = (
-    "Local mode: no active Spark session detected; using local fallback persistence."
-)
 
 
 class StubProvider:
@@ -77,31 +70,6 @@ def _runner(tmp_path: Path, llm, *, tools: list[RuntimeTool] | None = None) -> A
     runner.provider = StubProvider(tools or [_tool("get_user_profile")])
     runner.llm = llm
     return runner
-
-
-def test_get_spark_session_logs_local_fallback_once(caplog, monkeypatch) -> None:
-    monkeypatch.setattr(spark, "_logged_local_fallback", False)
-    monkeypatch.delenv("DATABRICKS_RUNTIME_VERSION", raising=False)
-
-    fake_sql = types.ModuleType("pyspark.sql")
-
-    class FakeSparkSession:
-        @classmethod
-        def getActiveSession(cls):
-            return None
-
-    fake_sql.SparkSession = FakeSparkSession
-    fake_pyspark = types.ModuleType("pyspark")
-    fake_pyspark.__path__ = []
-    fake_pyspark.sql = fake_sql
-    monkeypatch.setitem(sys.modules, "pyspark", fake_pyspark)
-    monkeypatch.setitem(sys.modules, "pyspark.sql", fake_sql)
-
-    caplog.set_level(logging.INFO, logger=spark.logger.name)
-
-    assert spark.get_spark_session() is None
-    assert spark.get_spark_session() is None
-    assert [record.message for record in caplog.records].count(EXPECTED_SPARK_FALLBACK_MESSAGE) == 1
 
 
 def test_unknown_tool_call_logs_warning_without_old_blocked_language(

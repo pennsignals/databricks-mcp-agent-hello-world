@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import json
 from pathlib import Path
 
@@ -54,27 +55,24 @@ def test_load_dotenv_values_returns_empty_when_no_env_file(tmp_path: Path) -> No
     ],
 )
 def test_validate_settings_rejects_invalid_shapes(
-    monkeypatch,
     settings_overrides: dict[str, object],
     message: str,
 ) -> None:
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.config.get_spark_session",
-        lambda: None,
-    )
-
     with pytest.raises(ValueError, match=message):
         config.validate_settings(make_settings(**settings_overrides))
 
 
-def test_validate_settings_requires_remote_table_when_spark_is_available(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.config.get_spark_session",
-        lambda: object(),
-    )
+def test_validate_settings_does_not_probe_spark(monkeypatch) -> None:
+    real_import = builtins.__import__
 
-    with pytest.raises(ValueError, match=r"storage\.agent_events_table"):
-        config.validate_settings(make_settings(storage={"agent_events_table": "  "}))
+    def _import(name, *args, **kwargs):
+        if name == "pyspark.sql" or name.endswith(".storage.spark"):
+            raise AssertionError("Spark should not be inspected during config validation.")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _import)
+
+    config.validate_settings(make_settings(storage={"agent_events_table": "  "}))
 
 
 def test_load_settings_bundle_can_skip_validation(tmp_path: Path) -> None:

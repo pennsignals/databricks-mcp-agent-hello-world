@@ -6,7 +6,7 @@ from typing import Any
 
 from ..config import Settings
 from . import schema
-from .spark import get_spark_session
+from .spark import require_spark_session
 from .write import EVENTS_JSONL_FILE_NAME
 
 
@@ -35,8 +35,8 @@ class StorageTableName:
 def init_storage(
     settings: Settings,
 ) -> InitStorageReport:
-    spark = get_spark_session()
-    if spark is None:
+    table_name = (settings.storage.agent_events_table or "").strip()
+    if not table_name:
         local_data_dir = Path(settings.storage.local_data_dir).expanduser()
         created_dir = ensure_local_storage_dir(local_data_dir)
         return InitStorageReport(
@@ -54,10 +54,7 @@ def init_storage(
             changed=created_dir,
         )
 
-    table_name = (settings.storage.agent_events_table or "").strip()
-    if not table_name:
-        raise ValueError("storage.agent_events_table must be configured when Spark is available.")
-
+    spark = require_spark_session()
     target = parse_table_name(table_name)
     messages: list[str] = []
     changed = False

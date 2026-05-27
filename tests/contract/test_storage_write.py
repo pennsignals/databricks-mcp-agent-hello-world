@@ -41,13 +41,13 @@ def test_validate_event_rows_accepts_current_event_row_schema() -> None:
 
 def test_write_event_rows_appends_jsonl_in_event_index_order(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.write.get_spark_session",
-        lambda: None,
+        "databricks_mcp_agent_hello_world.storage.write.require_spark_session",
+        lambda: (_ for _ in ()).throw(AssertionError("Spark should not be required.")),
     )
     settings = make_settings(
         storage={
             "local_data_dir": str(tmp_path),
-            "agent_events_table": "main.agent.agent_events",
+            "agent_events_table": None,
         }
     )
     rows = [_event_row(event_index=0), _event_row(event_index=1, payload={"step": 2})]
@@ -96,7 +96,7 @@ class _FakeSparkSession:
 def test_write_event_rows_uses_arrow_table_for_spark_writes(monkeypatch) -> None:
     spark = _FakeSparkSession()
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.write.get_spark_session",
+        "databricks_mcp_agent_hello_world.storage.write.require_spark_session",
         lambda: spark,
     )
     settings = make_settings(

@@ -68,7 +68,7 @@ class AgentRunner:
         try:
             return self._run_agent_loop(state)
         except Exception as exc:
-            self._emit_run_failed(state, exc)
+            self._safe_emit_run_failed(state, exc)
             raise
 
     def _initialize_run_state(
@@ -174,6 +174,12 @@ class AgentRunner:
                 ),
             },
         )
+
+    def _safe_emit_run_failed(self, state: _RunState, exc: Exception) -> None:
+        try:
+            self._emit_run_failed(state, exc)
+        except Exception:
+            logger.exception("Failed to persist run_failed event.")
 
     def _run_agent_loop(self, state: _RunState) -> AgentRunRecord:
         for _ in range(self.settings.max_agent_steps):

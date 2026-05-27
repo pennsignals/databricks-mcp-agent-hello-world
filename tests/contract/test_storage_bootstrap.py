@@ -110,7 +110,7 @@ def _unquote_qualified_name(name: str) -> tuple[str, ...]:
     return tuple(part.strip("`") for part in name.split("."))
 
 
-def _settings(tmp_path: Path, *, table_name: str = "main.agent_demo.agent_events"):
+def _settings(tmp_path: Path, *, table_name: str | None = "main.agent_demo.agent_events"):
     return make_settings(
         storage={
             "local_data_dir": str(tmp_path / ".local_state"),
@@ -131,10 +131,10 @@ def test_init_storage_local_mode_creates_directory_without_jsonl(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    settings = _settings(tmp_path)
+    settings = _settings(tmp_path, table_name=None)
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
-        lambda: None,
+        "databricks_mcp_agent_hello_world.storage.bootstrap.require_spark_session",
+        lambda: (_ for _ in ()).throw(AssertionError("Spark should not be required.")),
     )
 
     report = bootstrap.init_storage(settings)
@@ -152,7 +152,7 @@ def test_init_storage_creates_missing_remote_schema_and_table(tmp_path: Path, mo
         lambda schema: "`schema_version` STRING NOT NULL",
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
+        "databricks_mcp_agent_hello_world.storage.bootstrap.require_spark_session",
         lambda: spark,
     )
 
@@ -168,7 +168,7 @@ def test_init_storage_creates_missing_remote_schema_and_table(tmp_path: Path, mo
 
 def test_init_storage_fails_when_remote_catalog_is_missing(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
+        "databricks_mcp_agent_hello_world.storage.bootstrap.require_spark_session",
         lambda: FakeSpark(),
     )
 
@@ -186,7 +186,7 @@ def test_init_storage_reports_schema_mismatch_without_modifying_existing_table(
         tables={"main.agent_demo.agent_events": _schema("wrong_field")},
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
+        "databricks_mcp_agent_hello_world.storage.bootstrap.require_spark_session",
         lambda: spark,
     )
 

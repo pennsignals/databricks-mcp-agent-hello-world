@@ -8,21 +8,43 @@ from databricks_mcp_agent_hello_world.storage import bootstrap
 from tests.helpers import make_settings
 
 
-def test_init_storage_requires_remote_table_when_spark_is_available(tmp_path, monkeypatch) -> None:
+def test_init_storage_creates_local_storage_when_table_is_blank(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
-        lambda: object(),
+        "databricks_mcp_agent_hello_world.storage.bootstrap.require_spark_session",
+        lambda: (_ for _ in ()).throw(AssertionError("Spark should not be required.")),
     )
 
-    with pytest.raises(ValueError, match=r"storage\.agent_events_table must be configured"):
+    report = bootstrap.init_storage(
+        make_settings(
+            storage={
+                "agent_events_table": "   ",
+                "local_data_dir": str(tmp_path),
+            }
+        )
+    )
+
+    assert report.exit_code == 0
+    assert tmp_path.exists()
+
+
+def test_init_storage_requires_spark_when_table_is_configured(tmp_path, monkeypatch) -> None:
+    local_data_dir = tmp_path / "local-state"
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.storage.bootstrap.require_spark_session",
+        lambda: (_ for _ in ()).throw(RuntimeError("no active Spark session")),
+    )
+
+    with pytest.raises(RuntimeError, match="no active Spark session"):
         bootstrap.init_storage(
             make_settings(
                 storage={
-                    "agent_events_table": "   ",
-                    "local_data_dir": str(tmp_path),
+                    "agent_events_table": "main.demo.events",
+                    "local_data_dir": str(local_data_dir),
                 }
             )
         )
+
+    assert not local_data_dir.exists()
 
 
 def test_init_storage_reports_existing_matching_table(tmp_path, monkeypatch) -> None:
@@ -53,7 +75,7 @@ def test_init_storage_reports_existing_matching_table(tmp_path, monkeypatch) -> 
         lambda spark_obj, target_obj: None,
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.bootstrap.get_spark_session",
+        "databricks_mcp_agent_hello_world.storage.bootstrap.require_spark_session",
         lambda: same_schema_spark,
     )
 

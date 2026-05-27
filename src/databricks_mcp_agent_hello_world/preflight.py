@@ -12,7 +12,7 @@ from .config import (
 from .models import PreflightCheck, PreflightReport
 from .providers.factory import get_tool_provider
 from .storage.bootstrap import storage_table_exists
-from .storage.spark import get_spark_session
+from .storage.spark import require_spark_session
 
 
 def run_preflight(config_path: str) -> PreflightReport:
@@ -178,56 +178,45 @@ def _check_persistence_target_names(settings: Settings) -> PreflightCheck:
             details={"missing": ["local_data_dir"]},
         )
 
-    spark = get_spark_session()
     agent_events_table = (settings.storage.agent_events_table or "").strip()
-    if spark is not None and not agent_events_table:
-        return PreflightCheck(
-            name="persistence_targets",
-            status="fail",
-            message="agent_events_table is required when Spark is available.",
-            details={"missing": ["agent_events_table"], "local_data_dir": local_data_dir},
-        )
+    storage_mode = "spark_table" if agent_events_table else "local_jsonl"
 
     return PreflightCheck(
         name="persistence_targets",
         status="pass",
-        message="Persistence target names are configured for the detected local runtime.",
+        message=f"Storage mode: {storage_mode}.",
         details={
             "agent_events_table": agent_events_table or None,
             "local_data_dir": local_data_dir,
-            "spark_available": spark is not None,
+            "storage_mode": storage_mode,
         },
     )
 
 
 def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
-    spark = get_spark_session()
-    if spark is None:
+    table_name = (settings.storage.agent_events_table or "").strip()
+    if not table_name:
         local_data_dir = Path(settings.storage.local_data_dir).expanduser()
         return PreflightCheck(
             name="persistence_reachability",
             status="pass",
-            message=(
-                "Spark is unavailable in this environment, so a local run would use JSONL "
-                "event-log storage."
-            ),
-            details={"local_data_dir": str(local_data_dir)},
+            message="Storage mode: local_jsonl.",
+            details={"local_data_dir": str(local_data_dir), "storage_mode": "local_jsonl"},
         )
     try:
-        table_name = (settings.storage.agent_events_table or "").strip()
-        if not table_name:
-            raise ValueError("agent_events_table is missing.")
+        spark = require_spark_session()
         if not storage_table_exists(spark, table_name):
             return PreflightCheck(
                 name="persistence_reachability",
                 status="fail",
                 message=(
-                    "Spark is available, but the configured Delta event store is not "
+                    "Storage mode: spark_table. The configured Delta event store is not "
                     "initialized yet. "
                     "Run init_storage_job before the first Spark-backed workload run."
                 ),
                 details={
                     "agent_events_table": table_name,
+                    "storage_mode": "spark_table",
                     "next_step": "init_storage_job",
                 },
             )
@@ -235,11 +224,8 @@ def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
         return PreflightCheck(
             name="persistence_reachability",
             status="pass",
-            message=(
-                "Spark is available and the configured Delta event store is readable from "
-                "this environment."
-            ),
-            details={"agent_events_table": table_name},
+            message="Storage mode: spark_table. The configured Delta event store is readable.",
+            details={"agent_events_table": table_name, "storage_mode": "spark_table"},
         )
     except Exception as exc:
         return PreflightCheck(
@@ -249,6 +235,10 @@ def _check_persistence_reachability(settings: Settings) -> PreflightCheck:
                 "Unable to read the configured Delta event store. "
                 f"Check storage.agent_events_table and schema access: {exc}"
             ),
+            details={
+                "agent_events_table": table_name,
+                "storage_mode": "spark_table",
+            },
         )
 
 

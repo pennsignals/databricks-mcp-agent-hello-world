@@ -14,15 +14,11 @@ def test_preflight_returns_expected_checks_for_local_mode(
     monkeypatch,
     capsys,
 ) -> None:
-    config_path = write_workspace_config(tmp_path)
+    config_path = write_workspace_config(tmp_path, agent_events_table=None)
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
-        lambda: None,
     )
 
     report = run_preflight(str(config_path))
@@ -63,15 +59,11 @@ def test_preflight_summary_prints_scope(capsys) -> None:
 
 
 def test_preflight_reports_local_event_store_targets(tmp_path: Path, monkeypatch) -> None:
-    config_path = write_workspace_config(tmp_path)
+    config_path = write_workspace_config(tmp_path, agent_events_table=None)
 
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
-        lambda: None,
     )
 
     report = run_preflight(str(config_path))
@@ -80,9 +72,9 @@ def test_preflight_reports_local_event_store_targets(tmp_path: Path, monkeypatch
     )
 
     assert persistence_check.details == {
-        "agent_events_table": "main.agent.agent_events",
+        "agent_events_table": None,
         "local_data_dir": "./.local_state",
-        "spark_available": False,
+        "storage_mode": "local_jsonl",
     }
 
 
@@ -103,10 +95,6 @@ def test_preflight_fails_for_stale_keys(tmp_path: Path, monkeypatch) -> None:
         "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
-        lambda: None,
-    )
 
     report = run_preflight(str(config_path))
 
@@ -115,7 +103,7 @@ def test_preflight_fails_for_stale_keys(tmp_path: Path, monkeypatch) -> None:
     assert "Unknown config key: unknown_section" in report.checks[0].message
 
 
-def test_preflight_requires_agent_events_table_when_spark_is_available(
+def test_preflight_uses_local_mode_when_agent_events_table_is_missing(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -144,21 +132,18 @@ def test_preflight_requires_agent_events_table_when_spark_is_available(
         "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
-        lambda: SimpleNamespace(),
-    )
 
     report = run_preflight(str(config_path))
     persistence_check = next(
         check for check in report.checks if check.name == "persistence_targets"
     )
 
-    assert report.overall_status == "fail"
-    assert persistence_check.status == "fail"
+    assert report.overall_status == "pass"
+    assert persistence_check.status == "pass"
     assert persistence_check.details == {
-        "missing": ["agent_events_table"],
+        "agent_events_table": None,
         "local_data_dir": "./.local_state",
+        "storage_mode": "local_jsonl",
     }
 
 
@@ -173,7 +158,7 @@ def test_preflight_reports_uninitialized_remote_storage_with_next_step(
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
+        "databricks_mcp_agent_hello_world.preflight.require_spark_session",
         lambda: SimpleNamespace(),
     )
     monkeypatch.setattr(
@@ -189,3 +174,35 @@ def test_preflight_reports_uninitialized_remote_storage_with_next_step(
     assert reachability_check.status == "fail"
     assert reachability_check.details["agent_events_table"] == "main.agent.agent_events"
     assert reachability_check.details["next_step"] == "init_storage_job"
+
+
+def test_preflight_fails_when_table_configured_but_no_active_spark(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    config_path = write_workspace_config(
+        tmp_path,
+        agent_events_table="main.agent.agent_events",
+    )
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.preflight.require_spark_session",
+        lambda: (_ for _ in ()).throw(RuntimeError("no active Spark session")),
+    )
+
+    report = run_preflight(str(config_path))
+    reachability = next(
+        check for check in report.checks if check.name == "persistence_reachability"
+    )
+
+    assert report.overall_status == "fail"
+    assert reachability.status == "fail"
+    assert reachability.details == {
+        "agent_events_table": "main.agent.agent_events",
+        "storage_mode": "spark_table",
+    }
+    assert "no active Spark session" in reachability.message
