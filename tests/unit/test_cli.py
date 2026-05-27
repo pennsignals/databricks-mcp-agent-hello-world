@@ -67,7 +67,7 @@ def test_run_named_command_renders_text_summary_for_preflight(monkeypatch) -> No
 
 def test_run_named_command_renders_json_for_discovery(monkeypatch, capsys) -> None:
     payload = DiscoveryReport(
-        tool_provider_type="local_python",
+        enabled_tool_sources=["local_python"],
         tool_count=0,
         provider_id="builtin_tools",
         inventory_hash="hash",
@@ -85,7 +85,8 @@ def test_run_named_command_renders_json_for_discovery(monkeypatch, capsys) -> No
 
     assert exit_code == 0
     output = capsys.readouterr().out
-    assert '"tool_provider_type": "local_python"' in output
+    assert '"enabled_tool_sources": [' in output
+    assert '"local_python"' in output
     assert '"tool_count": 0' in output
 
 

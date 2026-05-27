@@ -52,7 +52,7 @@ This matches the standard tool-calling pattern where the model is given tools an
 
 ## Provider model
 
-There should be one canonical tool-provider resolution point in the runtime. `local_python` exposes the built-in repo-local Python tools. `databricks_mcp` uses Databricks' `McpServerToolkit` to discover tools from one configured Databricks MCP server at runtime.
+There should be one canonical tool-provider resolution point in the runtime. `local_python` exposes the built-in repo-local Python tools. `databricks_mcp` uses Databricks' `McpServerToolkit` to discover tools from one configured Databricks MCP server at runtime. When multiple sources are enabled, a small composite provider combines them and fails fast if two sources expose the same tool name.
 
 That means:
 
@@ -73,13 +73,18 @@ RuntimeTool(
 
 Tool source metadata is for logging and discovery output only. Fields that do not affect model-visible specs, execution, config, tests, or traceability are kept out of the runtime model.
 
+The LLM sees plain global tool names. Source labels such as `local_python` and `databricks_mcp` are retained only for traces, debugging, and discovery output.
+
 ## Config loading contract
 
 `src/databricks_mcp_agent_hello_world/config.py` is the single source of truth for runtime config validity.
 
-- `tool_provider_type` and `databricks_config_profile` are the canonical YAML keys
-- `tool_provider_type` supports `local_python` and `databricks_mcp`
-- `databricks_mcp` requires `databricks_mcp_server.url`; `databricks_mcp_server.name` defaults to `databricks_mcp`
+- `tools` is the canonical tool-source config
+- `databricks_config_profile` and `workspace_host` are optional Databricks auth settings
+- `tools.local_python.enabled` defaults to `true`
+- `tools.databricks_mcp.enabled` defaults to `false`
+- enabled Databricks MCP requires `tools.databricks_mcp.server.name` and `tools.databricks_mcp.server.url`
+- at least one tool source must be enabled
 - unknown top-level and nested YAML keys fail config loading with a clear `ValueError`
 - `preflight` consumes the same strict config validation path instead of maintaining a second set of config rules
 

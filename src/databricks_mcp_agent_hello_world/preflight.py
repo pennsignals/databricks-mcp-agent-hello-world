@@ -6,6 +6,7 @@ from .clients.databricks import get_workspace_client
 from .config import (
     LoadedSettings,
     Settings,
+    enabled_tool_sources,
     load_settings_bundle,
 )
 from .models import PreflightCheck, PreflightReport
@@ -117,7 +118,7 @@ def _check_provider_factory(settings: Settings):
                 name="provider_factory",
                 status="pass",
                 message="Tool provider can be constructed from local configuration.",
-                details={"tool_provider_type": settings.tool_provider_type},
+                details={"enabled_tool_sources": enabled_tool_sources(settings)},
             ),
             provider,
         )
@@ -127,7 +128,7 @@ def _check_provider_factory(settings: Settings):
                 name="provider_factory",
                 status="fail",
                 message=str(exc),
-                details={"tool_provider_type": settings.tool_provider_type},
+                details={"enabled_tool_sources": enabled_tool_sources(settings)},
             ),
             None,
         )
@@ -259,7 +260,7 @@ def _finalize_preflight_report(
     settings_summary = {}
     if settings is not None:
         settings_summary = {
-            "tool_provider_type": settings.tool_provider_type,
+            "enabled_tool_sources": enabled_tool_sources(settings),
             "llm_endpoint_name": settings.llm_endpoint_name,
             "dotenv_path": settings.dotenv_path,
         }

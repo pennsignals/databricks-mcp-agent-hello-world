@@ -9,6 +9,7 @@ from databricks_mcp_agent_hello_world.cli import (
 from databricks_mcp_agent_hello_world.config import load_settings
 from databricks_mcp_agent_hello_world.discovery import discover_tools
 from tests.conftest import write_workspace_config
+from tests.helpers import make_settings
 
 
 def test_discover_tools_returns_current_app_inventory(tmp_path: Path) -> None:
@@ -16,7 +17,7 @@ def test_discover_tools_returns_current_app_inventory(tmp_path: Path) -> None:
 
     report = discover_tools(settings)
 
-    assert report.tool_provider_type == "local_python"
+    assert report.enabled_tool_sources == ["local_python"]
     assert report.provider_id == "builtin_tools"
     assert report.tool_count == 5
     assert [tool.name for tool in report.tools] == [
@@ -35,8 +36,38 @@ def test_discovery_json_output_matches_runtime_shape(tmp_path: Path, capsys) -> 
     print_json_report(report)
     output = capsys.readouterr().out
 
-    assert '"tool_provider_type": "local_python"' in output
+    assert '"enabled_tool_sources": [' in output
+    assert '"local_python"' in output
     assert '"tool_count": 5' in output
+
+
+def test_discovery_reports_enabled_sources_even_when_no_tools_are_returned(monkeypatch) -> None:
+    class EmptyProvider:
+        provider_id = "empty"
+
+        def list_tools(self):
+            return []
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.discovery.get_tool_provider",
+        lambda settings: EmptyProvider(),
+    )
+    settings = make_settings(
+        tools={
+            "databricks_mcp": {
+                "enabled": True,
+                "server": {
+                    "name": "uc_functions",
+                    "url": "https://example.cloud.databricks.com/api/2.0/mcp/functions/main/demo",
+                },
+            }
+        }
+    )
+
+    report = discover_tools(settings)
+
+    assert report.enabled_tool_sources == ["local_python", "databricks_mcp"]
+    assert report.tool_count == 0
 
 
 def test_print_discovery_report_surfaces_contract_metadata(tmp_path: Path, capsys) -> None:

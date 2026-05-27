@@ -32,13 +32,31 @@ def write_workspace_config(
     *,
     extra_lines: list[str] | None = None,
     llm_endpoint_name: str = "endpoint-a",
-    tool_provider_type: str = "local_python",
+    include_tools: bool = True,
+    local_python_enabled: bool = True,
+    databricks_mcp_enabled: bool = False,
+    mcp_source_server_name: str | None = None,
+    mcp_source_server_url: str | None = None,
     include_databricks_profile: bool = True,
 ) -> Path:
     lines = [
         f"llm_endpoint_name: {llm_endpoint_name}",
-        f"tool_provider_type: {tool_provider_type}",
         "databricks_config_profile: DEFAULT" if include_databricks_profile else None,
+        "tools:" if include_tools else None,
+        "  local_python:" if include_tools else None,
+        f"    enabled: {str(local_python_enabled).lower()}" if include_tools else None,
+        "  databricks_mcp:" if include_tools else None,
+        f"    enabled: {str(databricks_mcp_enabled).lower()}" if include_tools else None,
+        "    server:"
+        if include_tools
+        and (mcp_source_server_name is not None or mcp_source_server_url is not None)
+        else None,
+        f"      name: {mcp_source_server_name}"
+        if include_tools and mcp_source_server_name is not None
+        else None,
+        f"      url: {mcp_source_server_url}"
+        if include_tools and mcp_source_server_url is not None
+        else None,
         "storage:",
         "  agent_events_table: main.agent.agent_events",
         "  local_data_dir: ./.local_state",

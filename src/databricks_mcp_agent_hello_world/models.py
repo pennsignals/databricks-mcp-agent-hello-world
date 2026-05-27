@@ -49,7 +49,7 @@ class AgentRunRecord(BaseModel):
 
 
 class DiscoveryReport(BaseModel):
-    tool_provider_type: str
+    enabled_tool_sources: list[str]
     tool_count: int
     provider_id: str
     inventory_hash: str

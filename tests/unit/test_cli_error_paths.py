@@ -180,7 +180,7 @@ def test_print_json_report_serializes_model(capsys) -> None:
 
 def test_print_discovery_report_and_schema_summary(capsys) -> None:
     report = SimpleNamespace(
-        tool_provider_type="local_python",
+        enabled_tool_sources=["local_python"],
         tool_count=1,
         tools=[
             SimpleNamespace(
@@ -202,7 +202,7 @@ def test_print_discovery_report_and_schema_summary(capsys) -> None:
     cli.print_discovery_report(report)
     output = capsys.readouterr().out
 
-    assert "Tool provider type: local_python" in output
+    assert "Enabled tool sources: local_python" in output
     assert "Input schema: no parameters" in output
     assert (
         cli._summarize_input_schema(

@@ -1,27 +1,27 @@
 from __future__ import annotations
 
+from ..clients.databricks import get_workspace_client
 from ..config import Settings
 from ..tools.runtime import RuntimeTool, ToolSource
 from .base import ToolProvider
 
 
 class DatabricksMCPToolProvider(ToolProvider):
-    tool_provider_type = "databricks_mcp"
-
     def __init__(self, settings: Settings):
-        if settings.mcp.server is None:
+        server = settings.tools.databricks_mcp.server
+        if server is None:
             raise ValueError(
-                "databricks_mcp requires databricks_mcp_server.url. "
-                "Configure databricks_mcp_server.url and databricks_mcp_server.name."
+                "databricks_mcp requires tools.databricks_mcp.server.name and "
+                "tools.databricks_mcp.server.url."
             )
         self.settings = settings
-        self.provider_id = settings.mcp.server.name
+        self.provider_id = server.name
         from databricks_openai import McpServerToolkit
 
         self.toolkit = McpServerToolkit(
-            url=settings.mcp.server.url,
-            name=settings.mcp.server.name,
-            workspace_client=_build_workspace_client(settings),
+            url=server.url,
+            name=server.name,
+            workspace_client=get_workspace_client(settings),
         )
 
     def list_tools(self) -> list[RuntimeTool]:
@@ -34,11 +34,3 @@ class DatabricksMCPToolProvider(ToolProvider):
             )
             for tool in self.toolkit.get_tools()
         ]
-
-
-def _build_workspace_client(settings: Settings):
-    from databricks.sdk import WorkspaceClient
-
-    if settings.databricks_config_profile:
-        return WorkspaceClient(profile=settings.databricks_config_profile)
-    return WorkspaceClient()

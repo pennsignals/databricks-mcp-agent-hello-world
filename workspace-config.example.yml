@@ -4,9 +4,8 @@
 # Local CLI commands read workspace-config.yml from the repo root.
 # Databricks Jobs read the deployed copy at ${workspace.file_path}/workspace-config.yml.
 
-# `tool_provider_type` controls which provider the runtime uses to discover tools for the agent.
+# `tools` controls which sources the runtime uses to discover tools for the agent.
 # `llm_endpoint_name` is the model endpoint used during runtime execution.
-tool_provider_type: local_python
 llm_endpoint_name: your-llm-endpoint-name
 agent_system_prompt_path: src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt
 max_agent_steps: 8
@@ -14,11 +13,15 @@ log_level: INFO
 databricks_config_profile: DEFAULT
 workspace_host: null
 
-# To use one Databricks MCP server instead of the built-in local Python tools:
-# tool_provider_type: databricks_mcp
-# databricks_mcp_server:
-#   name: uc_functions
-#   url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
+tools:
+  local_python:
+    enabled: true
+  databricks_mcp:
+    enabled: false
+    # Enable this source to use a Databricks MCP server alongside local Python tools.
+    # server:
+    #   name: uc_functions
+    #   url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
 
 storage:
   # One canonical event store backs both local JSONL and Databricks Delta persistence.

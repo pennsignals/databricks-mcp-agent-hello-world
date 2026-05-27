@@ -110,6 +110,63 @@ def test_agent_runner_rejects_unknown_tool_calls_without_executing_provider(
     assert record.result["tool_calls"][0]["error"] == "Unknown tool call: create_support_ticket"
 
 
+def test_agent_runner_works_with_tools_from_multiple_sources(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    calls = []
+    local_tool = runtime_tool("get_user_profile", calls)
+    remote_tool = RuntimeTool(
+        name="lookup_remote_user",
+        spec={
+            "type": "function",
+            "function": {
+                "name": "lookup_remote_user",
+                "description": "Lookup a remote user.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["user_id"],
+                    "properties": {"user_id": {"type": "string"}},
+                    "additionalProperties": False,
+                },
+            },
+        },
+        execute=lambda **kwargs: (
+            calls.append({"tool_name": "lookup_remote_user", "arguments": kwargs}) or {"ok": True}
+        ),
+        source=ToolSource(type="databricks_mcp", id="uc_functions"),
+    )
+    runner = make_runner(
+        tmp_path,
+        StubLLM(
+            [
+                llm_response(tool_calls=[tool_call("lookup_remote_user", '{"user_id":"usr_1"}')]),
+                llm_response(content="Finished with both inventories available."),
+            ]
+        ),
+        tools=[local_tool, remote_tool],
+    )
+    capture_event_rows(runner, monkeypatch)
+
+    record = runner.run(
+        AgentTaskRequest(
+            task_name="workspace_onboarding_brief",
+            instructions="Write the report.",
+            run_id="run-multi-source",
+        )
+    )
+
+    assert record.status == "success"
+    assert record.result["available_tools"] == ["get_user_profile", "lookup_remote_user"]
+    assert calls == [{"tool_name": "lookup_remote_user", "arguments": {"user_id": "usr_1"}}]
+    assert runner.llm.call_args[0]["tools"] == [local_tool.spec, remote_tool.spec]
+    tool_result_event = next(
+        row for row in runner.persisted_event_rows if row["event_type"] == "tool_result"
+    )
+    payload = event_payload(tool_result_event)
+    assert payload["metadata"]["source_type"] == "databricks_mcp"
+
+
 def test_agent_runner_marks_malformed_tool_arguments_as_error_without_crashing(
     tmp_path: Path,
     monkeypatch,

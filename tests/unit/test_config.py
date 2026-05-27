@@ -54,11 +54,11 @@ def test_supported_env_vars_override_defaults_when_yaml_omits_values(tmp_path: P
     raw = load_yaml_config(str(config_path))
     del raw["storage"]["agent_events_table"]
     del raw["storage"]["local_data_dir"]
+    raw["tools"]["databricks_mcp"]["enabled"] = True
     (tmp_path / ".env").write_text(
         "\n".join(
             [
                 "LLM_ENDPOINT_NAME=dotenv-endpoint",
-                "TOOL_PROVIDER_TYPE=local_python",
                 "AGENT_SYSTEM_PROMPT_PATH=tests/prompt.txt",
                 "MAX_AGENT_STEPS=12",
                 "LOG_LEVEL=DEBUG",
@@ -82,15 +82,18 @@ def test_supported_env_vars_override_defaults_when_yaml_omits_values(tmp_path: P
     )
 
     assert settings.llm_endpoint_name == "endpoint-a"
-    assert settings.tool_provider_type == "local_python"
+    assert settings.tools.local_python.enabled is True
+    assert settings.tools.databricks_mcp.enabled is True
     assert settings.prompts.agent_system_prompt_path == "tests/prompt.txt"
     assert settings.max_agent_steps == 12
     assert settings.log_level == "DEBUG"
     assert settings.databricks_config_profile == "FROM_DOTENV"
     assert settings.workspace_host == "https://example.cloud.databricks.com"
-    assert settings.mcp.server is not None
-    assert settings.mcp.server.name == "uc_functions"
-    assert settings.mcp.server.url == "https://example.cloud.databricks.com/api/2.0/mcp"
+    assert settings.tools.databricks_mcp.server is not None
+    assert settings.tools.databricks_mcp.server.name == "uc_functions"
+    assert settings.tools.databricks_mcp.server.url == (
+        "https://example.cloud.databricks.com/api/2.0/mcp"
+    )
     assert settings.storage.agent_events_table == "main.agent.env_events"
     assert settings.storage.local_data_dir == "./env_state"
 
@@ -128,25 +131,32 @@ def test_canonical_config_keys_load_successfully(tmp_path: Path) -> None:
             "max_agent_steps: 4",
             "log_level: DEBUG",
             "workspace_host: https://example.cloud.databricks.com",
-            "databricks_mcp_server:",
-            "  name: uc_functions",
-            "  url: https://example.cloud.databricks.com/api/2.0/mcp",
+            "tools:",
+            "  local_python:",
+            "    enabled: true",
+            "  databricks_mcp:",
+            "    enabled: true",
+            "    server:",
+            "      name: uc_functions",
+            "      url: https://example.cloud.databricks.com/api/2.0/mcp",
         ],
     )
 
     settings = load_settings(str(config_path))
 
-    assert settings.tool_provider_type == "local_python"
+    assert settings.tools.local_python.enabled is True
+    assert settings.tools.databricks_mcp.enabled is True
     assert settings.storage.agent_events_table == "main.agent.agent_events"
-    assert settings.mcp.server is not None
-    assert settings.mcp.server.name == "uc_functions"
+    assert settings.tools.databricks_mcp.server is not None
+    assert settings.tools.databricks_mcp.server.name == "uc_functions"
 
 
 def test_checked_in_example_config_loads_cleanly() -> None:
     settings = load_settings(str(REPO_ROOT / "workspace-config.example.yml"), validate=False)
 
-    assert settings.tool_provider_type == "local_python"
-    assert settings.mcp.server is None
+    assert settings.tools.local_python.enabled is True
+    assert settings.tools.databricks_mcp.enabled is False
+    assert settings.tools.databricks_mcp.server is None
 
 
 @pytest.mark.parametrize(
@@ -182,7 +192,6 @@ def test_unknown_storage_config_keys_fail(
         "\n".join(
             [
                 "llm_endpoint_name: endpoint-a",
-                "tool_provider_type: local_python",
                 "storage:",
                 "  agent_events_table: main.agent.agent_events",
                 "  local_data_dir: ./.local_state",
@@ -201,8 +210,8 @@ def test_unknown_storage_config_keys_fail(
     [
         (["storage: not-a-mapping"], "storage must be a YAML mapping"),
         (
-            ["databricks_mcp_server: not-a-mapping"],
-            "databricks_mcp_server must be a YAML mapping",
+            ["tools:", "  databricks_mcp:", "    server: not-a-mapping"],
+            r"tools\.databricks_mcp\.server must be a YAML mapping",
         ),
     ],
 )
@@ -217,26 +226,19 @@ def test_mapping_config_sections_reject_scalar_values(
         load_settings(str(config_path))
 
 
-def test_load_settings_rejects_unknown_provider_value(tmp_path: Path) -> None:
-    config_path = write_workspace_config(tmp_path, tool_provider_type="unknown_provider")
-
-    with pytest.raises(ValueError, match="Unsupported tool_provider_type"):
-        load_settings(str(config_path))
-
-
 def test_load_settings_accepts_databricks_mcp_config(tmp_path: Path) -> None:
     config_path = write_workspace_config(
         tmp_path,
-        tool_provider_type="databricks_mcp",
-        extra_lines=[
-            "databricks_mcp_server:",
-            "  name: uc_functions",
-            "  url: https://example.cloud.databricks.com/api/2.0/mcp/functions/main/demo",
-        ],
+        databricks_mcp_enabled=True,
+        mcp_source_server_name="uc_functions",
+        mcp_source_server_url=(
+            "https://example.cloud.databricks.com/api/2.0/mcp/functions/main/demo"
+        ),
     )
 
     settings = load_settings(str(config_path))
 
-    assert settings.tool_provider_type == "databricks_mcp"
-    assert settings.mcp.server is not None
-    assert settings.mcp.server.name == "uc_functions"
+    assert settings.tools.local_python.enabled is True
+    assert settings.tools.databricks_mcp.enabled is True
+    assert settings.tools.databricks_mcp.server is not None
+    assert settings.tools.databricks_mcp.server.name == "uc_functions"

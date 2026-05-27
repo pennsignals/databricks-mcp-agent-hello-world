@@ -39,7 +39,7 @@ def test_preflight_returns_expected_checks_for_local_mode(
         "persistence_reachability",
     ]
     assert report.settings_summary == {
-        "tool_provider_type": "local_python",
+        "enabled_tool_sources": ["local_python"],
         "llm_endpoint_name": "endpoint-a",
         "dotenv_path": None,
     }
@@ -115,28 +115,6 @@ def test_preflight_fails_for_stale_keys(tmp_path: Path, monkeypatch) -> None:
     assert "Unknown config key: unknown_section" in report.checks[0].message
 
 
-def test_preflight_unknown_provider_fails_fast_in_config_validation(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    config_path = write_workspace_config(tmp_path, tool_provider_type="unknown_provider")
-
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
-        lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
-    )
-    monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_spark_session",
-        lambda: None,
-    )
-
-    report = run_preflight(str(config_path))
-
-    config_check = report.checks[0]
-    assert config_check.status == "fail"
-    assert "Unsupported tool_provider_type" in config_check.message
-
-
 def test_preflight_requires_agent_events_table_when_spark_is_available(
     tmp_path: Path,
     monkeypatch,
@@ -150,7 +128,11 @@ def test_preflight_requires_agent_events_table_when_spark_is_available(
         "\n".join(
             [
                 "llm_endpoint_name: endpoint-a",
-                "tool_provider_type: local_python",
+                "tools:",
+                "  local_python:",
+                "    enabled: true",
+                "  databricks_mcp:",
+                "    enabled: false",
                 "storage:",
                 "  local_data_dir: ./.local_state",
             ]

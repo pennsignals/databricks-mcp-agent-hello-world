@@ -37,18 +37,13 @@ def test_load_dotenv_values_returns_empty_when_no_env_file(tmp_path: Path) -> No
             id="blank-local-data-dir",
         ),
         pytest.param(
-            {"tool_provider_type": "unknown"},
-            "Unsupported tool_provider_type",
-            id="unknown-provider",
+            {"tools": {"local_python": {"enabled": False}}},
+            "At least one tool source",
+            id="zero-enabled-tool-sources",
         ),
         pytest.param(
-            {"tool_provider_type": "unknown_provider"},
-            "Unsupported tool_provider_type",
-            id="unknown-provider-value",
-        ),
-        pytest.param(
-            {"tool_provider_type": "databricks_mcp"},
-            r"databricks_mcp_server\.url",
+            {"tools": {"local_python": {"enabled": False}, "databricks_mcp": {"enabled": True}}},
+            r"tools\.databricks_mcp\.server",
             id="missing-mcp-server-url",
         ),
         pytest.param(
@@ -140,6 +135,13 @@ def test_internal_config_helpers_cover_fallback_paths(tmp_path: Path) -> None:
     assert (
         config._read_prompt(str(tmp_path / "missing.txt"), "fallback prompt") == "fallback prompt"
     )
+    assert config._coerce_bool("true", name="enabled") is True
+    assert config._coerce_bool("false", name="enabled") is False
+
+    with pytest.raises(ValueError, match="enabled must be a boolean"):
+        config._coerce_bool("sometimes", name="enabled")
+    with pytest.raises(ValueError, match="enabled must be a boolean"):
+        config._coerce_bool(1, name="enabled")
 
 
 def test_parse_dotenv_rejects_invalid_lines_and_coerce_int_rejects_non_int(tmp_path: Path) -> None:

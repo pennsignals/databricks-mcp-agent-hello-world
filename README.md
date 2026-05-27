@@ -110,18 +110,28 @@ file is intended for local, untracked configuration and must not be committed.
 At minimum, update these fields:
 
 ```yaml
-tool_provider_type: local_python
 llm_endpoint_name: <your-serving-endpoint-name>
+tools:
+  local_python:
+    enabled: true
+  databricks_mcp:
+    enabled: false
 ```
 
-With the current provider model, you can use one Databricks MCP server instead of the built-in local tools:
+The agent can use tools from multiple sources. Local Python tools are useful for app-specific logic. Databricks MCP tools are useful for governed/shared Databricks-hosted capabilities. Tool names must be unique across enabled sources.
+
+To enable one Databricks MCP server alongside the built-in local tools:
 
 ```yaml
 databricks_config_profile: DEFAULT
-tool_provider_type: databricks_mcp
-databricks_mcp_server:
-  name: uc_functions
-  url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
+tools:
+  local_python:
+    enabled: true
+  databricks_mcp:
+    enabled: true
+    server:
+      name: uc_functions
+      url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
 ```
 
 When `databricks_config_profile` is set, the MCP provider uses that profile through the Databricks `WorkspaceClient`. Without it, the provider uses Databricks SDK default authentication.
@@ -181,7 +191,7 @@ This checks that:
 - Databricks auth/client configuration can be loaded locally
 - Databricks SDK client configuration can be constructed locally
 - `llm_endpoint_name` is configured
-- the configured tool provider can be constructed locally
+- the configured tool sources can be constructed locally
 - at least one tool is discoverable
 - persistence target names are configured for the detected local runtime
 
@@ -203,13 +213,13 @@ discover-tools --config-path workspace-config.yml
 
 For the built-in example app, you should see **5 tools**. The discovery output shows each tool's source and Databricks/OpenAI-compatible function spec summary.
 
-For a manual Databricks MCP smoke test, create a separate config such as `workspace-config.databricks-mcp.yml` with `tool_provider_type: databricks_mcp`, `databricks_config_profile`, and `databricks_mcp_server` set, then run:
+For a manual Databricks MCP smoke test, create a separate config such as `workspace-config.databricks-mcp.yml` with `tools.databricks_mcp.enabled`, `tools.databricks_mcp.server`, and `databricks_config_profile` set, then run:
 
 ```bash
 discover-tools --config-path workspace-config.databricks-mcp.yml
 ```
 
-Expected result: tool provider type is `databricks_mcp`, provider id is the configured server name, and the command completes successfully. If the configured catalog/schema contains MCP-exposed tools, they should appear with source `databricks_mcp/<server-name>`. This check requires real workspace auth and is intentionally not part of CI.
+Expected result: `Enabled tool sources` includes `databricks_mcp`, and the command completes successfully. If the configured catalog/schema contains MCP-exposed tools, they should appear with source `databricks_mcp/<server-name>`. This check requires real workspace auth and is intentionally not part of CI.
 
 ### Step 4: run the demo task
 

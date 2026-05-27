@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -17,16 +17,20 @@ FORBIDDEN_LOCAL_DOTENV_KEYS = {
     "DATABRICKS_CLIENT_ID",
     "DATABRICKS_CLIENT_SECRET",
 }
-SUPPORTED_TOOL_PROVIDER_TYPES = {"local_python", "databricks_mcp"}
 ALLOWED_CONFIG_KEYS = {
     "llm_endpoint_name": None,
-    "tool_provider_type": None,
     "agent_system_prompt_path": None,
     "max_agent_steps": None,
     "log_level": None,
     "databricks_config_profile": None,
     "workspace_host": None,
-    "databricks_mcp_server": {"name": None, "url": None},
+    "tools": {
+        "local_python": {"enabled": None},
+        "databricks_mcp": {
+            "enabled": None,
+            "server": {"name": None, "url": None},
+        },
+    },
     "storage": {
         "local_data_dir": None,
         "agent_events_table": None,
@@ -53,18 +57,29 @@ class MCPServerConfig:
 
 
 @dataclass(slots=True)
-class MCPConfig:
+class LocalPythonToolsConfig:
+    enabled: bool = True
+
+
+@dataclass(slots=True)
+class DatabricksMCPToolsConfig:
+    enabled: bool = False
     server: MCPServerConfig | None = None
 
 
 @dataclass(slots=True)
+class ToolsConfig:
+    local_python: LocalPythonToolsConfig = field(default_factory=LocalPythonToolsConfig)
+    databricks_mcp: DatabricksMCPToolsConfig = field(default_factory=DatabricksMCPToolsConfig)
+
+
+@dataclass(slots=True)
 class Settings:
-    tool_provider_type: str
     llm_endpoint_name: str
     max_agent_steps: int
+    tools: ToolsConfig
     storage: StorageConfig
     prompts: PromptConfig
-    mcp: MCPConfig
     databricks_config_profile: str | None = None
     workspace_host: str | None = None
     log_level: str = "INFO"
@@ -141,15 +156,6 @@ def build_settings(
     )
 
     return Settings(
-        tool_provider_type=(
-            _resolve_value(
-                yaml_value=raw.get("tool_provider_type"),
-                dotenv_values=dotenv_values,
-                dotenv_key="TOOL_PROVIDER_TYPE",
-                default="local_python",
-            )
-            or "local_python"
-        ),
         llm_endpoint_name=(
             _resolve_value(
                 yaml_value=raw.get("llm_endpoint_name"),
@@ -167,6 +173,7 @@ def build_settings(
             ),
             name="max_agent_steps",
         ),
+        tools=_build_tools_config(raw, dotenv_values),
         storage=StorageConfig(
             agent_events_table=_resolve_value(
                 yaml_value=_deep_get(raw, "storage", "agent_events_table"),
@@ -190,7 +197,6 @@ def build_settings(
                 "Use the provided tools when helpful.",
             ),
         ),
-        mcp=_build_mcp_config(raw, dotenv_values),
         databricks_config_profile=_resolve_value(
             yaml_value=raw.get("databricks_config_profile"),
             dotenv_values=dotenv_values,
@@ -227,18 +233,16 @@ def validate_settings(settings: Settings) -> None:
         formatted = ", ".join(missing_required)
         raise ValueError(f"Missing required settings: {formatted}")
 
-    if settings.tool_provider_type not in SUPPORTED_TOOL_PROVIDER_TYPES:
-        supported = ", ".join(sorted(SUPPORTED_TOOL_PROVIDER_TYPES))
-        raise ValueError(
-            "Unsupported tool_provider_type "
-            f"{settings.tool_provider_type!r}. Supported values: {supported}"
-        )
-    if settings.tool_provider_type == "databricks_mcp" and (
-        settings.mcp.server is None or not settings.mcp.server.url.strip()
+    if not enabled_tool_sources(settings):
+        raise ValueError("At least one tool source must be enabled.")
+    if settings.tools.databricks_mcp.enabled and (
+        settings.tools.databricks_mcp.server is None
+        or not settings.tools.databricks_mcp.server.name.strip()
+        or not settings.tools.databricks_mcp.server.url.strip()
     ):
         raise ValueError(
-            "databricks_mcp requires databricks_mcp_server.url. "
-            "Configure databricks_mcp_server.url and databricks_mcp_server.name."
+            "databricks_mcp requires tools.databricks_mcp.server.name and "
+            "tools.databricks_mcp.server.url."
         )
     if settings.max_agent_steps < 1:
         raise ValueError("max_agent_steps must be at least 1.")
@@ -265,6 +269,15 @@ def load_settings_bundle(
 
 def load_settings(config_path: str | None = None, *, validate: bool = True) -> Settings:
     return load_settings_bundle(config_path, validate=validate).settings
+
+
+def enabled_tool_sources(settings: Settings) -> list[str]:
+    sources: list[str] = []
+    if settings.tools.local_python.enabled:
+        sources.append("local_python")
+    if settings.tools.databricks_mcp.enabled:
+        sources.append("databricks_mcp")
+    return sources
 
 
 def parse_task_input(task_input_json: str | None) -> dict[str, Any]:
@@ -314,25 +327,37 @@ def _read_prompt(path: str, fallback: str) -> str:
     return fallback
 
 
-def _build_mcp_config(raw: dict[str, Any], dotenv_values: dict[str, str]) -> MCPConfig:
-    server = raw.get("databricks_mcp_server")
+def _build_tools_config(raw: dict[str, Any], dotenv_values: dict[str, str]) -> ToolsConfig:
+    local_enabled = _coerce_bool(
+        _deep_get(raw, "tools", "local_python", "enabled", default=True),
+        name="tools.local_python.enabled",
+    )
+    databricks_mcp_enabled = _coerce_bool(
+        _deep_get(raw, "tools", "databricks_mcp", "enabled", default=False),
+        name="tools.databricks_mcp.enabled",
+    )
+    server = _deep_get(raw, "tools", "databricks_mcp", "server")
     url = _resolve_value(
-        yaml_value=_deep_get(raw, "databricks_mcp_server", "url"),
+        yaml_value=_deep_get(raw, "tools", "databricks_mcp", "server", "url"),
         dotenv_values=dotenv_values,
         dotenv_key="DATABRICKS_MCP_SERVER_URL",
     )
-    name = (
-        _resolve_value(
-            yaml_value=_deep_get(raw, "databricks_mcp_server", "name"),
-            dotenv_values=dotenv_values,
-            dotenv_key="DATABRICKS_MCP_SERVER_NAME",
-            default="databricks_mcp",
-        )
-        or "databricks_mcp"
+    name = _resolve_value(
+        yaml_value=_deep_get(raw, "tools", "databricks_mcp", "server", "name"),
+        dotenv_values=dotenv_values,
+        dotenv_key="DATABRICKS_MCP_SERVER_NAME",
     )
-    if server is None and url is None:
-        return MCPConfig()
-    return MCPConfig(server=MCPServerConfig(name=str(name), url=str(url or "")))
+    mcp_server = None
+    if server is not None or url is not None or name is not None:
+        mcp_server = MCPServerConfig(name=str(name or ""), url=str(url or ""))
+
+    return ToolsConfig(
+        local_python=LocalPythonToolsConfig(enabled=local_enabled),
+        databricks_mcp=DatabricksMCPToolsConfig(
+            enabled=databricks_mcp_enabled,
+            server=mcp_server,
+        ),
+    )
 
 
 def _parse_dotenv(path: Path) -> dict[str, str]:
@@ -353,3 +378,15 @@ def _coerce_int(value: Any, *, name: str) -> int:
         return int(value)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{name} must be an integer.") from exc
+
+
+def _coerce_bool(value: Any, *, name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    raise ValueError(f"{name} must be a boolean.")
