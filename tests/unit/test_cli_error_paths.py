@@ -96,7 +96,7 @@ def test_print_run_summary_omits_final_answer_block_when_empty(capsys) -> None:
     assert "Final answer:" not in output
 
 
-def test_print_eval_summary_renders_remaining_failure_modes(capsys) -> None:
+def test_print_eval_summary_renders_scenario_execution_error(capsys) -> None:
     summary = EvalRunReport(
         scenario_file="evals/sample_scenarios.json",
         total_scenarios=1,
@@ -108,27 +108,13 @@ def test_print_eval_summary_renders_remaining_failure_modes(capsys) -> None:
                 scenario_id="failure-matrix",
                 passed=False,
                 failed_checks=[
-                    "forbidden_output_substrings_present",
-                    "missing_required_available_tools",
-                    "forbidden_available_tools_present",
-                    "forbidden_executed_tools_present",
-                    "below_min_tool_calls",
-                    "above_max_tool_calls",
                     "scenario_execution_error",
                 ],
                 expected_status="success",
                 actual_status=None,
-                available_tools=[],
                 executed_tools=[],
-                tool_call_count=0,
                 final_response_excerpt="forbidden output",
                 task_name="workspace_onboarding_brief",
-                found_forbidden_output_substrings=["secret"],
-                missing_required_available_tools=["get_user_profile"],
-                present_forbidden_available_tools=["delete_everything"],
-                present_forbidden_executed_tools=["delete_everything"],
-                expected_min_tool_calls=1,
-                expected_max_tool_calls=0,
                 scenario_execution_error_message="runner crashed",
             )
         ],
@@ -137,14 +123,6 @@ def test_print_eval_summary_renders_remaining_failure_modes(capsys) -> None:
     cli._print_eval_summary(summary)
     output = capsys.readouterr().out
 
-    assert "Forbidden output substrings found: secret" in output
-    assert "Missing available tools: get_user_profile" in output
-    assert "Available tools: -" in output
-    assert "Forbidden available tools present: delete_everything" in output
-    assert "Forbidden executed tools present: delete_everything" in output
-    assert "Executed tools: -" in output
-    assert "Expected minimum tool calls: 1" in output
-    assert "Expected maximum tool calls: 0" in output
     assert "Scenario execution failed before scoring." in output
     assert "Error: runner crashed" in output
 
@@ -163,9 +141,7 @@ def test_print_eval_summary_skips_optional_error_and_excerpt_lines_when_absent(c
                 failed_checks=["scenario_execution_error"],
                 expected_status="success",
                 actual_status=None,
-                available_tools=[],
                 executed_tools=[],
-                tool_call_count=0,
                 final_response_excerpt="",
                 task_name="workspace_onboarding_brief",
                 scenario_execution_error_message=None,

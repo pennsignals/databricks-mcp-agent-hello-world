@@ -4,13 +4,9 @@
     "description": "Runs the standard read-only customer account brief for Acme Co.",
     "expected_status": "success",
     "task_input_file": "../examples/demo_run_task.json",
-    "required_available_tools": [
-      "lookup_customer"
-    ],
     "required_executed_tools": [
       "lookup_customer"
     ],
-    "min_tool_calls": 1,
     "required_output_substrings": [
       "Acme Co",
       "enterprise",
@@ -31,30 +27,13 @@
         "output_format": "markdown"
       }
     },
-    "required_available_tools": [
-      "create_support_ticket"
-    ],
     "required_executed_tools": [
       "create_support_ticket"
     ],
-    "min_tool_calls": 1,
     "required_output_substrings": [
       "TICK-",
       "created",
       "low"
-    ]
-  },
-  {
-    "scenario_id": "read_only_task_never_selects_write_tool",
-    "description": "Verifies the read-only customer brief never uses the write tool.",
-    "expected_status": "success",
-    "task_input_file": "../examples/demo_run_task.json",
-    "forbidden_executed_tools": [
-      "create_support_ticket"
-    ],
-    "min_tool_calls": 1,
-    "required_output_substrings": [
-      "Acme Co"
     ]
   }
 ]

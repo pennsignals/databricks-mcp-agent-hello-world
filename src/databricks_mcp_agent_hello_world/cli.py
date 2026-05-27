@@ -207,48 +207,17 @@ def _print_eval_summary(summary) -> None:
                 "  Missing output substrings: "
                 f"{', '.join(result.missing_required_output_substrings)}"
             )
-        if "forbidden_output_substrings_present" in result.failed_checks:
-            print(
-                "  Forbidden output substrings found: "
-                f"{', '.join(result.found_forbidden_output_substrings)}"
-            )
-        if "missing_required_available_tools" in result.failed_checks:
-            print(
-                f"  Missing available tools: {', '.join(result.missing_required_available_tools)}"
-            )
-            print(f"  Available tools: {_format_csv(result.available_tools)}")
-        if "forbidden_available_tools_present" in result.failed_checks:
-            print(
-                "  Forbidden available tools present: "
-                f"{', '.join(result.present_forbidden_available_tools)}"
-            )
-            print(f"  Available tools: {_format_csv(result.available_tools)}")
         if "missing_required_executed_tools" in result.failed_checks:
             print(f"  Missing executed tools: {', '.join(result.missing_required_executed_tools)}")
             print(f"  Executed tools: {_format_csv(result.executed_tools)}")
-        if "forbidden_executed_tools_present" in result.failed_checks:
-            print(
-                "  Forbidden executed tools present: "
-                f"{', '.join(result.present_forbidden_executed_tools)}"
-            )
-            print(f"  Executed tools: {_format_csv(result.executed_tools)}")
-        if "below_min_tool_calls" in result.failed_checks:
-            print(f"  Expected minimum tool calls: {result.expected_min_tool_calls}")
-            print(f"  Actual tool call count: {result.tool_call_count}")
-        if "above_max_tool_calls" in result.failed_checks:
-            print(f"  Expected maximum tool calls: {result.expected_max_tool_calls}")
-            print(f"  Actual tool call count: {result.tool_call_count}")
-        if "missing_required_result_keys" in result.failed_checks:
-            print(f"  Missing result keys: {_format_csv(result.missing_required_result_keys)}")
-            print(f"  Actual result keys: {_format_csv(result.actual_result_keys)}")
         if "scenario_execution_error" in result.failed_checks:
             print("  Scenario execution failed before scoring.")
             if result.scenario_execution_error_message:
                 print(f"  Error: {result.scenario_execution_error_message}")
         if (
             "missing_required_output_substrings" in result.failed_checks
-            or "forbidden_output_substrings_present" in result.failed_checks
-        ) and result.final_response_excerpt:
+            and result.final_response_excerpt
+        ):
             print(f"  Final response excerpt: {result.final_response_excerpt}")
         print()
     print(f"Passed {summary.passed_scenarios}/{summary.total_scenarios} scenarios")

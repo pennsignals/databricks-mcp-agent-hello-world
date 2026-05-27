@@ -228,20 +228,15 @@ def test_print_eval_summary_renders_detailed_failure_block(capsys) -> None:
                     "missing_required_output_substrings",
                     "missing_required_executed_tools",
                     "status_mismatch",
-                    "missing_required_result_keys",
                 ],
                 expected_status="success",
                 actual_status="error",
-                available_tools=["get_user_profile", "search_onboarding_docs"],
                 executed_tools=["get_user_profile"],
-                tool_call_count=1,
                 final_response_excerpt="Grace Hopper uses python3.12 -m venv plus pip.",
                 task_name="workspace_onboarding_brief",
                 run_record_id="run-123",
                 missing_required_output_substrings=["Ada Lovelace"],
                 missing_required_executed_tools=["list_recent_job_runs"],
-                missing_required_result_keys=["summary_markdown"],
-                actual_result_keys=["available_tools", "final_response", "tool_calls"],
             )
         ],
     )
@@ -252,8 +247,7 @@ def test_print_eval_summary_renders_detailed_failure_block(capsys) -> None:
     assert "FAIL onboarding_happy_path" in output
     assert (
         "Checks failed: missing_required_output_substrings, "
-        "missing_required_executed_tools, status_mismatch, "
-        "missing_required_result_keys" in output
+        "missing_required_executed_tools, status_mismatch" in output
     )
     assert "Task name: workspace_onboarding_brief" in output
     assert "Run id: run-123" in output
@@ -262,8 +256,6 @@ def test_print_eval_summary_renders_detailed_failure_block(capsys) -> None:
     assert "Missing output substrings: Ada Lovelace" in output
     assert "Missing executed tools: list_recent_job_runs" in output
     assert "Executed tools: get_user_profile" in output
-    assert "Missing result keys: summary_markdown" in output
-    assert "Actual result keys: available_tools, final_response, tool_calls" in output
     assert "Final response excerpt: Grace Hopper uses python3.12 -m venv plus pip." in output
     assert "Passed 0/1 scenarios" in output
 

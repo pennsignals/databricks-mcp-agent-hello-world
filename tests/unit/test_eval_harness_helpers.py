@@ -72,13 +72,12 @@ def test_load_eval_scenarios_rejects_invalid_task_file_references(
         harness.load_eval_scenarios(str(scenario_file))
 
 
-def test_score_scenario_records_tool_count_and_forbidden_output_failures() -> None:
+def test_score_scenario_records_missing_required_output_substrings() -> None:
     scenario = harness.EvalScenario(
         scenario_id="score",
         description="x",
         task_input=harness.AgentTaskRequest(task_name="demo", instructions="hi"),
-        max_tool_calls=0,
-        forbidden_output_substrings=["forbidden"],
+        required_output_substrings=["required"],
     )
     run_record = harness.AgentRunRecord(
         run_id="run-1",
@@ -93,12 +92,11 @@ def test_score_scenario_records_tool_count_and_forbidden_output_failures() -> No
 
     scored = harness._score_scenario(scenario, run_record)
 
-    assert "above_max_tool_calls" in scored.failed_checks
-    assert "forbidden_output_substrings_present" in scored.failed_checks
+    assert scored.failed_checks == ["missing_required_output_substrings"]
+    assert scored.missing_required_output_substrings == ["required"]
 
 
 def test_eval_harness_coerces_malformed_trace_helpers_to_empty_lists() -> None:
-    assert harness._as_string_list("not-a-list") == []
     assert harness._as_trace_list("not-a-list") == []
 
 

@@ -65,14 +65,11 @@ def test_eval_scenario_rejects_invalid_task_input_sources() -> None:
         EvalScenario(scenario_id="missing-input", description="Invalid scenario")
 
 
-def test_eval_scenario_rejects_min_tool_calls_above_max_tool_calls(
-    demo_task_path,
-) -> None:
-    with pytest.raises(ValidationError):
+def test_eval_scenario_rejects_removed_fields(demo_task_path) -> None:
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         EvalScenario(
-            scenario_id="bad-bounds",
-            description="Invalid bounds",
+            scenario_id="old-field",
+            description="Invalid old eval field",
             task_input_file=str(demo_task_path),
-            min_tool_calls=3,
-            max_tool_calls=2,
+            forbidden_executed_tools=["create_support_ticket"],
         )

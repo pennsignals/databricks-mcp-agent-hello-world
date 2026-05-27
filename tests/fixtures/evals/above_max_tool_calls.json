@@ -1,8 +1,0 @@
-[
-  {
-    "scenario_id": "above_max_tool_calls",
-    "description": "Fails when too many tools are called.",
-    "task_input_file": "../../../examples/demo_run_task.json",
-    "max_tool_calls": 0
-  }
-]

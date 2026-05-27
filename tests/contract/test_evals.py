@@ -205,7 +205,7 @@ def test_load_eval_scenarios_rejects_duplicate_scenario_ids(
         load_eval_scenarios(scenario_file)
 
 
-def test_run_evals_scores_required_and_forbidden_tool_semantics(
+def test_run_evals_records_required_executed_tools(
     tmp_path: Path,
     monkeypatch,
     demo_task_input: dict[str, object],
@@ -218,8 +218,7 @@ def test_run_evals_scores_required_and_forbidden_tool_semantics(
                 "scenario_id": "tools",
                 "description": "Checks tool semantics",
                 "task_input_file": "../examples/demo_run_task.json",
-                "required_available_tools": ["lookup_customer", "create_support_ticket"],
-                "forbidden_executed_tools": ["create_support_ticket"],
+                "required_executed_tools": ["lookup_customer"],
             }
         ],
         [
@@ -239,7 +238,6 @@ def test_run_evals_scores_required_and_forbidden_tool_semantics(
     )
 
     assert report.results[0].passed is True
-    assert report.results[0].available_tools == ["lookup_customer", "create_support_ticket"]
     assert report.results[0].executed_tools == ["lookup_customer"]
 
 
@@ -270,14 +268,9 @@ def test_run_evals_marks_status_mismatch_and_missing_output_substrings(
     }
     assert report.results[0].missing_required_output_substrings == ["Acme Co"]
     assert report.results[0].final_response_excerpt == "short"
-    assert report.results[0].actual_result_keys == [
-        "available_tools",
-        "final_response",
-        "tool_calls",
-    ]
 
 
-def test_run_evals_records_detailed_failure_diagnostics(
+def test_run_evals_records_missing_required_executed_tools(
     tmp_path: Path,
     monkeypatch,
     demo_task_input: dict[str, object],
@@ -290,20 +283,7 @@ def test_run_evals_records_detailed_failure_diagnostics(
                 "scenario_id": "diagnostics",
                 "description": "Captures detailed scoring diagnostics",
                 "task_input_file": "../examples/demo_run_task.json",
-                "required_available_tools": ["lookup_customer", "required_missing_tool"],
-                "forbidden_available_tools": ["create_support_ticket"],
                 "required_executed_tools": ["required_missing_tool"],
-                "forbidden_executed_tools": ["create_support_ticket"],
-                "required_result_keys": [
-                    "final_response",
-                    "available_tools",
-                    "tool_calls",
-                    "summary_markdown",
-                ],
-                "required_output_substrings": ["Acme Co"],
-                "forbidden_output_substrings": ["Globex"],
-                "min_tool_calls": 2,
-                "max_tool_calls": 2,
             }
         ],
         [
@@ -326,27 +306,9 @@ def test_run_evals_records_detailed_failure_diagnostics(
     result = report.results[0]
 
     assert result.passed is False
-    assert set(result.failed_checks) == {
-        "missing_required_result_keys",
-        "missing_required_available_tools",
-        "forbidden_available_tools_present",
-        "missing_required_executed_tools",
-        "forbidden_executed_tools_present",
-        "below_min_tool_calls",
-        "missing_required_output_substrings",
-        "forbidden_output_substrings_present",
-    }
-    assert result.missing_required_result_keys == ["summary_markdown"]
-    assert result.actual_result_keys == ["available_tools", "final_response", "tool_calls"]
-    assert result.missing_required_available_tools == ["required_missing_tool"]
-    assert result.present_forbidden_available_tools == ["create_support_ticket"]
+    assert result.failed_checks == ["missing_required_executed_tools"]
     assert result.missing_required_executed_tools == ["required_missing_tool"]
-    assert result.present_forbidden_executed_tools == ["create_support_ticket"]
-    assert result.missing_required_output_substrings == ["Acme Co"]
-    assert result.found_forbidden_output_substrings == ["Globex"]
-    assert result.expected_min_tool_calls == 2
-    assert result.expected_max_tool_calls == 2
-    assert result.tool_call_count == 1
+    assert result.executed_tools == ["create_support_ticket"]
 
 
 def test_run_evals_records_execution_error_message(
