@@ -11,7 +11,16 @@ import databricks_mcp_agent_hello_world as package_root
 from databricks_mcp_agent_hello_world.commands import CommandResult
 
 
-def test_run_agent_task_delegates_to_cli_main(monkeypatch) -> None:
+def test_run_agent_task_delegates_and_returns_on_success(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.run_agent_task_main",
+        lambda: 0,
+    )
+
+    assert package_root.run_agent_task() is None
+
+
+def test_run_agent_task_raises_on_failure(monkeypatch) -> None:
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.cli.run_agent_task_main",
         lambda: 7,
@@ -23,7 +32,16 @@ def test_run_agent_task_delegates_to_cli_main(monkeypatch) -> None:
     assert excinfo.value.code == 7
 
 
-def test_discover_tools_delegates_to_cli_main(monkeypatch) -> None:
+def test_discover_tools_delegates_and_returns_on_success(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.discover_tools_main",
+        lambda: 0,
+    )
+
+    assert package_root.discover_tools() is None
+
+
+def test_discover_tools_raises_on_failure(monkeypatch) -> None:
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.cli.discover_tools_main",
         lambda: 5,
@@ -35,7 +53,16 @@ def test_discover_tools_delegates_to_cli_main(monkeypatch) -> None:
     assert excinfo.value.code == 5
 
 
-def test_run_init_storage_delegates_to_cli_main(monkeypatch) -> None:
+def test_run_init_storage_delegates_and_returns_on_success(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.run_init_storage_main",
+        lambda: 0,
+    )
+
+    assert package_root.run_init_storage() is None
+
+
+def test_run_init_storage_raises_on_failure(monkeypatch) -> None:
     monkeypatch.setattr(
         "databricks_mcp_agent_hello_world.cli.run_init_storage_main",
         lambda: 3,
@@ -92,10 +119,7 @@ def test_run_agent_task_wrapper_uses_real_main_and_reaches_command_layer(
         ],
     )
 
-    with pytest.raises(SystemExit) as excinfo:
-        package_root.run_agent_task()
-
-    assert excinfo.value.code == 0
+    assert package_root.run_agent_task() is None
     assert calls == [
         {
             "config_path": "custom.yml",
@@ -129,10 +153,7 @@ def test_discover_tools_wrapper_uses_real_main_and_reaches_command_layer(
         ],
     )
 
-    with pytest.raises(SystemExit) as excinfo:
-        package_root.discover_tools()
-
-    assert excinfo.value.code == 0
+    assert package_root.discover_tools() is None
     assert calls == ["custom.yml"]
     assert "Total tools: 0" in capsys.readouterr().out
 
@@ -160,10 +181,7 @@ def test_run_init_storage_wrapper_uses_real_main_and_renders_messages(
         ],
     )
 
-    with pytest.raises(SystemExit) as excinfo:
-        package_root.run_init_storage()
-
-    assert excinfo.value.code == 0
+    assert package_root.run_init_storage() is None
     assert calls == ["custom.yml"]
     assert "created" in capsys.readouterr().out
 
