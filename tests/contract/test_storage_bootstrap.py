@@ -32,10 +32,10 @@ class FakeSchema:
 
 class FakeSqlResult:
     def __init__(self, rows):
-        self._rows = rows
+        self.rows = rows
 
     def collect(self):
-        return self._rows
+        return self.rows
 
 
 class FakeCatalogApi:

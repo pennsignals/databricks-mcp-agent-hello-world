@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import pyarrow as pa
+import pytest
 
 from databricks_mcp_agent_hello_world.storage.schema import (
     EVENT_SCHEMA,
@@ -60,6 +61,27 @@ def test_write_event_rows_appends_jsonl_in_event_index_order(tmp_path, monkeypat
     assert all("conversation_id" not in row for row in persisted)
     assert all("event_id" not in row for row in persisted)
     assert json.loads(persisted[1]["payload_json"]) == {"step": 2}
+
+
+def test_write_event_rows_requires_spark_without_local_fallback_when_table_is_configured(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.storage.write.require_spark_session",
+        lambda: (_ for _ in ()).throw(RuntimeError("no active Spark session")),
+    )
+    settings = make_settings(
+        storage={
+            "local_data_dir": str(tmp_path),
+            "agent_events_table": "main.agent.agent_events",
+        }
+    )
+
+    with pytest.raises(RuntimeError, match="no active Spark session"):
+        write_event_rows(settings, [_event_row()])
+
+    assert not (tmp_path / "agent_events.jsonl").exists()
 
 
 class _FakeDeltaWriter:

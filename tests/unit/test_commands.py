@@ -38,8 +38,12 @@ def test_run_agent_task_command_maps_run_status_to_exit_code(
     expected_exit_code: int,
 ) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.commands._load_settings_for_command",
-        lambda config_path, command_name, next_step=None: SimpleNamespace(),
+        "databricks_mcp_agent_hello_world.commands.load_settings",
+        lambda config_path: SimpleNamespace(log_level="INFO"),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.configure_logging",
+        lambda level=None: None,
     )
 
     class StubRunner:
@@ -72,8 +76,12 @@ def test_run_agent_task_command_requires_exactly_one_task_input_source() -> None
 
 def test_run_agent_task_command_requires_current_task_fields(monkeypatch) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.commands._load_settings_for_command",
-        lambda config_path, command_name, next_step=None: SimpleNamespace(),
+        "databricks_mcp_agent_hello_world.commands.load_settings",
+        lambda config_path: SimpleNamespace(log_level="INFO"),
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.commands.configure_logging",
+        lambda level=None: None,
     )
 
     with pytest.raises(RuntimeError, match="requires task fields: instructions, payload"):

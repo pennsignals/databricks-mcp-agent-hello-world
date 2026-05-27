@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import builtins
 import json
 from pathlib import Path
 
 import pytest
 
 from databricks_mcp_agent_hello_world import config
+from databricks_mcp_agent_hello_world.storage import spark
 from tests.conftest import write_workspace_config
 from tests.helpers import make_settings
 
@@ -21,6 +21,20 @@ def test_load_yaml_config_requires_mapping(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="YAML mapping"):
         config.load_yaml_config(str(config_path))
+
+
+def test_load_settings_rejects_unknown_top_level_key(tmp_path: Path) -> None:
+    config_path = write_workspace_config(tmp_path, extra_lines=["unexpected: value"])
+
+    with pytest.raises(ValueError, match="Unknown config key"):
+        config.load_settings(str(config_path))
+
+
+def test_load_settings_rejects_unknown_nested_key(tmp_path: Path) -> None:
+    config_path = write_workspace_config(tmp_path, extra_lines=["  unexpected: value"])
+
+    with pytest.raises(ValueError, match=r"storage\.unexpected"):
+        config.load_settings(str(config_path))
 
 
 def test_load_dotenv_values_returns_empty_when_no_env_file(tmp_path: Path) -> None:
@@ -63,16 +77,13 @@ def test_validate_settings_rejects_invalid_shapes(
 
 
 def test_validate_settings_does_not_probe_spark(monkeypatch) -> None:
-    real_import = builtins.__import__
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("Spark should not be inspected during config validation.")
 
-    def _import(name, *args, **kwargs):
-        if name == "pyspark.sql" or name.endswith(".storage.spark"):
-            raise AssertionError("Spark should not be inspected during config validation.")
-        return real_import(name, *args, **kwargs)
+    monkeypatch.setattr(spark, "get_spark_session", fail_if_called)
+    monkeypatch.setattr(spark, "require_spark_session", fail_if_called)
 
-    monkeypatch.setattr(builtins, "__import__", _import)
-
-    config.validate_settings(make_settings(storage={"agent_events_table": "  "}))
+    config.validate_settings(make_settings(storage={"agent_events_table": "main.demo.events"}))
 
 
 def test_load_settings_bundle_can_skip_validation(tmp_path: Path) -> None:
@@ -95,83 +106,16 @@ def test_parse_task_input_variants(tmp_path: Path) -> None:
     assert config.parse_task_input_file(str(task_file)) == {"task_name": "demo"}
 
 
-def test_internal_config_helpers_cover_fallback_paths(tmp_path: Path) -> None:
-    assert (
-        config._deep_get(
-            {"outer": "not-a-dict"},
-            "outer",
-            "inner",
-            default="fallback",
-        )
-        == "fallback"
-    )
-    assert (
-        config._resolve_value(
-            yaml_value="yaml",
-            dotenv_values={"KEY": "env"},
-            dotenv_key="KEY",
-        )
-        == "yaml"
-    )
-    assert (
-        config._resolve_value(
-            yaml_value=None,
-            dotenv_values={"KEY": "env"},
-            dotenv_key="KEY",
-        )
-        == "env"
-    )
-    assert (
-        config._resolve_value(
-            yaml_value=None,
-            dotenv_values={},
-            dotenv_key="KEY",
-            default="default",
-        )
-        == "default"
-    )
-    # Non-explicit prompt reads represent the bundled default path and may fall back.
-    assert (
-        config._read_prompt(str(tmp_path / "missing.txt"), "fallback prompt") == "fallback prompt"
-    )
-    with pytest.raises(FileNotFoundError, match="Configured agent system prompt path"):
-        config._read_prompt(
-            str(tmp_path / "missing.txt"),
-            "fallback prompt",
-            explicit_path=True,
-        )
-
-    empty_prompt = tmp_path / "empty.txt"
-    empty_prompt.write_text("\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="Configured agent system prompt path must not be empty"):
-        config._read_prompt("", "fallback prompt", explicit_path=True)
-
-    prompt_dir = tmp_path / "prompt-dir"
-    prompt_dir.mkdir()
-    assert config._read_prompt(str(prompt_dir), "fallback prompt") == "fallback prompt"
-    with pytest.raises(ValueError, match="Configured agent system prompt path is not a file"):
-        config._read_prompt(str(prompt_dir), "fallback prompt", explicit_path=True)
-
-    with pytest.raises(ValueError, match="Agent system prompt file is empty"):
-        config._read_prompt(str(empty_prompt), "fallback prompt")
-    with pytest.raises(ValueError, match="Configured agent system prompt file is empty"):
-        config._read_prompt(str(empty_prompt), "fallback prompt", explicit_path=True)
-
-    assert config._coerce_bool("true", name="enabled") is True
-    assert config._coerce_bool("false", name="enabled") is False
-
-    with pytest.raises(ValueError, match="enabled must be a boolean"):
-        config._coerce_bool("sometimes", name="enabled")
-    with pytest.raises(ValueError, match="enabled must be a boolean"):
-        config._coerce_bool(1, name="enabled")
-
-
-def test_parse_dotenv_rejects_invalid_lines_and_coerce_int_rejects_non_int(tmp_path: Path) -> None:
+def test_load_dotenv_values_rejects_invalid_lines(tmp_path: Path) -> None:
+    config_path = write_workspace_config(tmp_path)
     dotenv_path = tmp_path / ".env"
     dotenv_path.write_text("# comment\n\nBROKEN_LINE\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match=r"Invalid \.env line 3"):
-        config._parse_dotenv(dotenv_path)
+        config.load_dotenv_values(str(config_path))
 
+
+def test_load_settings_rejects_non_integer_max_steps(tmp_path: Path) -> None:
+    config_path = write_workspace_config(tmp_path, extra_lines=["max_agent_steps: nope"])
     with pytest.raises(ValueError, match="max_agent_steps must be an integer"):
-        config._coerce_int("nope", name="max_agent_steps")
+        config.load_settings(str(config_path))

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 import sys
+from pathlib import Path
 from types import ModuleType
 
 from databricks_mcp_agent_hello_world.clients import databricks as db_clients
@@ -60,3 +62,23 @@ def test_databricks_client_factories_build_sdk_clients_with_shared_workspace_cli
         {"profile": "DEFAULT", "host": "https://example.com"},
     ]
     assert captured_openai_workspace_clients
+
+
+def test_workspace_client_is_constructed_only_by_shared_client_module(repo_root: Path) -> None:
+    offenders: list[str] = []
+    for path in (repo_root / "src" / "databricks_mcp_agent_hello_world").rglob("*.py"):
+        if (
+            path
+            == repo_root / "src" / "databricks_mcp_agent_hello_world" / "clients" / "databricks.py"
+        ):
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                func = node.func
+                direct_call = isinstance(func, ast.Name) and func.id == "WorkspaceClient"
+                attribute_call = isinstance(func, ast.Attribute) and func.attr == "WorkspaceClient"
+                if direct_call or attribute_call:
+                    offenders.append(str(path.relative_to(repo_root)))
+
+    assert offenders == []

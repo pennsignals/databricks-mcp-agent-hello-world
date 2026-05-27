@@ -239,6 +239,7 @@ def test_run_evals_records_required_executed_tools(
 
     assert report.results[0].passed is True
     assert report.results[0].executed_tools == ["lookup_customer"]
+    assert (tmp_path / "evals" / "latest_eval_report.json").exists()
 
 
 def test_run_evals_marks_status_mismatch_and_missing_output_substrings(

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import sys
 from types import SimpleNamespace
 
+import pytest
+
+from databricks_mcp_agent_hello_world import cli
 from databricks_mcp_agent_hello_world.cli import (
-    _print_eval_summary,
     build_parser,
     discover_tools_main,
+    main,
+    preflight_entrypoint,
     print_run_summary,
     run_agent_task_main,
     run_init_storage_main,
@@ -36,14 +41,48 @@ def test_parsers_accept_supported_flags() -> None:
 
 
 def test_main_rejects_unknown_command(capsys) -> None:
-    from databricks_mcp_agent_hello_world.cli import main
-
     exit_code = main(["not-a-real-command"])
     output = capsys.readouterr().err
 
     assert exit_code == 2
     assert "not-a-real-command" in output
     assert "Expected one of" in output
+
+
+def test_main_rejects_missing_command(capsys) -> None:
+    assert main([]) == 2
+    assert "Usage:" in capsys.readouterr().err
+
+
+def test_run_named_command_returns_parse_error_for_invalid_flags() -> None:
+    assert run_named_command("run-agent-task", ["--config-path", "demo.yml"]) == 2
+
+
+def test_main_uses_sys_argv_when_argv_is_omitted(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run_named_command(command_name, argv=None, *, prog=None):
+        captured.update({"command_name": command_name, "argv": argv, "prog": prog})
+        return 0
+
+    monkeypatch.setattr(sys, "argv", ["prog", "preflight", "--config-path", "demo.yml"])
+    monkeypatch.setattr(cli, "run_named_command", fake_run_named_command)
+
+    assert main() == 0
+    assert captured == {
+        "command_name": "preflight",
+        "argv": ["--config-path", "demo.yml"],
+        "prog": "prog preflight",
+    }
+
+
+def test_console_entrypoint_propagates_delegated_exit_code(monkeypatch) -> None:
+    monkeypatch.setattr(cli, "run_named_command", lambda command_name: 7)
+
+    with pytest.raises(SystemExit) as excinfo:
+        preflight_entrypoint()
+
+    assert excinfo.value.code == 7
 
 
 def test_run_named_command_renders_text_summary_for_preflight(monkeypatch) -> None:
@@ -213,7 +252,7 @@ def test_print_run_summary_prints_status_and_final_answer(capsys) -> None:
     assert "All set" in output
 
 
-def test_print_eval_summary_renders_detailed_failure_block(capsys) -> None:
+def test_run_named_command_renders_eval_failure_summary(monkeypatch, capsys) -> None:
     summary = EvalRunReport(
         scenario_file="evals/sample_scenarios.json",
         total_scenarios=1,
@@ -240,10 +279,18 @@ def test_print_eval_summary_renders_detailed_failure_block(capsys) -> None:
             )
         ],
     )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.run_evals_command",
+        lambda config_path, *, scenario_file="evals/sample_scenarios.json": CommandResult(
+            exit_code=1,
+            payload=summary,
+        ),
+    )
 
-    _print_eval_summary(summary)
+    exit_code = run_named_command("run-evals", ["--config-path", "custom.yml"])
     output = capsys.readouterr().out
 
+    assert exit_code == 1
     assert "FAIL onboarding_happy_path" in output
     assert (
         "Checks failed: missing_required_output_substrings, "
@@ -260,7 +307,7 @@ def test_print_eval_summary_renders_detailed_failure_block(capsys) -> None:
     assert "Passed 0/1 scenarios" in output
 
 
-def test_print_eval_summary_keeps_pass_output_concise(capsys) -> None:
+def test_run_named_command_keeps_passing_eval_summary_concise(monkeypatch, capsys) -> None:
     summary = EvalRunReport(
         scenario_file="evals/sample_scenarios.json",
         total_scenarios=1,
@@ -278,7 +325,16 @@ def test_print_eval_summary_keeps_pass_output_concise(capsys) -> None:
         ],
     )
 
-    _print_eval_summary(summary)
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.run_evals_command",
+        lambda config_path, *, scenario_file="evals/sample_scenarios.json": CommandResult(
+            exit_code=0,
+            payload=summary,
+        ),
+    )
+
+    exit_code = run_named_command("run-evals", ["--config-path", "custom.yml"])
     output = capsys.readouterr().out
 
+    assert exit_code == 0
     assert output == "PASS happy\nPassed 1/1 scenarios\n"

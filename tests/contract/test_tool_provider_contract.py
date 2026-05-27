@@ -196,12 +196,12 @@ def test_base_tool_provider_requires_subclasses_to_implement_list_tools() -> Non
 class _StaticProvider(base.ToolProvider):
     def __init__(self, provider_id: str, tools: list[RuntimeTool]) -> None:
         self.provider_id = provider_id
-        self._tools = tools
+        self.tools = tools
         self.list_calls = 0
 
     def list_tools(self) -> list[RuntimeTool]:
         self.list_calls += 1
-        return self._tools
+        return self.tools
 
 
 def _runtime_tool(

@@ -36,39 +36,6 @@ def test_ensure_local_storage_dir_rejects_jsonl_directory(tmp_path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("row", "expected"),
-    [
-        pytest.param({"catalog": "main"}, "main", id="dict"),
-        pytest.param(SimpleNamespace(asDict=lambda: {"schema": "demo"}), "demo", id="as-dict"),
-        pytest.param(("fallback",), "fallback", id="tuple"),
-    ],
-)
-def test_row_first_value_reads_supported_row_shapes(row: object, expected: object) -> None:
-    assert bootstrap._row_first_value(row) == expected
-
-
-def test_row_first_value_falls_back_to_index_when_as_dict_is_empty() -> None:
-    class EmptyMappingRow:
-        def asDict(self):
-            return {}
-
-        def __getitem__(self, index):
-            return "fallback"
-
-    assert bootstrap._row_first_value(EmptyMappingRow()) == "fallback"
-
-
-def test_row_first_value_rejects_empty_mapping() -> None:
-    with pytest.raises(KeyError):
-        bootstrap._row_first_value({})
-
-
-def test_row_as_dict_returns_mapping_or_none() -> None:
-    assert bootstrap._row_as_dict({}) == {}
-    assert bootstrap._row_as_dict(SimpleNamespace(asDict=lambda: ["not", "dict"])) is None
-
-
-@pytest.mark.parametrize(
     ("helper", "value", "expected"),
     [
         pytest.param(bootstrap.quote_name, "a`b", "`a``b`", id="quote-name"),
