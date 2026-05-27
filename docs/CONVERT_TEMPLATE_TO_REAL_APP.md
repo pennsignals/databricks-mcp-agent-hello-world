@@ -43,12 +43,12 @@ Only edit [`src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt
 
 Edit [`evals/sample_scenarios.json`](../evals/sample_scenarios.json). You can point scenarios at the canonical sample task file with `task_input_file` instead of duplicating the full JSON payload inline.
 
-Create scenarios that cover:
+Use evals as a lightweight smoke test that verifies run status, expected tool use, and required output text. Create a small set of scenarios that cover:
 
 1. happy path
-2. missing tool use
-3. unexpected write-tool use
-4. output completeness
+2. expected read-tool use
+3. expected write-tool use, if your app has a write tool
+4. output facts users should see
 
 ## Step 6 — Rename deployment resources
 

@@ -279,6 +279,8 @@ run-evals \
 
 Live evals require valid Databricks auth and may consume tokens, so use them after the local demo flow is already working.
 
+The eval harness is a lightweight smoke test that verifies run status, expected tool use, and required output text. Keep sample scenarios small and tied to the starter task behavior.
+
 ### Databricks-hosted development
 
 If you are developing from fresh Databricks compute instead of a local workstation, the recommended path is notebook-based setup with `%pip install`, because that is the lowest-friction option for serverless and other ephemeral environments.

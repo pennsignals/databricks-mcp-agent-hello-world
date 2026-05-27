@@ -192,6 +192,10 @@ Because events are written incrementally, partial runs and failures still leave 
 
 The Databricks path is intentionally conservative. Catalogs must already exist, the job never prompts, and a mismatched table fails with a readable schema diff instead of dropping or recreating data automatically.
 
+## Eval harness
+
+Evals are a lightweight smoke test for the starter agent. Each scenario runs one task and verifies only the run status, required executed tools, and required output substrings.
+
 ## Demo assets vs framework assets
 
 - Framework assets: `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`, `src/databricks_mcp_agent_hello_world/storage/write.py`, `src/databricks_mcp_agent_hello_world/storage/schema.py`, `src/databricks_mcp_agent_hello_world/storage/bootstrap.py`, `src/databricks_mcp_agent_hello_world/evals/harness.py`, `src/databricks_mcp_agent_hello_world/models.py`, `src/databricks_mcp_agent_hello_world/config.py`
