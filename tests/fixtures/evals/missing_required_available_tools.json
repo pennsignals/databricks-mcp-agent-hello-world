@@ -4,8 +4,8 @@
     "description": "Fails when a required available tool is absent.",
     "task_input_file": "../../../examples/demo_run_task.json",
     "required_available_tools": [
-      "get_user_profile",
-      "search_onboarding_docs"
+      "lookup_customer",
+      "required_missing_tool"
     ]
   }
 ]

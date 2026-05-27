@@ -32,7 +32,7 @@ def local_definition_to_runtime_tool(defn: LocalToolDefinition) -> RuntimeTool:
             },
         },
         execute=defn.fn,
-        source=ToolSource(type="local_python", id="builtin_tools"),
+        source=ToolSource(type="local_python", id="local_python"),
     )
 
 

@@ -1,14 +1,12 @@
 {
-  "task_name": "workspace_onboarding_brief",
-  "instructions": "Write a concise onboarding brief for the specified user. Include exactly four factual items: (1) the user's display name, (2) one local-development setup recommendation from the onboarding docs, (3) the current runtime target, and (4) one recent operational note from recent job runs. Use tools for all factual content. Do not modify external state. Return markdown.",
+  "task_name": "customer_account_brief",
+  "instructions": "Write a concise customer account brief. Include exactly three factual items from the customer lookup: (1) the customer name, (2) tier, and (3) region. Use tools for all factual content. Do not modify external state. Return markdown.",
   "payload": {
-    "user_id": "usr_grace_01",
-    "onboarding_topic": "local development",
+    "customer_id": "cust_acme",
     "required_fields": [
-      "display_name",
-      "setup_recommendation",
-      "runtime_target",
-      "recent_operational_note"
+      "name",
+      "tier",
+      "region"
     ],
     "allow_mutations": false,
     "output_format": "markdown"

@@ -13,7 +13,7 @@ def test_local_python_provider_executes_registered_builtin_tool() -> None:
     provider = LocalPythonToolProvider()
     tools_list = provider.list_tools()
 
-    assert tools_list[0].execute(user_id="usr_ada_01")["user_id"] == "usr_ada_01"
+    assert tools_list[0].execute(customer_id="cust_acme")["customer_id"] == "cust_acme"
 
 
 def test_provider_factory_returns_local_provider_when_only_local_is_enabled() -> None:
@@ -89,8 +89,8 @@ def test_provider_factory_returns_composite_provider_when_both_sources_are_enabl
         )
     )
 
-    assert provider.provider_id == "composite:builtin_tools,uc_functions"
-    assert "get_user_profile" in {tool.name for tool in provider.list_tools()}
+    assert provider.provider_id == "composite:local_python,uc_functions"
+    assert "lookup_customer" in {tool.name for tool in provider.list_tools()}
     assert "remote_lookup" in {tool.name for tool in provider.list_tools()}
 
 
@@ -112,12 +112,12 @@ def test_composite_provider_discovers_tools_from_all_sources_and_delegates_execu
     provider = CompositeToolProvider(
         [
             _StaticProvider(
-                "builtin_tools",
+                "local_python",
                 [
                     _runtime_tool(
                         "local_lookup",
                         source_type="local_python",
-                        source_id="builtin_tools",
+                        source_id="local_python",
                         calls=local_calls,
                     )
                 ],
@@ -138,7 +138,7 @@ def test_composite_provider_discovers_tools_from_all_sources_and_delegates_execu
 
     tools = provider.list_tools()
 
-    assert provider.provider_id == "composite:builtin_tools,uc_functions"
+    assert provider.provider_id == "composite:local_python,uc_functions"
     assert [tool.name for tool in tools] == ["local_lookup", "remote_lookup"]
     assert tools[0].execute(value="a") == {"source": "local_python", "arguments": {"value": "a"}}
     assert tools[1].execute(value="b") == {"source": "databricks_mcp", "arguments": {"value": "b"}}
@@ -148,7 +148,7 @@ def test_composite_provider_discovers_tools_from_all_sources_and_delegates_execu
 
 def test_composite_provider_caches_discovered_tools_and_returns_copies() -> None:
     child_provider = _StaticProvider(
-        "builtin_tools",
+        "local_python",
         [_runtime_tool("local_lookup", source_type="local_python")],
     )
     provider = CompositeToolProvider([child_provider])
@@ -165,7 +165,7 @@ def test_composite_provider_rejects_duplicate_tool_names() -> None:
     provider = CompositeToolProvider(
         [
             _StaticProvider(
-                "builtin_tools",
+                "local_python",
                 [_runtime_tool("lookup_customer", source_type="local_python")],
             ),
             _StaticProvider(
@@ -177,7 +177,7 @@ def test_composite_provider_rejects_duplicate_tool_names() -> None:
 
     with pytest.raises(
         ValueError,
-        match="Duplicate tool name 'lookup_customer' from builtin_tools and uc_functions",
+        match="Duplicate tool name 'lookup_customer' from local_python and uc_functions",
     ):
         provider.list_tools()
 

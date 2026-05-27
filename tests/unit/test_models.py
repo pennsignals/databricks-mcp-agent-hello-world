@@ -15,7 +15,7 @@ def test_discovered_tool_matches_simplified_inventory_shape() -> None:
     tool = DiscoveredTool(
         name="sample_tool",
         source_type="local_python",
-        source_id="builtin_tools",
+        source_id="local_python",
         spec={
             "type": "function",
             "function": {

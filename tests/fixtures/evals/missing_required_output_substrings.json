@@ -4,7 +4,7 @@
     "description": "Fails when the final response is missing a required substring.",
     "task_input_file": "../../../examples/demo_run_task.json",
     "required_output_substrings": [
-      "Grace Hopper"
+      "Acme Co"
     ]
   }
 ]

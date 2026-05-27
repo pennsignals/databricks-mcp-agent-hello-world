@@ -1,66 +1,52 @@
 [
   {
-    "scenario_id": "onboarding_happy_path",
-    "description": "Runs the standard read-only onboarding brief for Grace Hopper.",
+    "scenario_id": "customer_brief_happy_path",
+    "description": "Runs the standard read-only customer account brief for Acme Co.",
     "expected_status": "success",
     "task_input_file": "../examples/demo_run_task.json",
     "required_available_tools": [
-      "get_user_profile",
-      "search_onboarding_docs",
-      "get_workspace_setting",
-      "list_recent_job_runs"
+      "lookup_customer"
     ],
     "required_executed_tools": [
-      "get_user_profile",
-      "search_onboarding_docs",
-      "get_workspace_setting",
-      "list_recent_job_runs"
+      "lookup_customer"
     ],
-    "min_tool_calls": 4,
+    "min_tool_calls": 1,
     "required_output_substrings": [
-      "Grace Hopper",
-      "python3.12 -m venv",
-      "Databricks Serverless Jobs"
+      "Acme Co",
+      "enterprise",
+      "us-west"
     ]
   },
   {
-    "scenario_id": "onboarding_with_operational_note",
-    "description": "Runs the onboarding brief for Grace Hopper and requires the operational jobs tool in both inventory and execution trace.",
+    "scenario_id": "support_ticket_happy_path",
+    "description": "Runs a tiny write-tool task and requires support ticket creation.",
     "expected_status": "success",
     "task_input": {
-      "task_name": "workspace_onboarding_brief",
-      "instructions": "Write a concise onboarding brief for the specified user. Include exactly four factual items: (1) the user's display name, (2) one local-development setup recommendation from the onboarding docs, (3) the current runtime target, and (4) one recent operational note from recent job runs. Use tools for all factual content. Do not modify external state. Return markdown.",
+      "task_name": "create_customer_support_ticket",
+      "instructions": "Create a low-severity support ticket with the summary 'Customer asked for onboarding help'. Return the ticket id and status.",
       "payload": {
-        "user_id": "usr_grace_01",
-        "onboarding_topic": "local development",
-        "required_fields": [
-          "display_name",
-          "setup_recommendation",
-          "runtime_target",
-          "recent_operational_note"
-        ],
-        "allow_mutations": false,
+        "summary": "Customer asked for onboarding help",
+        "severity": "low",
+        "allow_mutations": true,
         "output_format": "markdown"
       }
     },
     "required_available_tools": [
-      "get_user_profile",
-      "search_onboarding_docs",
-      "get_workspace_setting",
-      "list_recent_job_runs"
+      "create_support_ticket"
     ],
     "required_executed_tools": [
-      "list_recent_job_runs"
+      "create_support_ticket"
     ],
     "min_tool_calls": 1,
     "required_output_substrings": [
-      "Grace Hopper",
-      "Databricks Serverless Jobs"
+      "TICK-",
+      "created",
+      "low"
     ]
   },
   {
     "scenario_id": "read_only_task_never_selects_write_tool",
-    "description": "Verifies the read-only onboarding task never uses the write tool.",
+    "description": "Verifies the read-only customer brief never uses the write tool.",
     "expected_status": "success",
     "task_input_file": "../examples/demo_run_task.json",
     "forbidden_executed_tools": [
@@ -68,7 +54,7 @@
     ],
     "min_tool_calls": 1,
     "required_output_substrings": [
-      "Grace Hopper"
+      "Acme Co"
     ]
   }
 ]

@@ -30,9 +30,9 @@ def test_agent_runner_persists_run_contract_for_success(tmp_path: Path, monkeypa
         StubLLM(
             [
                 llm_response(
-                    tool_calls=[tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')]
+                    tool_calls=[tool_call("lookup_customer", '{"customer_id":"cust_acme"}')]
                 ),
-                llm_response(content="## Onboarding Brief\nAda Lovelace"),
+                llm_response(content="## Customer Brief\nAcme Co"),
             ]
         ),
         tools=tools,
@@ -41,20 +41,20 @@ def test_agent_runner_persists_run_contract_for_success(tmp_path: Path, monkeypa
 
     record = runner.run(
         AgentTaskRequest(
-            task_name="workspace_onboarding_brief",
+            task_name="customer_account_brief",
             instructions="Write the report.",
-            payload={"user_id": "usr_ada_01"},
+            payload={"customer_id": "cust_acme"},
             run_id="run-123",
         )
     )
 
     assert isinstance(record, AgentRunRecord)
     assert record.status == "success"
-    assert record.result["final_response"] == "## Onboarding Brief\nAda Lovelace"
+    assert record.result["final_response"] == "## Customer Brief\nAcme Co"
     assert record.result["available_tools"] == [tool.name for tool in tools]
-    assert record.result["tool_calls"][0]["tool_name"] == "get_user_profile"
+    assert record.result["tool_calls"][0]["tool_name"] == "lookup_customer"
     assert record.result["tool_calls"][0]["status"] == "ok"
-    assert calls == [{"tool_name": "get_user_profile", "arguments": {"user_id": "usr_ada_01"}}]
+    assert calls == [{"tool_name": "lookup_customer", "arguments": {"customer_id": "cust_acme"}}]
     assert runner.llm.call_args[0]["tools"] == [tool.spec for tool in tools]
     assert runner.llm.call_args[0]["tool_choice"] == "auto"
     assert any(
@@ -99,7 +99,7 @@ def test_agent_runner_rejects_unknown_tool_calls_without_executing_provider(
 
     record = runner.run(
         AgentTaskRequest(
-            task_name="workspace_onboarding_brief",
+            task_name="customer_account_brief",
             instructions="Write the report.",
             run_id="run-unknown",
         )
@@ -115,7 +115,7 @@ def test_agent_runner_works_with_tools_from_multiple_sources(
     monkeypatch,
 ) -> None:
     calls = []
-    local_tool = runtime_tool("get_user_profile", calls)
+    local_tool = runtime_tool("lookup_customer", calls)
     remote_tool = RuntimeTool(
         name="lookup_remote_user",
         spec={
@@ -150,14 +150,14 @@ def test_agent_runner_works_with_tools_from_multiple_sources(
 
     record = runner.run(
         AgentTaskRequest(
-            task_name="workspace_onboarding_brief",
+            task_name="customer_account_brief",
             instructions="Write the report.",
             run_id="run-multi-source",
         )
     )
 
     assert record.status == "success"
-    assert record.result["available_tools"] == ["get_user_profile", "lookup_remote_user"]
+    assert record.result["available_tools"] == ["lookup_customer", "lookup_remote_user"]
     assert calls == [{"tool_name": "lookup_remote_user", "arguments": {"user_id": "usr_1"}}]
     assert runner.llm.call_args[0]["tools"] == [local_tool.spec, remote_tool.spec]
     tool_result_event = next(
@@ -175,7 +175,7 @@ def test_agent_runner_marks_malformed_tool_arguments_as_error_without_crashing(
         tmp_path,
         StubLLM(
             [
-                llm_response(tool_calls=[tool_call("get_user_profile", '{"user_id":')]),
+                llm_response(tool_calls=[tool_call("lookup_customer", '{"customer_id":')]),
                 llm_response(content="Finished after malformed tool args."),
             ]
         ),
@@ -183,7 +183,7 @@ def test_agent_runner_marks_malformed_tool_arguments_as_error_without_crashing(
     capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
-        AgentTaskRequest(task_name="workspace_onboarding_brief", instructions="Write the report.")
+        AgentTaskRequest(task_name="customer_account_brief", instructions="Write the report.")
     )
 
     assert record.status == "success"
@@ -231,7 +231,7 @@ def test_agent_runner_rejects_invalid_tool_arguments_before_execution(
 
     record = runner.run(
         AgentTaskRequest(
-            task_name="workspace_onboarding_brief",
+            task_name="customer_account_brief",
             instructions="Write the report.",
             run_id="run-invalid-args",
         )
@@ -314,7 +314,7 @@ def test_agent_runner_returns_max_steps_exceeded_when_llm_never_finishes(
         StubLLM(
             [
                 llm_response(
-                    tool_calls=[tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')]
+                    tool_calls=[tool_call("lookup_customer", '{"customer_id":"cust_acme"}')]
                 ),
                 llm_response(content="Finished after tool error."),
             ]
@@ -325,7 +325,7 @@ def test_agent_runner_returns_max_steps_exceeded_when_llm_never_finishes(
 
     record = runner.run(
         AgentTaskRequest(
-            task_name="workspace_onboarding_brief",
+            task_name="customer_account_brief",
             instructions="Write the report.",
             run_id="run-max",
         )
@@ -345,21 +345,21 @@ def test_agent_runner_emits_error_event_when_tool_execution_raises(
         StubLLM(
             [
                 llm_response(
-                    tool_calls=[tool_call("get_user_profile", '{"user_id":"usr_ada_01"}')]
+                    tool_calls=[tool_call("lookup_customer", '{"customer_id":"cust_acme"}')]
                 ),
                 llm_response(content="Finished after tool error."),
             ]
         ),
-        provider=RaisingProvider([runtime_tool("get_user_profile", raises=True)]),
+        provider=RaisingProvider([runtime_tool("lookup_customer", raises=True)]),
     )
     capture_event_rows(runner, monkeypatch)
 
     record = runner.run(
         AgentTaskRequest(
-            task_name="workspace_onboarding_brief",
+            task_name="customer_account_brief",
             instructions="Write the report.",
         )
     )
 
     assert record.result["tool_calls"][0]["status"] == "error"
-    assert record.result["tool_calls"][0]["error"] == "tool boom: get_user_profile"
+    assert record.result["tool_calls"][0]["error"] == "tool boom: lookup_customer"

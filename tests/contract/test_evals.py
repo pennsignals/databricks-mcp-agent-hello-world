@@ -6,7 +6,7 @@ from typing import ClassVar, Literal
 
 import pytest
 
-from databricks_mcp_agent_hello_world.app.data import DEMO_USERS
+from databricks_mcp_agent_hello_world.app.data import DEMO_CUSTOMERS
 from databricks_mcp_agent_hello_world.evals.harness import (
     EvalSetupError,
     load_eval_scenarios,
@@ -40,19 +40,17 @@ def _settings(tmp_path: Path):
 def _record(
     *,
     status: Literal["success", "error", "max_steps_exceeded"] = "success",
-    final_response: str = (
-        "Ada Lovelace uses python3.12 -m venv plus pip on Databricks Serverless Jobs."
-    ),
+    final_response: str = "Acme Co is an enterprise customer in us-west.",
     available_tools: list[str] | None = None,
     tool_calls: list[dict] | None = None,
     result_overrides: dict | None = None,
     run_id: str = "run-123",
 ) -> AgentRunRecord:
-    available_tools = available_tools or ["get_user_profile", "search_onboarding_docs"]
+    available_tools = available_tools or ["lookup_customer", "create_support_ticket"]
     tool_calls = tool_calls or [
         {
-            "tool_name": "get_user_profile",
-            "arguments": {"user_id": "usr_ada_01"},
+            "tool_name": "lookup_customer",
+            "arguments": {"customer_id": "cust_acme"},
             "status": "ok",
             "error": None,
         }
@@ -108,33 +106,32 @@ def test_load_eval_scenarios_uses_canonical_demo_task_file(repo_root: Path) -> N
 
     assert scenarios[0].task_input is not None
     assert scenarios[0].task_input_file is None
-    assert scenarios[0].task_input.task_name == "workspace_onboarding_brief"
+    assert scenarios[0].task_input.task_name == "customer_account_brief"
     assert scenarios[0].task_input.payload["required_fields"] == [
-        "display_name",
-        "setup_recommendation",
-        "runtime_target",
-        "recent_operational_note",
+        "name",
+        "tier",
+        "region",
     ]
 
 
-def test_file_backed_sample_scenarios_expect_demo_task_display_name(repo_root: Path) -> None:
+def test_file_backed_sample_scenarios_expect_demo_customer_name(repo_root: Path) -> None:
     scenarios = load_eval_scenarios(str(repo_root / "evals" / "sample_scenarios.json"))
 
     for scenario in scenarios:
         if scenario.task_input is None:
             continue
 
-        user_id = scenario.task_input.payload.get("user_id")
-        if not isinstance(user_id, str):
+        customer_id = scenario.task_input.payload.get("customer_id")
+        if not isinstance(customer_id, str):
             continue
 
-        expected_display_name = DEMO_USERS[user_id]["display_name"]
-        if expected_display_name in scenario.required_output_substrings:
+        expected_name = DEMO_CUSTOMERS[customer_id]["name"]
+        if expected_name in scenario.required_output_substrings:
             continue
 
         pytest.fail(
-            f"Scenario {scenario.scenario_id} must require display name "
-            f"{expected_display_name!r} to match its resolved task input."
+            f"Scenario {scenario.scenario_id} must require customer name "
+            f"{expected_name!r} to match its resolved task input."
         )
 
 
@@ -221,17 +218,17 @@ def test_run_evals_scores_required_and_forbidden_tool_semantics(
                 "scenario_id": "tools",
                 "description": "Checks tool semantics",
                 "task_input_file": "../examples/demo_run_task.json",
-                "required_available_tools": ["get_user_profile", "create_support_ticket"],
+                "required_available_tools": ["lookup_customer", "create_support_ticket"],
                 "forbidden_executed_tools": ["create_support_ticket"],
             }
         ],
         [
             _record(
-                available_tools=["get_user_profile", "create_support_ticket"],
+                available_tools=["lookup_customer", "create_support_ticket"],
                 tool_calls=[
                     {
-                        "tool_name": "get_user_profile",
-                        "arguments": {"user_id": "usr_ada_01"},
+                        "tool_name": "lookup_customer",
+                        "arguments": {"customer_id": "cust_acme"},
                         "status": "ok",
                         "error": None,
                     }
@@ -242,8 +239,8 @@ def test_run_evals_scores_required_and_forbidden_tool_semantics(
     )
 
     assert report.results[0].passed is True
-    assert report.results[0].available_tools == ["get_user_profile", "create_support_ticket"]
-    assert report.results[0].executed_tools == ["get_user_profile"]
+    assert report.results[0].available_tools == ["lookup_customer", "create_support_ticket"]
+    assert report.results[0].executed_tools == ["lookup_customer"]
 
 
 def test_run_evals_marks_status_mismatch_and_missing_output_substrings(
@@ -259,7 +256,7 @@ def test_run_evals_marks_status_mismatch_and_missing_output_substrings(
                 "scenario_id": "status-mismatch",
                 "description": "Requires success with specific output",
                 "task_input_file": "../examples/demo_run_task.json",
-                "required_output_substrings": ["Databricks Serverless Jobs"],
+                "required_output_substrings": ["Acme Co"],
             }
         ],
         [_record(status="error", final_response="short")],
@@ -271,7 +268,7 @@ def test_run_evals_marks_status_mismatch_and_missing_output_substrings(
         "status_mismatch",
         "missing_required_output_substrings",
     }
-    assert report.results[0].missing_required_output_substrings == ["Databricks Serverless Jobs"]
+    assert report.results[0].missing_required_output_substrings == ["Acme Co"]
     assert report.results[0].final_response_excerpt == "short"
     assert report.results[0].actual_result_keys == [
         "available_tools",
@@ -293,9 +290,9 @@ def test_run_evals_records_detailed_failure_diagnostics(
                 "scenario_id": "diagnostics",
                 "description": "Captures detailed scoring diagnostics",
                 "task_input_file": "../examples/demo_run_task.json",
-                "required_available_tools": ["get_user_profile", "list_recent_job_runs"],
+                "required_available_tools": ["lookup_customer", "required_missing_tool"],
                 "forbidden_available_tools": ["create_support_ticket"],
-                "required_executed_tools": ["list_recent_job_runs"],
+                "required_executed_tools": ["required_missing_tool"],
                 "forbidden_executed_tools": ["create_support_ticket"],
                 "required_result_keys": [
                     "final_response",
@@ -303,16 +300,16 @@ def test_run_evals_records_detailed_failure_diagnostics(
                     "tool_calls",
                     "summary_markdown",
                 ],
-                "required_output_substrings": ["Grace Hopper"],
-                "forbidden_output_substrings": ["Ada Lovelace"],
+                "required_output_substrings": ["Acme Co"],
+                "forbidden_output_substrings": ["Globex"],
                 "min_tool_calls": 2,
                 "max_tool_calls": 2,
             }
         ],
         [
             _record(
-                final_response="Ada Lovelace uses python3.12 -m venv plus pip.",
-                available_tools=["get_user_profile", "create_support_ticket"],
+                final_response="Globex is a startup customer.",
+                available_tools=["lookup_customer", "create_support_ticket"],
                 tool_calls=[
                     {
                         "tool_name": "create_support_ticket",
@@ -341,12 +338,12 @@ def test_run_evals_records_detailed_failure_diagnostics(
     }
     assert result.missing_required_result_keys == ["summary_markdown"]
     assert result.actual_result_keys == ["available_tools", "final_response", "tool_calls"]
-    assert result.missing_required_available_tools == ["list_recent_job_runs"]
+    assert result.missing_required_available_tools == ["required_missing_tool"]
     assert result.present_forbidden_available_tools == ["create_support_ticket"]
-    assert result.missing_required_executed_tools == ["list_recent_job_runs"]
+    assert result.missing_required_executed_tools == ["required_missing_tool"]
     assert result.present_forbidden_executed_tools == ["create_support_ticket"]
-    assert result.missing_required_output_substrings == ["Grace Hopper"]
-    assert result.found_forbidden_output_substrings == ["Ada Lovelace"]
+    assert result.missing_required_output_substrings == ["Acme Co"]
+    assert result.found_forbidden_output_substrings == ["Globex"]
     assert result.expected_min_tool_calls == 2
     assert result.expected_max_tool_calls == 2
     assert result.tool_call_count == 1

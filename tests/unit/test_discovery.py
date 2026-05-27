@@ -18,13 +18,10 @@ def test_discover_tools_returns_current_app_inventory(tmp_path: Path) -> None:
     report = discover_tools(settings)
 
     assert report.enabled_tool_sources == ["local_python"]
-    assert report.provider_id == "builtin_tools"
-    assert report.tool_count == 5
+    assert report.provider_id == "local_python"
+    assert report.tool_count == 2
     assert [tool.name for tool in report.tools] == [
-        "get_user_profile",
-        "search_onboarding_docs",
-        "get_workspace_setting",
-        "list_recent_job_runs",
+        "lookup_customer",
         "create_support_ticket",
     ]
     assert {tool.source_type for tool in report.tools} == {"local_python"}
@@ -38,7 +35,7 @@ def test_discovery_json_output_matches_runtime_shape(tmp_path: Path, capsys) -> 
 
     assert '"enabled_tool_sources": [' in output
     assert '"local_python"' in output
-    assert '"tool_count": 5' in output
+    assert '"tool_count": 2' in output
 
 
 def test_discovery_reports_enabled_sources_even_when_no_tools_are_returned(monkeypatch) -> None:
@@ -76,6 +73,6 @@ def test_print_discovery_report_surfaces_contract_metadata(tmp_path: Path, capsy
     print_discovery_report(report)
     output = capsys.readouterr().out
 
-    assert "Source: local_python/builtin_tools" in output
+    assert "Source: local_python/local_python" in output
     assert "Input schema:" in output
     assert "Side effect level" not in output

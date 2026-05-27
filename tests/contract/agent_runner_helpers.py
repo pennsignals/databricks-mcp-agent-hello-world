@@ -59,16 +59,13 @@ def runtime_tool(name: str, calls: list | None = None, *, raises: bool = False) 
             },
         },
         execute=_execute,
-        source=ToolSource(type="local_python", id="builtin_tools"),
+        source=ToolSource(type="local_python", id="local_python"),
     )
 
 
 def discovered_tools(calls: list | None = None) -> list[RuntimeTool]:
     return [
-        runtime_tool("get_user_profile", calls),
-        runtime_tool("search_onboarding_docs", calls),
-        runtime_tool("get_workspace_setting", calls),
-        runtime_tool("list_recent_job_runs", calls),
+        runtime_tool("lookup_customer", calls),
         runtime_tool("create_support_ticket", calls),
     ]
 

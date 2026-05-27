@@ -45,7 +45,7 @@ def _tool(name: str) -> RuntimeTool:
             },
         },
         execute=lambda **kwargs: {"echo": kwargs},
-        source=ToolSource(type="local_python", id="builtin_tools"),
+        source=ToolSource(type="local_python", id="local_python"),
     )
 
 

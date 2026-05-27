@@ -148,7 +148,7 @@ def test_run_named_command_renders_json_for_discovery(monkeypatch, capsys) -> No
     payload = DiscoveryReport(
         enabled_tool_sources=["local_python"],
         tool_count=0,
-        provider_id="builtin_tools",
+        provider_id="local_python",
         inventory_hash="hash",
         tools=[],
     )

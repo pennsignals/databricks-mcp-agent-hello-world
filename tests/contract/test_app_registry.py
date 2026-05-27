@@ -16,20 +16,14 @@ from databricks_mcp_agent_hello_world.tools.local import (
 
 def test_authored_app_registry_exposes_expected_inventory() -> None:
     assert [definition.name for definition in LOCAL_TOOL_DEFINITIONS] == [
-        "get_user_profile",
-        "search_onboarding_docs",
-        "get_workspace_setting",
-        "list_recent_job_runs",
+        "lookup_customer",
         "create_support_ticket",
     ]
 
 
 def test_public_local_tool_names_are_stable() -> None:
     assert {definition.name for definition in LOCAL_TOOL_DEFINITIONS} == {
-        "get_user_profile",
-        "search_onboarding_docs",
-        "get_workspace_setting",
-        "list_recent_job_runs",
+        "lookup_customer",
         "create_support_ticket",
     }
 
@@ -38,7 +32,7 @@ def test_build_local_tool_registry_keys_by_definition_name() -> None:
     registry = build_local_tool_registry(LOCAL_TOOL_DEFINITIONS)
 
     assert registry == LOCAL_TOOL_REGISTRY
-    assert registry["get_user_profile"].name == "get_user_profile"
+    assert registry["lookup_customer"].name == "lookup_customer"
 
 
 def test_local_tool_definitions_include_required_runtime_contract() -> None:

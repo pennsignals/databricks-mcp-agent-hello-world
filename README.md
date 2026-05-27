@@ -30,15 +30,12 @@ The runtime flow is intentionally small:
 
 Tool selection is **LLM-driven**. The model receives the discovered tool inventory and decides what to call at runtime. For the provider boundary and tool-selection rules, see [Architecture](docs/ARCHITECTURE.md).
 
-For the built-in example app, the current inventory contains **five** tools:
+For the built-in example app, the current inventory contains **two** tools:
 
-- `get_user_profile`
-- `search_onboarding_docs`
-- `get_workspace_setting`
-- `list_recent_job_runs`
+- `lookup_customer`
 - `create_support_ticket`
 
-The canonical sample task in [`examples/demo_run_task.json`](examples/demo_run_task.json) is a **read-only onboarding brief**. The model is expected to choose the relevant tools for the task, and the template does not pre-filter the inventory before runtime. The sample app uses that same file by default both locally and in the deployed Databricks job.
+The canonical sample task in [`examples/demo_run_task.json`](examples/demo_run_task.json) is read-only, though the inventory also includes a tiny write-tool example. The model is expected to choose the relevant tools for the task, and the template does not pre-filter the inventory before runtime. The sample app uses that same file by default both locally and in the deployed Databricks job.
 
 ## Prerequisites
 
@@ -213,7 +210,7 @@ When `storage.agent_events_table` is unset, `preflight` reports `Storage mode: l
 discover-tools --config-path workspace-config.yml
 ```
 
-For the built-in example app, you should see **5 tools**. The discovery output shows each tool's source and Databricks/OpenAI-compatible function spec summary.
+For the built-in example app, you should see **2 tools**. The discovery output shows each tool's source and Databricks/OpenAI-compatible function spec summary.
 
 For a manual Databricks MCP smoke test, create a separate config such as `workspace-config.databricks-mcp.yml` with `tools.databricks_mcp.enabled`, `tools.databricks_mcp.server`, and `databricks_config_profile` or `workspace_host` set as needed, then run:
 

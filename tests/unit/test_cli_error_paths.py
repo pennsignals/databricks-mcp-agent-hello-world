@@ -202,14 +202,14 @@ def test_print_discovery_report_and_schema_summary(capsys) -> None:
         tool_count=1,
         tools=[
             SimpleNamespace(
-                name="get_user_profile",
+                name="lookup_customer",
                 source_type="local_python",
-                source_id="builtin_tools",
+                source_id="local_python",
                 spec={
                     "type": "function",
                     "function": {
-                        "name": "get_user_profile",
-                        "description": "Fetch a user",
+                        "name": "lookup_customer",
+                        "description": "Fetch a customer",
                         "parameters": {"type": "object", "properties": {}, "required": []},
                     },
                 },
