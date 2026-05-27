@@ -378,13 +378,16 @@ For private downstream repos, the deployed `workspace-config.yml` may be the sam
 
 The default deployed sample job also reads the workspace copy of [`examples/demo_run_task.json`](examples/demo_run_task.json), so the sample app runs the same canonical task locally and when deployed.
 
-The deployed wheel tasks intentionally use **separate Databricks job entry points** from the local CLI commands:
+The deployed wheel tasks use package-root Databricks job entry points that delegate to the same CLI implementation as local console commands:
 
 - local development keeps using `run-agent-task ...`
+- package-root `discover_tools` is exported for Databricks wheel task use when discovery is run remotely
 - remote storage bootstrap uses the package `run_init_storage` wrapper
 - the bundled Databricks job uses the package `run_agent_task` wrapper
 - `run_init_storage` loads settings, calls the shared bootstrap logic, and exits non-zero on mismatch
-- the runtime job passes `--config-path`, `--task-input-file`, and `--output` through `python_wheel_task.parameters`, and the wrapper forwards `sys.argv[1:]` into the existing `argparse` command handler
+- the runtime job passes `--config-path`, `--task-input-file`, and `--output` through `python_wheel_task.parameters`
+
+The package-root wheel wrappers delegate to the same CLI main functions used by local console scripts, so flags and behavior stay consistent across local and job runs.
 
 Databricks can resolve these wheel task entry points as package-root callables (`$packageName.$entryPoint()`) when they are not declared as package metadata entry points.
 

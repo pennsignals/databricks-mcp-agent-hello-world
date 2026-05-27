@@ -5,7 +5,10 @@ from types import SimpleNamespace
 from databricks_mcp_agent_hello_world.cli import (
     _print_eval_summary,
     build_parser,
+    discover_tools_main,
     print_run_summary,
+    run_agent_task_main,
+    run_init_storage_main,
     run_named_command,
 )
 from databricks_mcp_agent_hello_world.commands import CommandResult
@@ -63,6 +66,82 @@ def test_run_named_command_renders_text_summary_for_preflight(monkeypatch) -> No
 
     assert exit_code == 0
     assert recorded == {"config_path": "custom.yml", "rendered": payload}
+
+
+def test_discover_tools_main_parses_args_and_calls_command_layer(monkeypatch) -> None:
+    recorded: dict[str, object] = {}
+    result = CommandResult(exit_code=0, payload=object())
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.run_discover_tools_command",
+        lambda config_path: recorded.update({"config_path": config_path}) or result,
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.print_discovery_report",
+        lambda report: recorded.update({"rendered": report}),
+    )
+
+    exit_code = discover_tools_main(["--config-path", "custom.yml"])
+
+    assert exit_code == 0
+    assert recorded == {"config_path": "custom.yml", "rendered": result.payload}
+
+
+def test_run_agent_task_main_parses_args_and_calls_command_layer(monkeypatch) -> None:
+    recorded: dict[str, object] = {}
+    result = CommandResult(exit_code=0, payload=object())
+
+    def _run_agent_task_command(config_path, *, task_input_json, task_input_file):
+        recorded.update(
+            {
+                "config_path": config_path,
+                "task_input_json": task_input_json,
+                "task_input_file": task_input_file,
+            }
+        )
+        return result
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.run_agent_task_command",
+        _run_agent_task_command,
+    )
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.print_run_summary",
+        lambda record: recorded.update({"rendered": record}),
+    )
+
+    exit_code = run_agent_task_main(
+        [
+            "--config-path",
+            "custom.yml",
+            "--task-input-json",
+            '{"task_name":"demo"}',
+        ]
+    )
+
+    assert exit_code == 0
+    assert recorded == {
+        "config_path": "custom.yml",
+        "task_input_json": '{"task_name":"demo"}',
+        "task_input_file": None,
+        "rendered": result.payload,
+    }
+
+
+def test_run_init_storage_main_parses_args_and_calls_command_layer(monkeypatch) -> None:
+    recorded: dict[str, object] = {}
+    payload = SimpleNamespace(messages=["created"])
+    result = CommandResult(exit_code=0, payload=payload)
+
+    monkeypatch.setattr(
+        "databricks_mcp_agent_hello_world.cli.run_init_storage_command",
+        lambda config_path: recorded.update({"config_path": config_path}) or result,
+    )
+
+    exit_code = run_init_storage_main(["--config-path", "custom.yml"])
+
+    assert exit_code == 0
+    assert recorded == {"config_path": "custom.yml"}
 
 
 def test_run_named_command_renders_json_for_discovery(monkeypatch, capsys) -> None:

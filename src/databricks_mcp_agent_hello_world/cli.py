@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +11,7 @@ from .commands import (
     run_agent_task_command,
     run_discover_tools_command,
     run_evals_command,
+    run_init_storage_command,
     run_preflight_command,
 )
 from .config import DEFAULT_CONFIG_PATH
@@ -30,15 +31,29 @@ def preflight_entrypoint() -> None:
 
 
 def discover_tools_entrypoint() -> None:
-    raise SystemExit(run_named_command("discover-tools"))
+    raise SystemExit(discover_tools_main())
 
 
 def run_agent_task_entrypoint() -> None:
-    raise SystemExit(run_named_command("run-agent-task"))
+    raise SystemExit(run_agent_task_main())
 
 
 def run_evals_entrypoint() -> None:
     raise SystemExit(run_named_command("run-evals"))
+
+
+def discover_tools_main(argv: Sequence[str] | None = None) -> int:
+    return run_named_command("discover-tools", _argv_list(argv), prog="discover-tools")
+
+
+def run_agent_task_main(argv: Sequence[str] | None = None) -> int:
+    return run_named_command("run-agent-task", _argv_list(argv), prog="run-agent-task")
+
+
+# Internal wheel entrypoint runner. The underscore name mirrors the Databricks
+# package-root callable and is intentionally not exposed as a normal CLI subcommand.
+def run_init_storage_main(argv: Sequence[str] | None = None) -> int:
+    return run_named_command("run_init_storage", _argv_list(argv), prog="run_init_storage")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -86,6 +101,10 @@ def run_named_command(
         return 1
 
 
+def _argv_list(argv: Sequence[str] | None) -> list[str] | None:
+    return None if argv is None else list(argv)
+
+
 def build_parser(command_name: str, *, prog: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog=prog, description=f"{command_name} command")
     parser.add_argument("--config-path", default=DEFAULT_CONFIG_PATH)
@@ -124,6 +143,10 @@ def _run_evals(args: argparse.Namespace) -> CommandResult:
     return run_evals_command(args.config_path, scenario_file=args.scenario_file)
 
 
+def _run_init_storage(args: argparse.Namespace) -> CommandResult:
+    return run_init_storage_command(args.config_path)
+
+
 def _render_command_result(
     command_name: str,
     args: argparse.Namespace,
@@ -134,6 +157,7 @@ def _render_command_result(
         "discover-tools": print_discovery_report,
         "run-agent-task": print_run_summary,
         "run-evals": _print_eval_summary,
+        "run_init_storage": print_init_storage_summary,
     }
     _render_output(
         command_result.payload,
@@ -260,6 +284,11 @@ def print_discovery_report(report) -> None:
         print(f"  Input schema: {summary}")
 
 
+def print_init_storage_summary(report) -> None:
+    for message in report.messages:
+        print(message)
+
+
 def _summarize_input_schema(schema: dict[str, Any]) -> str:
     properties = schema.get("properties", {})
     if not isinstance(properties, dict) or not properties:
@@ -278,6 +307,7 @@ COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], CommandResult]] = {
     "discover-tools": _run_discover_tools,
     "run-agent-task": _run_agent_task,
     "run-evals": _run_evals,
+    "run_init_storage": _run_init_storage,
 }
 
 

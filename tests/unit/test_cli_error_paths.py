@@ -14,8 +14,6 @@ from databricks_mcp_agent_hello_world.models import EvalRunReport, EvalScenarioR
     ("entrypoint_name", "command_name"),
     [
         ("preflight_entrypoint", "preflight"),
-        ("discover_tools_entrypoint", "discover-tools"),
-        ("run_agent_task_entrypoint", "run-agent-task"),
         ("run_evals_entrypoint", "run-evals"),
     ],
 )
@@ -25,6 +23,26 @@ def test_entrypoints_raise_system_exit_with_command_code(
     command_name: str,
 ) -> None:
     monkeypatch.setattr(cli, "run_named_command", lambda actual: 7 if actual == command_name else 0)
+
+    with pytest.raises(SystemExit) as excinfo:
+        getattr(cli, entrypoint_name)()
+
+    assert excinfo.value.code == 7
+
+
+@pytest.mark.parametrize(
+    ("entrypoint_name", "main_name"),
+    [
+        ("discover_tools_entrypoint", "discover_tools_main"),
+        ("run_agent_task_entrypoint", "run_agent_task_main"),
+    ],
+)
+def test_command_entrypoints_raise_system_exit_with_main_code(
+    monkeypatch,
+    entrypoint_name: str,
+    main_name: str,
+) -> None:
+    monkeypatch.setattr(cli, main_name, lambda: 7)
 
     with pytest.raises(SystemExit) as excinfo:
         getattr(cli, entrypoint_name)()
