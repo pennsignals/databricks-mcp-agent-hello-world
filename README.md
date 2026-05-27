@@ -142,15 +142,15 @@ You can also override `llm_endpoint_name` from `.env` with `LLM_ENDPOINT_NAME`, 
 
 ### 3) Leave storage on the local default for your first pass
 
-The example config ships with one event-store target and one local fallback directory:
+The example config writes events to local JSONL by default:
 
 ```yaml
 storage:
-  agent_events_table: main.agent_demo.agent_events
+  agent_events_table: null
   local_data_dir: ./.local_state
 ```
 
-For your first local run, you usually do not need to change either value. When Spark is unavailable, the template automatically falls back to local JSONL under `./.local_state`.
+By default, events are written to local JSONL under `storage.local_data_dir`. To write events to a Databricks table, set `storage.agent_events_table` to a writable three-part table name. When `storage.agent_events_table` is set, an active Spark session is required; the template never silently falls back from table persistence to local persistence.
 
 ## Quickstart: first successful local run
 
@@ -199,13 +199,13 @@ This checks that:
 
 #### What `preflight` checks
 
-`preflight` is a local configuration sanity check. It loads the same config path used by the runtime, checks that required local settings are present, constructs the configured tool provider, confirms tools can be discovered, and reports which event-log persistence path this environment would use.
+`preflight` is a local configuration sanity check. It loads the same config path used by the runtime, checks that required local settings are present, constructs the configured tool provider, confirms tools can be discovered, and reports the configured event-log persistence mode.
 
 It intentionally stays lightweight and mostly offline. It does not call the LLM endpoint, verify that the serving endpoint exists, verify serving permissions, run an agent task, or prove that a deployed Databricks job will succeed.
 
 For an end-to-end live check, run the sample agent task or evals after preflight passes.
 
-When Spark is unavailable locally, `preflight` reports that local JSONL fallback would be used. When Spark is available but `storage.agent_events_table` has not been initialized yet, `preflight` fails intentionally and the required next step is `init_storage_job`.
+When `storage.agent_events_table` is unset, `preflight` reports `Storage mode: local_jsonl`. When it is set, `preflight` reports `Storage mode: spark_table` and requires the configured table to be initialized.
 
 ### Step 3: discover tools
 
@@ -407,7 +407,7 @@ The template includes a `prod` target for future use, but prod CD automation is 
 
 ### Local development
 
-When Spark is unavailable, the project falls back to local persistence under:
+When `storage.agent_events_table` is unset, the project writes local persistence under:
 
 ```text
 .local_state/
@@ -419,15 +419,15 @@ The directory and JSONL file appear lazily on the first write.
 
 ### Databricks runs
 
-When Spark is available, the project uses the Delta event store configured in `workspace-config.yml`:
+When `storage.agent_events_table` is set, the project requires an active Spark session and uses the Delta event store configured in `workspace-config.yml`:
 
 - `storage.agent_events_table`
 
-Before you rely on deployed runs, make sure `storage.agent_events_table` points to a writable location, then run `databricks bundle run --target local init_storage_job` for local deployment or let GitHub CD run `databricks bundle run --target dev init_storage_job` for shared dev deployment.
+Before you rely on table-backed runs, make sure `storage.agent_events_table` points to a writable location, then run `databricks bundle run --target local init_storage_job` for local deployment or let GitHub CD run `databricks bundle run --target dev init_storage_job` for shared dev deployment.
 
 ## Persistence model
 
-The template uses one append-only event store shared across local JSONL and Databricks Delta. Operator-facing paths are:
+The template uses one append-only event store shape across local JSONL and Databricks Delta. Operator-facing paths are:
 
 - local: `.local_state/agent_events.jsonl`
 - remote: `storage.agent_events_table`
@@ -506,11 +506,11 @@ Also make sure the serving endpoint supports the tool/function-calling pattern t
 
 Check the wording in [`examples/demo_run_task.json`](examples/demo_run_task.json) and the local tool descriptions in [`src/databricks_mcp_agent_hello_world/app/registry.py`](src/databricks_mcp_agent_hello_world/app/registry.py). Task clarity and tool descriptions directly affect runtime tool selection.
 
-### Local logs say Spark is unavailable
+### Local runs write JSONL events
 
-That is normal during local development.
+That is the default starter behavior.
 
-The project will use `./.local_state` instead of Delta when Spark is not available.
+The project will use `./.local_state` unless you set `storage.agent_events_table`.
 
 ### `preflight` says the Delta event store is not initialized yet
 

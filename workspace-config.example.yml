@@ -27,8 +27,7 @@ tools:
     #   url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
 
 storage:
-  # One canonical event store backs both local JSONL and Databricks Delta persistence.
-  # On Databricks compute, the runtime appends event rows to this Delta table.
-  agent_events_table: main.agent_demo.agent_events
-  # Local runs fall back to JSONL event logs here when Spark is unavailable.
+  # Default: local JSONL event logs. Set agent_events_table to a 3-part
+  # catalog.schema.table name to require Spark-backed Delta persistence.
+  agent_events_table: null
   local_data_dir: ./.local_state

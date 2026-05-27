@@ -96,10 +96,12 @@ Databricks authentication is handled by the Databricks SDK. The template passes 
 
 The persisted source of truth is an append-only event log with one row per execution event. Summary objects such as `AgentRunRecord` still exist as runtime conveniences for CLI output and evals, but they are no longer the authored storage contract.
 
-Storage bootstrap is split by runtime:
+Storage routing is explicit:
 
-- local JSONL is created lazily on first write
-- remote Delta bootstrap is explicit and runs through `init_storage_job`
+- `storage.agent_events_table` unset writes local JSONL under `storage.local_data_dir`
+- `storage.agent_events_table` set requires an active Spark session and writes to that table
+
+There is no Spark auto-upgrade and no silent fallback from configured table persistence to local persistence. Local JSONL is created lazily on first write. Remote Delta bootstrap is explicit and runs through `init_storage_job`.
 
 ### Why event rows replaced run/output summary rows
 
