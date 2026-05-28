@@ -62,7 +62,16 @@ If `storage.agent_events_table` is set, an active Spark session is required and 
 
 The template never silently falls back from table persistence to local persistence.
 
-## Eval Smoke Tests
+## Runtime And Eval Contracts
+
+Normal agent run records have one of two statuses:
+
+- `success`
+- `max_steps_exceeded`
+
+Unexpected runtime failures are raised as exceptions. The runner emits a `run_failed` event before re-raising; evals show those failures as scenario execution errors rather than agent run records.
+
+`tools_called` is the canonical tool-call trace on `AgentRunRecord`. The `result` payload is reserved for user-facing output such as `final_response`.
 
 Evals are a lightweight smoke-test harness that verifies run status, expected tool use, and required output text.
 

@@ -146,6 +146,8 @@ python -m nox -s tests
 
 Evals are a lightweight smoke-test harness that verifies run status, expected tool use, and required output text.
 
+Normal run statuses are `success` and `max_steps_exceeded`. Unexpected runtime failures are exceptions; evals report them as scenario execution errors. `tools_called` is the canonical tool-call trace, while `result` contains user-facing output.
+
 Supported scenario assertion fields are:
 
 - `expected_status`
