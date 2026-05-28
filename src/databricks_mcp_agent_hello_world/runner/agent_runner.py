@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..config import Settings
-from ..llm_client import DatabricksLLM
+from ..llm_client import DatabricksLLM, LLMToolCall, LLMTurnResult
 from ..models import (
     AgentRunRecord,
     AgentTaskRequest,
@@ -167,11 +167,7 @@ class AgentRunner:
             payload={
                 "error_type": type(exc).__name__,
                 "error_message": str(exc),
-                "result": self._build_result_payload(
-                    final_response="",
-                    discovered_tools=state.discovered_tools,
-                    tool_calls=state.tool_call_trace,
-                ),
+                "tools_called": state.tool_call_trace,
             },
         )
 
@@ -183,10 +179,10 @@ class AgentRunner:
 
     def _run_agent_loop(self, state: _RunState) -> AgentRunRecord:
         for _ in range(self.settings.max_agent_steps):
-            turn_index, message, tool_calls = self._run_llm_turn(state)
+            turn_index, turn = self._run_llm_turn(state)
 
-            if not tool_calls:
-                final_response = message.content or ""
+            if not turn.tool_calls:
+                final_response = turn.content or ""
                 record = self._build_success_record(state, final_response=final_response)
                 self._emit_run_completed(
                     state,
@@ -198,14 +194,14 @@ class AgentRunner:
             self._handle_tool_calls(
                 state,
                 turn_index=turn_index,
-                tool_calls=tool_calls,
+                tool_calls=turn.tool_calls,
             )
 
         record = self._build_max_steps_record(state)
         self._emit_run_max_steps_exceeded(state, record=record)
         return record
 
-    def _run_llm_turn(self, state: _RunState) -> tuple[int, Any, Any]:
+    def _run_llm_turn(self, state: _RunState) -> tuple[int, LLMTurnResult]:
         turn_index = state.llm_turn_count
         self._emit_event(
             state,
@@ -216,50 +212,62 @@ class AgentRunner:
                 "model": self.settings.llm_endpoint_name,
                 "messages": state.messages,
                 "tools": state.openai_tools,
-                "tool_choice": "auto",
             },
         )
         state.llm_turn_count += 1
 
-        response = self.llm.tool_step(
-            state.messages,
-            state.openai_tools,
-            tool_choice="auto",
+        turn = self.llm.chat(
+            messages=state.messages,
+            tools=state.openai_tools,
         )
-        message = response.choices[0].message
-        tool_calls = getattr(message, "tool_calls", None)
         terminal_excerpt = None
-        if not tool_calls and (message.content or ""):
-            terminal_excerpt = self._truncate_excerpt(message.content or "")
+        if not turn.tool_calls and (turn.content or ""):
+            terminal_excerpt = self._truncate_excerpt(turn.content or "")
 
         self._emit_event(
             state,
             event_type="llm_response",
             turn_index=turn_index,
             final_response_excerpt=terminal_excerpt,
-            payload=safe_jsonable(response),
+            payload=safe_jsonable(
+                turn.raw_response if turn.raw_response is not None else self._turn_payload(turn)
+            ),
         )
 
-        state.messages.append(self._build_assistant_message(message, tool_calls))
-        return turn_index, message, tool_calls
+        state.messages.append(self._build_assistant_message(turn))
+        return turn_index, turn
 
     @staticmethod
-    def _build_assistant_message(message: Any, tool_calls: Any) -> dict[str, Any]:
+    def _turn_payload(turn: LLMTurnResult) -> dict[str, Any]:
+        return {
+            "content": turn.content,
+            "tool_calls": [
+                {
+                    "id": call.id,
+                    "name": call.name,
+                    "arguments": call.arguments,
+                }
+                for call in turn.tool_calls
+            ],
+        }
+
+    @staticmethod
+    def _build_assistant_message(turn: LLMTurnResult) -> dict[str, Any]:
         assistant_message: dict[str, Any] = {
             "role": "assistant",
-            "content": message.content or "",
+            "content": turn.content or "",
         }
-        if tool_calls:
+        if turn.tool_calls:
             assistant_message["tool_calls"] = [
                 {
                     "id": call.id,
                     "type": "function",
                     "function": {
-                        "name": call.function.name,
-                        "arguments": call.function.arguments,
+                        "name": call.name,
+                        "arguments": call.arguments,
                     },
                 }
-                for call in tool_calls
+                for call in turn.tool_calls
             ]
         return assistant_message
 
@@ -268,10 +276,10 @@ class AgentRunner:
         state: _RunState,
         *,
         turn_index: int,
-        tool_calls: Any,
+        tool_calls: list[LLMToolCall],
     ) -> None:
         for index, call in enumerate(tool_calls, start=1):
-            tool_args, parse_error = self._parse_tool_arguments(call.function.arguments)
+            tool_args, parse_error = self._parse_tool_arguments(call.arguments)
 
             self._emit_tool_call_requested(
                 state,
@@ -283,7 +291,7 @@ class AgentRunner:
 
             if parse_error is not None:
                 tool_result = ToolResult(
-                    tool_name=call.function.name,
+                    tool_name=call.name,
                     status="error",
                     content={},
                     error=parse_error,
@@ -292,7 +300,7 @@ class AgentRunner:
                 tool_result = self._execute_tool_call(
                     tools_by_name=state.discovered_tools_by_name,
                     request_id=f"{state.task.run_id}:{state.llm_turn_count}:{index}",
-                    tool_name=call.function.name,
+                    tool_name=call.name,
                     arguments=tool_args,
                 )
 
@@ -316,7 +324,7 @@ class AgentRunner:
         state: _RunState,
         *,
         turn_index: int,
-        call: Any,
+        call: LLMToolCall,
         tool_args: dict[str, Any],
         parse_error: str | None,
     ) -> None:
@@ -325,10 +333,10 @@ class AgentRunner:
             event_type="tool_call",
             turn_index=turn_index,
             status="requested",
-            tool_name=call.function.name,
+            tool_name=call.name,
             tool_call_id=call.id,
             payload={
-                "arguments_raw": call.function.arguments,
+                "arguments_raw": call.arguments,
                 "arguments_parsed": tool_args if parse_error is None else None,
                 "parse_error": parse_error,
             },
@@ -339,7 +347,7 @@ class AgentRunner:
         state: _RunState,
         *,
         turn_index: int,
-        call: Any,
+        call: LLMToolCall,
         tool_result: ToolResult,
     ) -> None:
         self._emit_event(
@@ -347,7 +355,7 @@ class AgentRunner:
             event_type="tool_result",
             turn_index=turn_index,
             status=tool_result.status,
-            tool_name=call.function.name,
+            tool_name=call.name,
             tool_call_id=call.id,
             error_message=tool_result.error,
             payload=tool_result.model_dump(mode="json"),
@@ -357,14 +365,14 @@ class AgentRunner:
     def _record_tool_call_trace(
         state: _RunState,
         *,
-        call: Any,
+        call: LLMToolCall,
         tool_args: dict[str, Any],
         parse_error: str | None,
         tool_result: ToolResult,
     ) -> None:
         state.tool_call_trace.append(
             {
-                "tool_name": call.function.name,
+                "tool_name": call.name,
                 "arguments": tool_args if parse_error is None else {},
                 "status": tool_result.status,
                 "error": tool_result.error,
@@ -372,7 +380,7 @@ class AgentRunner:
         )
 
     @staticmethod
-    def _build_tool_message(call: Any, tool_result: ToolResult) -> dict[str, Any]:
+    def _build_tool_message(call: LLMToolCall, tool_result: ToolResult) -> dict[str, Any]:
         return {
             "role": "tool",
             "tool_call_id": call.id,
@@ -391,11 +399,7 @@ class AgentRunner:
             status="success",
             tools_called=state.tool_call_trace,
             llm_turn_count=state.llm_turn_count,
-            result=self._build_result_payload(
-                final_response=final_response,
-                discovered_tools=state.discovered_tools,
-                tool_calls=state.tool_call_trace,
-            ),
+            result={"final_response": final_response},
             inventory_hash=state.inventory_hash,
         )
 
@@ -423,11 +427,7 @@ class AgentRunner:
             status="max_steps_exceeded",
             tools_called=state.tool_call_trace,
             llm_turn_count=state.llm_turn_count,
-            result=self._build_result_payload(
-                final_response="",
-                discovered_tools=state.discovered_tools,
-                tool_calls=state.tool_call_trace,
-            ),
+            result={"reason": "max_steps_exceeded"},
             error_message="Maximum agent steps exceeded.",
             inventory_hash=state.inventory_hash,
         )
@@ -538,21 +538,6 @@ class AgentRunner:
         if not isinstance(parsed, dict):
             return {}, "Tool call arguments must decode to a JSON object."
         return parsed, None
-
-    @staticmethod
-    def _build_result_payload(
-        *,
-        final_response: str,
-        discovered_tools: list[RuntimeTool],
-        tool_calls: list[dict[str, Any]],
-    ) -> dict[str, Any]:
-        available_tools = [tool.name for tool in discovered_tools]
-        return {
-            "final_response": final_response,
-            "available_tools": available_tools,
-            "available_tools_count": len(available_tools),
-            "tool_calls": tool_calls,
-        }
 
     @staticmethod
     def _truncate_excerpt(content: str) -> str:

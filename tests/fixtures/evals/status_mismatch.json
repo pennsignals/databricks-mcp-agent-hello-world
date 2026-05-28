@@ -3,6 +3,6 @@
     "scenario_id": "status_mismatch",
     "description": "Fails when the run status differs from the expected status.",
     "task_input_file": "../../../examples/demo_run_task.json",
-    "expected_status": "error"
+    "expected_status": "max_steps_exceeded"
   }
 ]

@@ -51,12 +51,12 @@ def test_agent_runner_persists_run_contract_for_success(tmp_path: Path, monkeypa
     assert isinstance(record, AgentRunRecord)
     assert record.status == "success"
     assert record.result["final_response"] == "## Customer Brief\nAcme Co"
-    assert record.result["available_tools"] == [tool.name for tool in tools]
-    assert record.result["tool_calls"][0]["tool_name"] == "lookup_customer"
-    assert record.result["tool_calls"][0]["status"] == "ok"
+    assert "tool_calls" not in record.result
+    assert "available_tools" not in record.result
+    assert record.tools_called[0]["tool_name"] == "lookup_customer"
+    assert record.tools_called[0]["status"] == "ok"
     assert calls == [{"tool_name": "lookup_customer", "arguments": {"customer_id": "cust_acme"}}]
     assert runner.llm.call_args[0]["tools"] == [tool.spec for tool in tools]
-    assert runner.llm.call_args[0]["tool_choice"] == "auto"
     assert any(
         message["role"] == "tool" and message["tool_call_id"] == "call-1"
         for message in runner.llm.call_args[1]["messages"]
@@ -106,8 +106,8 @@ def test_agent_runner_rejects_unknown_tool_calls_without_executing_provider(
     )
 
     assert runner.provider.calls == []
-    assert record.result["tool_calls"][0]["status"] == "error"
-    assert record.result["tool_calls"][0]["error"] == "Unknown tool call: create_support_ticket"
+    assert record.tools_called[0]["status"] == "error"
+    assert record.tools_called[0]["error"] == "Unknown tool call: create_support_ticket"
 
 
 def test_agent_runner_works_with_tools_from_multiple_sources(
@@ -157,7 +157,6 @@ def test_agent_runner_works_with_tools_from_multiple_sources(
     )
 
     assert record.status == "success"
-    assert record.result["available_tools"] == ["lookup_customer", "lookup_remote_user"]
     assert calls == [{"tool_name": "lookup_remote_user", "arguments": {"user_id": "usr_1"}}]
     assert runner.llm.call_args[0]["tools"] == [local_tool.spec, remote_tool.spec]
     tool_result_event = next(
@@ -187,7 +186,7 @@ def test_agent_runner_marks_malformed_tool_arguments_as_error_without_crashing(
     )
 
     assert record.status == "success"
-    assert record.result["tool_calls"][0]["status"] == "error"
+    assert record.tools_called[0]["status"] == "error"
     tool_result_event = next(
         row for row in runner.persisted_event_rows if row["event_type"] == "tool_result"
     )
@@ -239,10 +238,8 @@ def test_agent_runner_rejects_invalid_tool_arguments_before_execution(
 
     assert calls == []
     assert record.status == "success"
-    assert record.result["tool_calls"][0]["status"] == "error"
-    assert (
-        "Invalid arguments for tool `lookup_remote_user`" in record.result["tool_calls"][0]["error"]
-    )
+    assert record.tools_called[0]["status"] == "error"
+    assert "Invalid arguments for tool `lookup_remote_user`" in record.tools_called[0]["error"]
     tool_result_event = next(
         row for row in runner.persisted_event_rows if row["event_type"] == "tool_result"
     )
@@ -294,8 +291,8 @@ def test_agent_runner_reports_invalid_remote_tool_schema_separately(
     )
 
     assert calls == []
-    assert record.result["tool_calls"][0]["status"] == "error"
-    assert "Invalid schema for tool `bad_remote_tool`" in record.result["tool_calls"][0]["error"]
+    assert record.tools_called[0]["status"] == "error"
+    assert "Invalid schema for tool `bad_remote_tool`" in record.tools_called[0]["error"]
     tool_result_event = next(
         row for row in runner.persisted_event_rows if row["event_type"] == "tool_result"
     )
@@ -332,6 +329,8 @@ def test_agent_runner_returns_max_steps_exceeded_when_llm_never_finishes(
     )
 
     assert record.status == "max_steps_exceeded"
+    assert record.result == {"reason": "max_steps_exceeded"}
+    assert record.tools_called[0]["tool_name"] == "lookup_customer"
     assert runner.persisted_event_rows[-1]["event_type"] == "run_max_steps_exceeded"
     assert runner.persisted_event_rows[-1]["status"] == "max_steps_exceeded"
 
@@ -361,5 +360,5 @@ def test_agent_runner_emits_error_event_when_tool_execution_raises(
         )
     )
 
-    assert record.result["tool_calls"][0]["status"] == "error"
-    assert record.result["tool_calls"][0]["error"] == "tool boom: lookup_customer"
+    assert record.tools_called[0]["status"] == "error"
+    assert record.tools_called[0]["error"] == "tool boom: lookup_customer"

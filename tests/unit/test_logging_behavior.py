@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 
+from databricks_mcp_agent_hello_world.llm_client import LLMToolCall, LLMTurnResult
 from databricks_mcp_agent_hello_world.models import AgentTaskRequest
 from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
 from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool, ToolSource
@@ -22,8 +23,8 @@ class StubLLM:
         self.responses = responses
         self.calls = 0
 
-    def tool_step(self, messages, tools, tool_choice=None):
-        del messages, tools, tool_choice
+    def chat(self, *, messages, tools):
+        del messages, tools
         response = self.responses[self.calls]
         self.calls += 1
         return response
@@ -50,13 +51,11 @@ def _tool(name: str) -> RuntimeTool:
 
 
 def _response(content: str | None = None, tool_calls=None):
-    message = SimpleNamespace(content=content, tool_calls=tool_calls)
-    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+    return LLMTurnResult(content=content, tool_calls=tool_calls or [])
 
 
 def _tool_call(name: str, arguments: str, call_id: str = "call-1"):
-    function = SimpleNamespace(name=name, arguments=arguments)
-    return SimpleNamespace(id=call_id, function=function)
+    return LLMToolCall(id=call_id, name=name, arguments=arguments)
 
 
 def _runner(tmp_path: Path, llm, *, tools: list[RuntimeTool] | None = None) -> AgentRunner:
@@ -100,7 +99,7 @@ def test_unknown_tool_call_logs_warning_without_old_blocked_language(
         )
     )
 
-    assert record.result["tool_calls"][0]["status"] == "error"
+    assert record.tools_called[0]["status"] == "error"
     assert any(
         logged.levelno == logging.WARNING
         and logged.message == "Unknown tool call: create_support_ticket"

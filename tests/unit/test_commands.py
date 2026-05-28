@@ -14,27 +14,25 @@ from databricks_mcp_agent_hello_world.commands import (
 from databricks_mcp_agent_hello_world.models import AgentRunRecord, EvalRunReport
 
 
-def _record(status: Literal["success", "error", "max_steps_exceeded"]) -> AgentRunRecord:
+def _record(status: Literal["success", "max_steps_exceeded"]) -> AgentRunRecord:
     return AgentRunRecord(
         run_id="run-123",
         task_name="workspace_onboarding_brief",
         status=status,
         result={
             "final_response": "",
-            "available_tools": ["get_user_profile"],
-            "tool_calls": [],
         },
     )
 
 
 @pytest.mark.parametrize(
     ("status", "expected_exit_code"),
-    [("success", 0), ("max_steps_exceeded", 1), ("error", 1)],
+    [("success", 0), ("max_steps_exceeded", 1)],
 )
 def test_run_agent_task_command_maps_run_status_to_exit_code(
     monkeypatch,
     demo_task_input: dict[str, object],
-    status: Literal["success", "error", "max_steps_exceeded"],
+    status: Literal["success", "max_steps_exceeded"],
     expected_exit_code: int,
 ) -> None:
     monkeypatch.setattr(

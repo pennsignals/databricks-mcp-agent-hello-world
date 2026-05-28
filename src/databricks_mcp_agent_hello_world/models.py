@@ -38,7 +38,7 @@ class AgentTaskRequest(BaseModel):
 class AgentRunRecord(BaseModel):
     run_id: str
     task_name: str
-    status: Literal["success", "error", "max_steps_exceeded"]
+    status: Literal["success", "max_steps_exceeded"]
     tools_called: list[dict[str, Any]] = Field(default_factory=list)
     llm_turn_count: int = 0
     result: dict[str, Any] = Field(default_factory=dict)
@@ -77,7 +77,7 @@ class EvalScenario(BaseModel):
     task_input: AgentTaskRequest | None = None
     task_input_file: str | None = None
 
-    expected_status: Literal["success", "error", "max_steps_exceeded"] = "success"
+    expected_status: Literal["success", "max_steps_exceeded"] = "success"
     required_executed_tools: list[str] = Field(default_factory=list)
     forbidden_executed_tools: list[str] = Field(default_factory=list)
     required_output_substrings: list[str] = Field(default_factory=list)
@@ -97,7 +97,6 @@ class EvalScenarioResult(BaseModel):
     actual_status: str | None = None
     task_name: str
     run_record_id: str | None = None
-    available_tools: list[str] = Field(default_factory=list)
     executed_tools: list[str] = Field(default_factory=list)
     final_response_excerpt: str = ""
     missing_required_executed_tools: list[str] = Field(default_factory=list)

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+from databricks_mcp_agent_hello_world.llm_client import LLMToolCall, LLMTurnResult
 from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
 from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool, ToolSource
 
@@ -27,8 +28,8 @@ class StubLLM:
         self.calls = 0
         self.call_args = []
 
-    def tool_step(self, messages, tools, tool_choice=None):
-        self.call_args.append({"messages": messages, "tools": tools, "tool_choice": tool_choice})
+    def chat(self, *, messages, tools):
+        self.call_args.append({"messages": messages, "tools": tools})
         response = self.responses[self.calls]
         self.calls += 1
         if isinstance(response, Exception):
@@ -71,13 +72,11 @@ def discovered_tools(calls: list | None = None) -> list[RuntimeTool]:
 
 
 def llm_response(content: str | None = None, tool_calls=None):
-    message = SimpleNamespace(content=content, tool_calls=tool_calls)
-    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+    return LLMTurnResult(content=content, tool_calls=tool_calls or [])
 
 
 def tool_call(name: str, arguments: str, call_id: str = "call-1"):
-    function = SimpleNamespace(name=name, arguments=arguments)
-    return SimpleNamespace(id=call_id, function=function)
+    return LLMToolCall(id=call_id, name=name, arguments=arguments)
 
 
 def runner(

@@ -153,6 +153,6 @@ def _load_settings_for_command(
 def _agent_run_exit_code(record: AgentRunRecord) -> int:
     if record.status == "success":
         return 0
-    if record.status in {"max_steps_exceeded", "error"}:
+    if record.status == "max_steps_exceeded":
         return 1
     raise ValueError(f"Unsupported agent run status: {record.status}")

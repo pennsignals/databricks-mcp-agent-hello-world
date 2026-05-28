@@ -41,8 +41,6 @@ def test_agent_run_record_matches_current_runtime_shape() -> None:
         status="success",
         result={
             "final_response": "done",
-            "available_tools": ["sample_tool"],
-            "tool_calls": [],
         },
     )
 
@@ -63,3 +61,12 @@ def test_agent_run_record_matches_current_runtime_shape() -> None:
 def test_eval_scenario_rejects_invalid_task_input_sources() -> None:
     with pytest.raises(ValidationError, match="exactly one of task_input or task_input_file"):
         EvalScenario(scenario_id="missing-input", description="Invalid scenario")
+
+
+def test_agent_run_record_rejects_error_status() -> None:
+    with pytest.raises(ValidationError):
+        AgentRunRecord(
+            run_id="run-1",
+            task_name="workspace_onboarding_brief",
+            status="error",
+        )

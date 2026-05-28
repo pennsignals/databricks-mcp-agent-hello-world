@@ -39,14 +39,12 @@ def _settings(tmp_path: Path):
 
 def _record(
     *,
-    status: Literal["success", "error", "max_steps_exceeded"] = "success",
+    status: Literal["success", "max_steps_exceeded"] = "success",
     final_response: str = "Acme Co is an enterprise customer in us-west.",
-    available_tools: list[str] | None = None,
     tool_calls: list[dict] | None = None,
     result_overrides: dict | None = None,
     run_id: str = "run-123",
 ) -> AgentRunRecord:
-    available_tools = available_tools or ["lookup_customer", "create_support_ticket"]
     tool_calls = tool_calls or [
         {
             "tool_name": "lookup_customer",
@@ -57,12 +55,16 @@ def _record(
     ]
     result = {
         "final_response": final_response,
-        "available_tools": available_tools,
-        "tool_calls": tool_calls,
     }
     if result_overrides:
         result.update(result_overrides)
-    return AgentRunRecord(run_id=run_id, task_name="run-task", status=status, result=result)
+    return AgentRunRecord(
+        run_id=run_id,
+        task_name="run-task",
+        status=status,
+        tools_called=tool_calls,
+        result=result,
+    )
 
 
 def _write_scenarios(tmp_path: Path, scenarios: list[dict]) -> str:
@@ -223,7 +225,6 @@ def test_run_evals_records_required_executed_tools(
         ],
         [
             _record(
-                available_tools=["lookup_customer", "create_support_ticket"],
                 tool_calls=[
                     {
                         "tool_name": "lookup_customer",
@@ -238,7 +239,6 @@ def test_run_evals_records_required_executed_tools(
     )
 
     assert report.results[0].passed is True
-    assert report.results[0].available_tools == ["lookup_customer", "create_support_ticket"]
     assert report.results[0].executed_tools == ["lookup_customer"]
     assert (tmp_path / "evals" / "latest_eval_report.json").exists()
 
@@ -262,7 +262,6 @@ def test_run_evals_records_forbidden_executed_tools(
         ],
         [
             _record(
-                available_tools=["lookup_customer", "create_support_ticket"],
                 tool_calls=[
                     {
                         "tool_name": "lookup_customer",
@@ -303,10 +302,11 @@ def test_run_evals_marks_status_mismatch_and_missing_output_substrings(
                 "scenario_id": "status-mismatch",
                 "description": "Requires success with specific output",
                 "task_input_file": "../examples/demo_run_task.json",
+                "expected_status": "max_steps_exceeded",
                 "required_output_substrings": ["Acme Co"],
             }
         ],
-        [_record(status="error", final_response="short")],
+        [_record(status="success", final_response="short")],
         demo_task_input=demo_task_input,
     )
 
@@ -338,7 +338,6 @@ def test_run_evals_records_missing_required_executed_tools(
         [
             _record(
                 final_response="Globex is a startup customer.",
-                available_tools=["lookup_customer", "create_support_ticket"],
                 tool_calls=[
                     {
                         "tool_name": "create_support_ticket",

@@ -270,7 +270,7 @@ def test_run_named_command_renders_eval_failure_summary(monkeypatch, capsys) -> 
                     "status_mismatch",
                 ],
                 expected_status="success",
-                actual_status="error",
+                actual_status="max_steps_exceeded",
                 executed_tools=["get_user_profile", "create_support_ticket"],
                 final_response_excerpt="Grace Hopper uses python3.12 -m venv plus pip.",
                 task_name="workspace_onboarding_brief",
@@ -301,7 +301,7 @@ def test_run_named_command_renders_eval_failure_summary(monkeypatch, capsys) -> 
     assert "Task name: workspace_onboarding_brief" in output
     assert "Run id: run-123" in output
     assert "Expected status: success" in output
-    assert "Actual status: error" in output
+    assert "Actual status: max_steps_exceeded" in output
     assert "Missing output substrings: Ada Lovelace" in output
     assert "Missing executed tools: list_recent_job_runs" in output
     assert "Forbidden executed tools: create_support_ticket" in output
