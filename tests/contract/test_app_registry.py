@@ -1,17 +1,10 @@
 from __future__ import annotations
 
-import pytest
-
 from databricks_mcp_agent_hello_world.app.registry import (
     LOCAL_TOOL_DEFINITIONS,
-    LOCAL_TOOL_REGISTRY,
-    build_local_tool_registry,
-    list_local_tools,
+    build_app_local_tool_registry,
 )
-from databricks_mcp_agent_hello_world.tools.local import (
-    LocalToolDefinition,
-    local_definition_to_runtime_tool,
-)
+from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool
 
 
 def test_authored_app_registry_exposes_expected_inventory() -> None:
@@ -28,16 +21,26 @@ def test_public_local_tool_names_are_stable() -> None:
     }
 
 
-def test_build_local_tool_registry_keys_by_definition_name() -> None:
-    registry = build_local_tool_registry(LOCAL_TOOL_DEFINITIONS)
+def test_build_app_local_tool_registry_returns_demo_runtime_tools() -> None:
+    registry = build_app_local_tool_registry()
 
-    assert registry == LOCAL_TOOL_REGISTRY
+    assert list(registry) == ["lookup_customer", "create_support_ticket"]
     assert registry["lookup_customer"].name == "lookup_customer"
+    assert registry["create_support_ticket"].name == "create_support_ticket"
+    assert all(isinstance(tool, RuntimeTool) for tool in registry.values())
+
+
+def test_local_tool_names_are_unique() -> None:
+    names = [definition.name for definition in LOCAL_TOOL_DEFINITIONS]
+
+    assert len(names) == len(set(names))
 
 
 def test_local_tool_definitions_include_required_runtime_contract() -> None:
-    for definition in list_local_tools():
-        tool = local_definition_to_runtime_tool(definition)
+    registry = build_app_local_tool_registry()
+
+    for definition in LOCAL_TOOL_DEFINITIONS:
+        tool = registry[definition.name]
 
         assert tool.name == definition.name
         assert tool.spec["function"]["name"] == definition.name
@@ -46,61 +49,10 @@ def test_local_tool_definitions_include_required_runtime_contract() -> None:
         assert definition.input_schema["type"] == "object"
 
 
-def test_local_registry_does_not_own_provider_or_governance_metadata() -> None:
-    for definition in list_local_tools():
+def test_local_definitions_do_not_own_provider_or_governance_metadata() -> None:
+    for definition in LOCAL_TOOL_DEFINITIONS:
         assert not hasattr(definition, "provider_id")
         assert not hasattr(definition, "capability_tags")
         assert not hasattr(definition, "side_effect_level")
         assert not hasattr(definition, "data_domains")
         assert not hasattr(definition, "example_uses")
-
-
-def test_build_local_tool_registry_rejects_duplicate_names() -> None:
-    duplicate_tool = LocalToolDefinition(
-        name="duplicate",
-        description="Duplicate tool",
-        input_schema={"type": "object", "properties": {}},
-        fn=dict,
-    )
-
-    with pytest.raises(ValueError, match="Duplicate local tool name: duplicate"):
-        build_local_tool_registry((duplicate_tool, duplicate_tool))
-
-
-def test_build_local_tool_registry_rejects_empty_name() -> None:
-    definition = LocalToolDefinition(
-        name="",
-        description="Empty name",
-        input_schema={"type": "object", "properties": {}},
-        fn=dict,
-    )
-
-    with pytest.raises(ValueError, match=r"Local tool definition has empty name\."):
-        build_local_tool_registry((definition,))
-
-
-def test_build_local_tool_registry_rejects_whitespace_only_name() -> None:
-    definition = LocalToolDefinition(
-        name="   ",
-        description="Whitespace-only name",
-        input_schema={"type": "object", "properties": {}},
-        fn=dict,
-    )
-
-    with pytest.raises(ValueError, match=r"Local tool definition has empty name\."):
-        build_local_tool_registry((definition,))
-
-
-def test_build_local_tool_registry_rejects_non_callable_fn() -> None:
-    definition = LocalToolDefinition(
-        name="not_callable",
-        description="Non-callable fn",
-        input_schema={"type": "object", "properties": {}},
-        fn="not callable",  # type: ignore[arg-type]
-    )
-
-    with pytest.raises(
-        ValueError,
-        match=r"Local tool `not_callable` has non-callable fn\.",
-    ):
-        build_local_tool_registry((definition,))

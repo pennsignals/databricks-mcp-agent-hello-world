@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
-
-from ..tools.local import LocalToolDefinition
-from . import tools as app_tools
+from databricks_mcp_agent_hello_world.app.tools import (
+    create_support_ticket,
+    lookup_customer,
+)
+from databricks_mcp_agent_hello_world.tools.local import (
+    LocalToolDefinition,
+    build_local_tool_registry,
+)
+from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool
 
 # TEMPLATE_CUSTOMIZE_HERE
 # Replace these example app registry entries with your real local tools.
@@ -20,7 +25,7 @@ LOCAL_TOOL_DEFINITIONS: tuple[LocalToolDefinition, ...] = (
             "required": ["customer_id"],
             "additionalProperties": False,
         },
-        fn=app_tools.lookup_customer,
+        handler=lookup_customer,
     ),
     LocalToolDefinition(
         name="create_support_ticket",
@@ -38,33 +43,10 @@ LOCAL_TOOL_DEFINITIONS: tuple[LocalToolDefinition, ...] = (
             "required": ["summary"],
             "additionalProperties": False,
         },
-        fn=app_tools.create_support_ticket,
+        handler=create_support_ticket,
     ),
 )
 
 
-def build_local_tool_registry(
-    definitions: Iterable[LocalToolDefinition] = LOCAL_TOOL_DEFINITIONS,
-) -> dict[str, LocalToolDefinition]:
-    registry: dict[str, LocalToolDefinition] = {}
-
-    for definition in definitions:
-        if not definition.name.strip():
-            raise ValueError("Local tool definition has empty name.")
-
-        if not callable(definition.fn):
-            raise ValueError(f"Local tool `{definition.name}` has non-callable fn.")
-
-        if definition.name in registry:
-            raise ValueError(f"Duplicate local tool name: {definition.name}")
-
-        registry[definition.name] = definition
-
-    return registry
-
-
-LOCAL_TOOL_REGISTRY = build_local_tool_registry()
-
-
-def list_local_tools() -> list[LocalToolDefinition]:
-    return list(LOCAL_TOOL_DEFINITIONS)
+def build_app_local_tool_registry() -> dict[str, RuntimeTool]:
+    return build_local_tool_registry(LOCAL_TOOL_DEFINITIONS)

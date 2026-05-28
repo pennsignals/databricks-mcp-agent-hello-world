@@ -13,19 +13,24 @@ This file is the canonical sample task. The local demo command and default job w
 
 ## 2. Replace Local Python Tools
 
-Edit:
+Edit [src/databricks_mcp_agent_hello_world/app/tools.py](../src/databricks_mcp_agent_hello_world/app/tools.py)
+for the Python implementations.
 
-- [src/databricks_mcp_agent_hello_world/app/tools.py](../src/databricks_mcp_agent_hello_world/app/tools.py)
-- [src/databricks_mcp_agent_hello_world/app/registry.py](../src/databricks_mcp_agent_hello_world/app/registry.py)
+Edit [src/databricks_mcp_agent_hello_world/app/registry.py](../src/databricks_mcp_agent_hello_world/app/registry.py)
+and its `LOCAL_TOOL_DEFINITIONS` tuple for each tool's model-facing contract.
 
 For each local tool, define:
 
 - `name`
 - `description`
 - `input_schema`
-- `fn`
+- `handler`
 
-The local adapter turns those fields into the function spec shown to the model.
+Tool descriptions are visible to the model. State what the tool does and when it
+should be used so the model can choose between the full discovered inventory.
+
+The local adapter turns each `LocalToolDefinition` into a `RuntimeTool` during
+local provider initialization.
 
 ## 3. Configure Tool Sources
 

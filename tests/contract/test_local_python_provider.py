@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import pytest
-
 from databricks_mcp_agent_hello_world.providers.local_python import LocalPythonToolProvider
-from databricks_mcp_agent_hello_world.tools.runtime import inventory_hash
-from databricks_mcp_agent_hello_world.tools.validation import ToolInputValidationError
+from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool, ToolSource, inventory_hash
 
 
 def test_local_python_provider_returns_runtime_tools_matching_local_registry() -> None:
@@ -26,38 +23,27 @@ def test_inventory_hash_is_stable_for_the_same_inventory() -> None:
     assert inventory_hash(provider.list_tools()) == inventory_hash(provider.list_tools())
 
 
-def test_local_python_provider_invokes_lookup_customer() -> None:
-    provider = LocalPythonToolProvider()
+def test_local_python_provider_accepts_injected_runtime_registry() -> None:
+    custom_tool = _runtime_tool("custom_tool")
+    injected_registry = {"custom_tool": custom_tool}
+    provider = LocalPythonToolProvider(tool_registry=injected_registry)
 
-    assert (
-        provider.invoke_tool("lookup_customer", {"customer_id": "cust_acme"})["name"] == "Acme Co"
+    injected_registry["other_tool"] = _runtime_tool("other_tool")
+
+    assert provider.list_tools() == [custom_tool]
+
+
+def _runtime_tool(name: str) -> RuntimeTool:
+    return RuntimeTool(
+        name=name,
+        spec={
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": f"{name} description",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        },
+        execute=dict,
+        source=ToolSource(type="local_python", id="local_python"),
     )
-
-
-def test_local_python_provider_validates_arguments_before_invocation() -> None:
-    provider = LocalPythonToolProvider()
-
-    with pytest.raises(ToolInputValidationError, match="Additional properties"):
-        provider.invoke_tool(
-            "lookup_customer",
-            {"customer_id": "cust_acme", "extra": "ignored"},
-        )
-
-
-def test_local_python_provider_invokes_create_support_ticket() -> None:
-    provider = LocalPythonToolProvider()
-
-    assert (
-        provider.invoke_tool(
-            "create_support_ticket",
-            {"summary": "Need help with onboarding"},
-        )["status"]
-        == "created"
-    )
-
-
-def test_local_python_provider_rejects_unknown_tool() -> None:
-    provider = LocalPythonToolProvider()
-
-    with pytest.raises(ValueError, match="Unknown local tool: missing"):
-        provider.invoke_tool("missing", {})
