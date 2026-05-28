@@ -158,9 +158,43 @@ def test_sample_eval_scenarios_use_supported_assertions(repo_root: Path) -> None
 
 def test_default_sample_eval_forbids_write_like_tool(repo_root: Path) -> None:
     scenarios = json.loads((repo_root / "evals" / "sample_scenarios.json").read_text())
+    scenarios_by_id = {scenario["scenario_id"]: scenario for scenario in scenarios}
 
-    default_demo = scenarios[0]
+    default_demo = scenarios_by_id["customer_brief_selects_lookup_customer"]
 
+    assert "Default customer brief task" in default_demo["description"]
     assert default_demo["task_input_file"] == "../examples/demo_run_task.json"
     assert default_demo["required_executed_tools"] == ["lookup_customer"]
     assert default_demo["forbidden_executed_tools"] == ["create_support_ticket"]
+
+
+def test_explicit_ticket_sample_eval_expects_write_like_tool(repo_root: Path) -> None:
+    scenarios = json.loads((repo_root / "evals" / "sample_scenarios.json").read_text())
+    scenarios_by_id = {scenario["scenario_id"]: scenario for scenario in scenarios}
+
+    ticket_demo = scenarios_by_id["explicit_ticket_request_selects_create_support_ticket"]
+
+    assert "Explicit support-ticket task" in ticket_demo["description"]
+    assert "should use create_support_ticket" in ticket_demo["description"]
+    assert ticket_demo["required_executed_tools"] == ["create_support_ticket"]
+
+
+def test_default_demo_task_omits_allow_mutations(repo_root: Path) -> None:
+    task_input = json.loads((repo_root / "examples" / "demo_run_task.json").read_text())
+    task_instructions = task_input["instructions"].lower()
+
+    assert "allow_mutations" not in task_input["payload"]
+    assert "instructions" not in task_input["payload"]
+    assert "read-only" in task_instructions
+    assert "support ticket" in task_instructions
+
+
+def test_docs_explain_two_tool_demo_and_mutation_contract(repo_root: Path) -> None:
+    for path in ["README.md", "docs/CONVERT_TEMPLATE_TO_REAL_APP.md"]:
+        text = (repo_root / path).read_text(encoding="utf-8")
+
+        assert "### Why are there two demo tools?" in text
+        assert "`lookup_customer`: relevant to the default customer brief task" in text
+        assert "only `lookup_customer` is selected for the default customer brief task" in text
+        assert "prompt context used to demonstrate LLM behavior" in text
+        assert "does not implement a generic mutation-safety policy" in text

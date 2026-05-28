@@ -105,15 +105,38 @@ def test_load_eval_scenarios_validates_authored_eval_fixtures(repo_root: Path) -
 
 def test_load_eval_scenarios_uses_canonical_demo_task_file(repo_root: Path) -> None:
     scenarios = load_eval_scenarios(str(repo_root / "evals" / "sample_scenarios.json"))
+    scenarios_by_id = {scenario.scenario_id: scenario for scenario in scenarios}
+    default_demo = scenarios_by_id["customer_brief_selects_lookup_customer"]
 
-    assert scenarios[0].task_input is not None
-    assert scenarios[0].task_input_file is None
-    assert scenarios[0].task_input.task_name == "customer_account_brief"
-    assert scenarios[0].task_input.payload["required_fields"] == [
+    assert default_demo.task_input is not None
+    assert default_demo.task_input_file is None
+    assert default_demo.task_input.task_name == "customer_account_brief"
+    assert default_demo.task_input.payload["required_fields"] == [
         "name",
         "tier",
         "region",
     ]
+    assert "allow_mutations" not in default_demo.task_input.payload
+    assert "instructions" not in default_demo.task_input.payload
+    task_instructions = default_demo.task_input.instructions.lower()
+    assert "read-only" in task_instructions
+    assert "support ticket" in task_instructions
+
+
+def test_sample_scenarios_describe_demo_tool_selection(repo_root: Path) -> None:
+    scenarios = load_eval_scenarios(str(repo_root / "evals" / "sample_scenarios.json"))
+    scenarios_by_id = {scenario.scenario_id: scenario for scenario in scenarios}
+    default_demo = scenarios_by_id["customer_brief_selects_lookup_customer"]
+    ticket_demo = scenarios_by_id["explicit_ticket_request_selects_create_support_ticket"]
+
+    assert default_demo.required_executed_tools == ["lookup_customer"]
+    assert default_demo.forbidden_executed_tools == ["create_support_ticket"]
+    assert ticket_demo.required_executed_tools == ["create_support_ticket"]
+    assert "should use create_support_ticket" in ticket_demo.description
+    assert ticket_demo.task_input is not None
+    assert "allow_mutations" not in ticket_demo.task_input.payload
+    assert "instructions" not in ticket_demo.task_input.payload
+    assert "support ticket" in ticket_demo.task_input.instructions.lower()
 
 
 def test_file_backed_sample_scenarios_expect_demo_customer_name(repo_root: Path) -> None:
