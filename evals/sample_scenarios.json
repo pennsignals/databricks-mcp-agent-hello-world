@@ -1,7 +1,7 @@
 [
   {
-    "scenario_id": "customer_brief_happy_path",
-    "description": "Runs the standard read-only customer account brief for Acme Co.",
+    "scenario_id": "customer_brief_selects_lookup_customer",
+    "description": "Default customer brief task should use lookup_customer and should not use create_support_ticket.",
     "expected_status": "success",
     "task_input_file": "../examples/demo_run_task.json",
     "required_executed_tools": [
@@ -17,16 +17,15 @@
     ]
   },
   {
-    "scenario_id": "support_ticket_happy_path",
-    "description": "Runs a tiny write-tool task and requires support ticket creation.",
+    "scenario_id": "explicit_ticket_request_selects_create_support_ticket",
+    "description": "Explicit support-ticket task should use create_support_ticket.",
     "expected_status": "success",
     "task_input": {
       "task_name": "create_customer_support_ticket",
-      "instructions": "Create a low-severity support ticket with the summary 'Customer asked for onboarding help'. Return the ticket id and status.",
+      "instructions": "Create a demo low-severity support ticket with the summary 'Customer asked for onboarding help'. Return the ticket id and status.",
       "payload": {
         "summary": "Customer asked for onboarding help",
         "severity": "low",
-        "allow_mutations": true,
         "output_format": "markdown"
       }
     },

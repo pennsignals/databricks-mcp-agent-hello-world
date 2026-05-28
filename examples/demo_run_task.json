@@ -1,6 +1,6 @@
 {
   "task_name": "customer_account_brief",
-  "instructions": "Write a concise customer account brief. Include exactly three factual items from the customer lookup: (1) the customer name, (2) tier, and (3) region. Use tools for all factual content. Do not modify external state. Return markdown.",
+  "instructions": "Write a concise read-only customer account brief. Include exactly three factual items from the customer lookup: (1) the customer name, (2) tier, and (3) region. Use tools only to retrieve factual context. Do not create, update, file, or write support tickets. Return markdown.",
   "payload": {
     "customer_id": "cust_acme",
     "required_fields": [
@@ -8,7 +8,6 @@
       "tier",
       "region"
     ],
-    "allow_mutations": false,
     "output_format": "markdown"
   }
 }

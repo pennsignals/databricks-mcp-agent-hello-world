@@ -93,7 +93,20 @@ For the built-in example app, discovery should show:
 - `lookup_customer`
 - `create_support_ticket`
 
-The default local inventory intentionally includes a relevant read tool and an irrelevant write-like tool. The demo task should use `lookup_customer` and should not use `create_support_ticket`; this shows that the model sees the full inventory but should select only tools relevant to the task.
+### Why are there two demo tools?
+
+The template intentionally exposes two local tools to the LLM:
+
+- `lookup_customer`: relevant to the default customer brief task
+- `create_support_ticket`: intentionally irrelevant unless the user explicitly asks for a support ticket
+
+The default task demonstrates that the LLM can select the useful tool from a larger inventory. In local or deployed runs, the expected behavior is that only `lookup_customer` is selected for the default customer brief task.
+
+The default task's read-only instruction is prompt context used to demonstrate LLM behavior, not a runtime safety gate.
+
+Unit tests cannot prove live LLM tool-selection behavior without a real LLM call, so the included eval scenario acts as a smoke check.
+
+The demo write-like tool is harmless and does not perform external writes. The template does not implement a generic mutation-safety policy. If you add real side-effecting tools, add domain-specific safeguards appropriate for your use case.
 
 ## Run The Demo Task
 

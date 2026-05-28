@@ -15,10 +15,7 @@ from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool
 LOCAL_TOOL_DEFINITIONS: tuple[LocalToolDefinition, ...] = (
     LocalToolDefinition(
         name="lookup_customer",
-        description=(
-            "Fetch a demo customer's account details by customer_id. Use this "
-            "when a task needs the customer's name, tier, or region."
-        ),
+        description="Look up customer/account context for customer brief tasks.",
         input_schema={
             "type": "object",
             "properties": {"customer_id": {"type": "string"}},
@@ -30,9 +27,8 @@ LOCAL_TOOL_DEFINITIONS: tuple[LocalToolDefinition, ...] = (
     LocalToolDefinition(
         name="create_support_ticket",
         description=(
-            "Create a support ticket with a short summary and severity. Use "
-            "this only when the task explicitly asks to create or file a "
-            "support request."
+            "Create a demo support-ticket record. Use only when the task explicitly "
+            "asks to create, draft, or file a support ticket."
         ),
         input_schema={
             "type": "object",
