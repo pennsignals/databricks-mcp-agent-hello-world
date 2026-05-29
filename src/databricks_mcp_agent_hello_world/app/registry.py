@@ -15,7 +15,11 @@ from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool
 LOCAL_TOOL_DEFINITIONS: tuple[LocalToolDefinition, ...] = (
     LocalToolDefinition(
         name="lookup_customer",
-        description="Look up customer/account context for customer brief tasks.",
+        description=(
+            "Fetch a demo customer's account details by customer_id, including "
+            "customer name, tier, and region. Use this when a task needs factual "
+            "customer account context."
+        ),
         input_schema={
             "type": "object",
             "properties": {"customer_id": {"type": "string"}},
