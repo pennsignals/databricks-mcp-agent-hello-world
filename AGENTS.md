@@ -13,10 +13,15 @@ This is the internal maintainer guide for the template. For setup and first run,
 
 - Keep the README flow canonical for operator onboarding.
 - Treat [examples/demo_run_task.json](examples/demo_run_task.json) as the canonical sample task reference.
+- Keep all Databricks SDK client construction in `src/databricks_mcp_agent_hello_world/clients/databricks.py`; other modules should depend on the shared factory helpers.
 - Prefer the repo-local `.venv` for coding-agent local development when it already exists and has the needed tools installed.
 - Treat `python3.12 -m pre_commit run --all-files --show-diff-on-failure` as the standard validation command.
 - Treat `python3.12 -m pre_commit install` as the one-time workstation setup step for automatic git-hook enforcement.
 - Do not document raw lint, test, and build commands as the normal full-validation workflow.
+
+## Testing philosophy
+
+Tests should protect user-visible behavior and stable template contracts. Avoid asserting incidental internal structure, package layout, or helper implementation details unless they are part of a documented public contract. Exact event ordering should only be tested when order is contractual; otherwise verify required events and meaningful before/after relationships. Keep `nox` and pre-commit as the canonical hygiene path.
 
 ## Testing Levels
 

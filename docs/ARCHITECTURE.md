@@ -27,6 +27,8 @@ The final config shape is:
 
 Databricks authentication is handled by the Databricks SDK. The template passes `databricks_config_profile` and/or `workspace_host` through one shared client helper used by LLM, MCP, and preflight code.
 
+All Databricks SDK client construction belongs in `clients/databricks.py`; other modules should depend on the shared factory helpers.
+
 `agent_system_prompt_path` is optional. If omitted, the built-in default prompt is used. If set, the path must exist and contain non-empty text.
 
 ## Tool Source Discovery
