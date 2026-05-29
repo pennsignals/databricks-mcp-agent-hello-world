@@ -69,7 +69,7 @@ If `storage.agent_events_table` is set, an active Spark session is required and 
 
 The template never silently falls back from table persistence to local persistence.
 
-Observability events persist normalized LLM turn payloads, not raw SDK responses.
+Observability events persist normalized LLM turn payloads, not raw SDK responses. Normalized LLM response events contain only assistant `content` and normalized `tool_calls`.
 
 ## Runtime And Eval Contracts
 

@@ -83,9 +83,12 @@ def test_customer_brief_uses_lookup_customer_tool_and_persists_success_contract(
     assert all("conversation_id" not in row for row in events)
     assert all("event_id" not in row for row in events)
     assert event_payload(events[0])["available_tools_count"] == len(tools)
-    llm_response_event = next(row for row in events if row["event_type"] == "llm_response")
-    llm_response_payload = event_payload(llm_response_event)
-    assert llm_response_payload == {
+    llm_request_event = next(row for row in events if row["event_type"] == "llm_request")
+    assert event_payload(llm_request_event)["tool_choice"] == "auto"
+    llm_response_payloads = [
+        event_payload(row) for row in events if row["event_type"] == "llm_response"
+    ]
+    assert llm_response_payloads[0] == {
         "content": None,
         "tool_calls": [
             {
@@ -95,7 +98,12 @@ def test_customer_brief_uses_lookup_customer_tool_and_persists_success_contract(
             }
         ],
     }
-    assert not {"choices", "created", "model", "usage"} & set(llm_response_payload)
+    assert llm_response_payloads[1] == {
+        "content": "## Customer Brief\nAcme Co",
+        "tool_calls": [],
+    }
+    for payload in llm_response_payloads:
+        assert not {"choices", "created", "model", "usage"} & set(payload)
     assert events[-1]["status"] == "success"
 
 

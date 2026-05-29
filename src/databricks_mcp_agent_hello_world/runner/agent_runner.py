@@ -212,6 +212,7 @@ class AgentRunner:
                 "model": self.settings.llm_endpoint_name,
                 "messages": state.messages,
                 "tools": state.openai_tools,
+                "tool_choice": "auto",
             },
         )
         state.llm_turn_count += 1
