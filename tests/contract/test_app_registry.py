@@ -49,6 +49,18 @@ def test_local_tool_definitions_include_required_runtime_contract() -> None:
         assert definition.input_schema["type"] == "object"
 
 
+def test_lookup_customer_description_supports_model_tool_selection() -> None:
+    descriptions = {
+        definition.name: definition.description for definition in LOCAL_TOOL_DEFINITIONS
+    }
+    lookup_description = descriptions["lookup_customer"].lower()
+
+    assert "customer_id" in lookup_description
+    assert "customer name" in lookup_description
+    assert "tier" in lookup_description
+    assert "region" in lookup_description
+
+
 def test_local_definitions_do_not_own_provider_or_governance_metadata() -> None:
     for definition in LOCAL_TOOL_DEFINITIONS:
         assert not hasattr(definition, "provider_id")

@@ -98,8 +98,9 @@ def test_docs_document_local_eval_report_output(repo_root: Path) -> None:
         ]
     )
 
-    assert "Eval summary reports are written locally under `storage.local_data_dir`" in text
-    assert "agent execution events still follow the configured storage route" in text
+    assert "Eval summary reports" in text
+    assert "`storage.local_data_dir`" in text
+    assert "configured storage route" in text
 
 
 def test_docs_links_exist(repo_root: Path) -> None:
@@ -177,18 +178,29 @@ def test_default_demo_task_omits_allow_mutations(repo_root: Path) -> None:
     assert "support ticket" in task_instructions
 
 
+def test_sample_evals_omit_allow_mutations(repo_root: Path) -> None:
+    scenarios = json.loads((repo_root / "evals" / "sample_scenarios.json").read_text())
+
+    for scenario in scenarios:
+        serialized_scenario = json.dumps(scenario)
+        assert "allow_mutations" not in serialized_scenario
+
+
 def test_docs_explain_two_tool_demo_and_mutation_contract(repo_root: Path) -> None:
     for path in [
         "README.md",
         "docs/CONVERT_TEMPLATE_TO_REAL_APP.md",
         "src/databricks_mcp_agent_hello_world/app/README.md",
     ]:
-        text = " ".join((repo_root / path).read_text(encoding="utf-8").split())
+        text = " ".join((repo_root / path).read_text(encoding="utf-8").split()).lower()
 
         assert "lookup_customer" in text
         assert "create_support_ticket" in text
-        assert "select only the relevant tool" in text
         assert "tool sub-selection" in text
+        assert "irrelevant tools" in text
+        assert "prompt instructions" in text
+        assert "runtime safety gate" in text
+        assert "side-effecting tools" in text
 
 
 def test_conversion_guide_mentions_canonical_customization_files(repo_root: Path) -> None:
@@ -199,7 +211,60 @@ def test_conversion_guide_mentions_canonical_customization_files(repo_root: Path
         "app/registry.py",
         "examples/demo_run_task.json",
         "evals/sample_scenarios.json",
-        "workspace-config.example.yml",
         "databricks.yml",
+        "resources/jobs.yml",
     ]:
         assert expected_path in text
+
+
+def test_readme_links_to_customization_guides(repo_root: Path) -> None:
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+
+    assert "[Convert the template into a real app](docs/CONVERT_TEMPLATE_TO_REAL_APP.md)" in readme
+    assert "[app customization guide](src/databricks_mcp_agent_hello_world/app/README.md)" in readme
+
+
+def test_conversion_guide_says_package_renaming_is_optional(repo_root: Path) -> None:
+    text = (repo_root / "docs" / "CONVERT_TEMPLATE_TO_REAL_APP.md").read_text(encoding="utf-8")
+    normalized_text = " ".join(text.split()).lower()
+
+    assert "python package name can remain unchanged" in normalized_text
+    assert "package renaming is optional" in normalized_text
+    assert "do not rename python package/import paths by default" in normalized_text
+
+
+def test_conversion_guide_includes_config_customization_table(repo_root: Path) -> None:
+    text = (repo_root / "docs" / "CONVERT_TEMPLATE_TO_REAL_APP.md").read_text(encoding="utf-8")
+
+    assert "| Need | File | What to change |" in text
+    for expected in [
+        "Serving endpoint",
+        "`llm_endpoint_name`",
+        "Workspace/auth",
+        "`workspace_host`, `databricks_config_profile`",
+        "Local tools",
+        "`app/tools.py`, `app/registry.py`",
+        "MCP tools",
+        "`tools.databricks_mcp` settings",
+        "Local event files",
+        "`storage.local_data_dir`",
+        "Table persistence",
+        "`storage.agent_events_table`",
+        "Bundle identity",
+        "Job identity",
+    ]:
+        assert expected in text
+
+
+def test_app_readme_points_to_primary_edit_files(repo_root: Path) -> None:
+    text = (repo_root / "src" / "databricks_mcp_agent_hello_world" / "app" / "README.md").read_text(
+        encoding="utf-8"
+    )
+
+    for expected in [
+        "`tools.py`",
+        "`registry.py`",
+        "examples/demo_run_task.json",
+        "evals/sample_scenarios.json",
+    ]:
+        assert expected in text
