@@ -8,6 +8,7 @@ from databricks_mcp_agent_hello_world.evals.harness import load_eval_scenarios
 
 DOC_FILES = [
     "README.md",
+    "src/databricks_mcp_agent_hello_world/app/README.md",
     "docs/ARCHITECTURE.md",
     "docs/CONVERT_TEMPLATE_TO_REAL_APP.md",
     "AGENTS.md",
@@ -34,6 +35,7 @@ REMOVED_TERMS = [
     "legacy",
     "migration",
     "removed config keys",
+    "workspace" + "_onboarding_brief",
 ]
 
 CANONICAL_NOX_COMMANDS = [
@@ -190,11 +192,28 @@ def test_default_demo_task_omits_allow_mutations(repo_root: Path) -> None:
 
 
 def test_docs_explain_two_tool_demo_and_mutation_contract(repo_root: Path) -> None:
-    for path in ["README.md", "docs/CONVERT_TEMPLATE_TO_REAL_APP.md"]:
-        text = (repo_root / path).read_text(encoding="utf-8")
+    for path in [
+        "README.md",
+        "docs/CONVERT_TEMPLATE_TO_REAL_APP.md",
+        "src/databricks_mcp_agent_hello_world/app/README.md",
+    ]:
+        text = " ".join((repo_root / path).read_text(encoding="utf-8").split())
 
-        assert "### Why are there two demo tools?" in text
-        assert "`lookup_customer`: relevant to the default customer brief task" in text
-        assert "only `lookup_customer` is selected for the default customer brief task" in text
-        assert "prompt context used to demonstrate LLM behavior" in text
-        assert "does not implement a generic mutation-safety policy" in text
+        assert "lookup_customer" in text
+        assert "create_support_ticket" in text
+        assert "select only the relevant tool" in text
+        assert "tool sub-selection" in text
+
+
+def test_conversion_guide_mentions_canonical_customization_files(repo_root: Path) -> None:
+    text = (repo_root / "docs" / "CONVERT_TEMPLATE_TO_REAL_APP.md").read_text(encoding="utf-8")
+
+    for expected_path in [
+        "app/tools.py",
+        "app/registry.py",
+        "examples/demo_run_task.json",
+        "evals/sample_scenarios.json",
+        "workspace-config.example.yml",
+        "databricks.yml",
+    ]:
+        assert expected_path in text

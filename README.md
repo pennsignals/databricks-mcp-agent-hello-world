@@ -11,6 +11,22 @@ Use this repo when you want a small Databricks-only agent template with:
 
 For runtime design, see [Architecture](docs/ARCHITECTURE.md). For downstream edits, see [Convert the template into a real app](docs/CONVERT_TEMPLATE_TO_REAL_APP.md).
 
+## Customizing This Template
+
+Start with the [conversion checklist](docs/CONVERT_TEMPLATE_TO_REAL_APP.md) and
+the [app customization guide](src/databricks_mcp_agent_hello_world/app/README.md).
+
+Minimal first edit path:
+
+1. Replace app tools.
+2. Update registry descriptions.
+3. Update sample task/evals.
+4. Rename Databricks bundle/job identity.
+
+The Python package name can remain unchanged for initial adoption. Rename the
+Databricks bundle/job identity for your project first. Rename the Python package
+only if your team requires project-specific import/package names.
+
 ## Install/Setup
 
 Prerequisites:
@@ -95,14 +111,13 @@ For the built-in example app, discovery should show:
 
 ### Why are there two demo tools?
 
-The template intentionally exposes two local tools to the LLM:
-
-- `lookup_customer`: relevant to the default customer brief task
-- `create_support_ticket`: intentionally irrelevant unless the user explicitly asks for a support ticket
-
-The default task demonstrates that the LLM can select the useful tool from a larger inventory. In local or deployed runs, the expected behavior is that only `lookup_customer` is selected for the default customer brief task.
-
-The default task's read-only instruction is prompt context used to demonstrate LLM behavior, not a runtime safety gate.
+The template intentionally exposes two local tools to the LLM: `lookup_customer`,
+which is relevant to the default customer brief task, and
+`create_support_ticket`, which is intentionally irrelevant unless the user
+explicitly asks for a support ticket. The default task should lead the LLM to
+select only the relevant tool, `lookup_customer`, demonstrating tool
+sub-selection from the available inventory. The read-only instruction is prompt
+context, not a runtime safety gate.
 
 Unit tests cannot prove live LLM tool-selection behavior without a real LLM call, so the included eval scenario acts as a smoke check.
 

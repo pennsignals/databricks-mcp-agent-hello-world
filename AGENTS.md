@@ -101,7 +101,7 @@ Definition:
 
 ## Core Template Invariants
 
-The `workspace_onboarding_brief` flow is the starter contract this template must preserve.
+The `customer_account_brief` flow is the starter contract this template must preserve.
 
 - show the full discovered tool set to the model
 - let the model choose which tools to call at runtime

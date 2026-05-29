@@ -1,141 +1,98 @@
-# Convert The Template To A Real App
+# Convert This Template to a Real App
 
 [Back to README](../README.md)
 [Architecture](./ARCHITECTURE.md)
 
 Use this checklist after the README quickstart works.
 
-## 1. Replace The Demo Task
+The Python package name can remain unchanged for initial adoption. Rename the
+Databricks bundle/job identity for your project first. Rename the Python package
+only if your team requires project-specific import/package names.
 
-Edit [examples/demo_run_task.json](../examples/demo_run_task.json).
+## 1. Replace the demo app behavior
 
-This file is the canonical sample task. The local demo command and default job wiring both point at it.
+Edit [app/tools.py](../src/databricks_mcp_agent_hello_world/app/tools.py) to
+replace the demo tool implementations.
 
-## 2. Replace Local Python Tools
+Edit [app/registry.py](../src/databricks_mcp_agent_hello_world/app/registry.py)
+to register project tools and update model-visible tool descriptions.
 
-Edit [src/databricks_mcp_agent_hello_world/app/tools.py](../src/databricks_mcp_agent_hello_world/app/tools.py)
-for the Python implementations.
+Tool descriptions are visible to the model. State what each tool does and when
+it should be used so the model can choose between the full discovered inventory.
 
-Edit [src/databricks_mcp_agent_hello_world/app/registry.py](../src/databricks_mcp_agent_hello_world/app/registry.py)
-and its `LOCAL_TOOL_DEFINITIONS` tuple for each tool's model-facing contract.
+The starter app intentionally includes one relevant read-style tool
+(`lookup_customer`) and one irrelevant write-like tool
+(`create_support_ticket`). The default task should lead the LLM to select only
+the relevant tool, demonstrating tool sub-selection from the available inventory.
 
-For each local tool, define:
+## 2. Update the sample task and evals
 
-- `name`
-- `description`
-- `input_schema`
-- `handler`
+Edit [examples/demo_run_task.json](../examples/demo_run_task.json) for the
+default local and deployed task.
 
-Tool descriptions are visible to the model. State what the tool does and when it
-should be used so the model can choose between the full discovered inventory.
+Edit [evals/sample_scenarios.json](../evals/sample_scenarios.json) for smoke
+evals that match the new task.
 
-The local adapter turns each `LocalToolDefinition` into a `RuntimeTool` during
-local provider initialization.
-
-### Why are there two demo tools?
-
-The template intentionally exposes two local tools to the LLM:
-
-- `lookup_customer`: relevant to the default customer brief task
-- `create_support_ticket`: intentionally irrelevant unless the user explicitly asks for a support ticket
-
-The default task demonstrates that the LLM can select the useful tool from a larger inventory. In local or deployed runs, the expected behavior is that only `lookup_customer` is selected for the default customer brief task.
-
-The default task's read-only instruction is prompt context used to demonstrate LLM behavior, not a runtime safety gate.
-
-Unit tests cannot prove live LLM tool-selection behavior without a real LLM call, so the included eval scenario acts as a smoke check.
-
-The demo write-like tool is harmless and does not perform external writes. The template does not implement a generic mutation-safety policy. If you add real side-effecting tools, add domain-specific safeguards appropriate for your use case.
-
-## 3. Configure Tool Sources
-
-The agent can use tools from multiple enabled sources.
-
-Local Python tools are for app-specific logic. Databricks MCP tools are for governed/shared Databricks-hosted tools. Tool names must be unique across enabled sources.
-
-For local app logic, keep:
-
-```yaml
-tools:
-  local_python:
-    enabled: true
-```
-
-For a Databricks MCP source, set:
-
-```yaml
-tools:
-  databricks_mcp:
-    enabled: true
-    server:
-      name: uc_functions
-      url: https://<workspace-hostname>/api/2.0/mcp/functions/<catalog>/<schema>
-```
-
-## 4. Update Prompt Behavior Only If Needed
-
-`agent_system_prompt_path` is optional.
-
-If omitted, the built-in default prompt is used. If set, the path must exist and contain non-empty text.
-
-Edit [src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt](../src/databricks_mcp_agent_hello_world/prompts/agent_system_prompt.txt) only when the default prompt no longer fits your domain.
-
-## 5. Choose Storage Routing
-
-For local development, keep:
-
-```yaml
-storage:
-  local_data_dir: ./.local_state
-  agent_events_table: null
-```
-
-If `storage.agent_events_table` is unset, events are written to local JSONL under `storage.local_data_dir`.
-
-If `storage.agent_events_table` is set, an active Spark session is required and events are written to that table.
-
-The template never silently falls back from table persistence to local persistence.
-
-## 6. Replace Eval Scenarios
-
-Edit [evals/sample_scenarios.json](../evals/sample_scenarios.json).
-
-Evals are a lightweight smoke-test harness that verifies run status, expected tool use, and required output text.
-
-Normal run statuses are `success` and `max_steps_exceeded`. Unexpected runtime failures are exceptions; evals report them as scenario execution errors. `tools_called` is the canonical tool-call trace, while `result` contains user-facing output.
-
-Supported scenario assertion fields are:
+Evals verify run status, expected tool use, and required output text. Supported
+scenario assertion fields are:
 
 - `expected_status`
 - `required_executed_tools`
 - `forbidden_executed_tools`
 - `required_output_substrings`
 
-Eval summary reports are written locally under `storage.local_data_dir`; agent execution events still follow the configured storage route.
+Eval summary reports are written locally under `storage.local_data_dir`; agent
+execution events still follow the configured storage route.
 
-Keep scenarios small and tied to behavior users expect from the app.
+## 3. Configure the deployment identity
 
-## 7. Update Job Wiring
+Rename the Databricks bundle/job identity in [databricks.yml](../databricks.yml)
+for your project.
 
-Edit:
+If desired, also update display names in [resources/jobs.yml](../resources/jobs.yml).
 
-- [databricks.yml](../databricks.yml)
-- [resources/jobs.yml](../resources/jobs.yml)
-- [workspace-config.example.yml](../workspace-config.example.yml)
+You do not need to rename the Python package to start using this template.
 
-Keep local console commands and Databricks wheel task arguments aligned around the same config and task files unless your app intentionally needs separate task inputs.
+## 4. Configure workspace settings
 
-## 8. Validate
+Copy [workspace-config.example.yml](../workspace-config.example.yml) to
+`workspace-config.yml`, then set workspace-specific values such as the serving
+endpoint, auth profile, tool source settings, and storage route.
 
-Run:
+Keep real workspace hosts, endpoint names, table names, MCP URLs, and
+credentials out of public committed config.
+
+## 5. Optional changes
+
+Package renaming is optional and advanced, not part of the default path. Rename
+the Python package only if your team requires project-specific import/package
+names.
+
+You can also replace the default system prompt if your domain needs different
+general behavior. Keep local console commands and Databricks wheel task
+arguments aligned around the same config and task files unless your app
+intentionally needs separate task inputs.
+
+After editing, validate the template still works:
 
 ```bash
 preflight --config-path workspace-config.yml
 discover-tools --config-path workspace-config.yml
 run-agent-task --config-path workspace-config.yml --task-input-file examples/demo_run_task.json
-python -m nox -s unit
-python -m nox -s contract
 python -m nox -s tests
 ```
 
-Before using real data, review persisted event payloads. They can include task inputs, prompt messages, tool arguments, tool results, model responses, errors, and final outputs.
+Before using real data, review persisted event payloads. They can include task
+inputs, prompt messages, tool arguments, tool results, model responses, errors,
+and final outputs.
+
+## 6. Files you usually should not edit
+
+These runtime internals usually do not need editing unless you are extending the
+template framework:
+
+- `runner/`
+- `providers/`
+- `storage/`
+- `clients/`
+- `tools/`
