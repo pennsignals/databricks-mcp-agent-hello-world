@@ -83,6 +83,19 @@ def test_customer_brief_uses_lookup_customer_tool_and_persists_success_contract(
     assert all("conversation_id" not in row for row in events)
     assert all("event_id" not in row for row in events)
     assert event_payload(events[0])["available_tools_count"] == len(tools)
+    llm_response_event = next(row for row in events if row["event_type"] == "llm_response")
+    llm_response_payload = event_payload(llm_response_event)
+    assert llm_response_payload == {
+        "content": None,
+        "tool_calls": [
+            {
+                "id": "call-1",
+                "name": "lookup_customer",
+                "arguments": '{"customer_id":"cust_acme"}',
+            }
+        ],
+    }
+    assert not {"choices", "created", "model", "usage"} & set(llm_response_payload)
     assert events[-1]["status"] == "success"
 
 
@@ -196,6 +209,46 @@ def test_agent_runner_marks_malformed_tool_arguments_as_error_without_crashing(
         row for row in runner.persisted_event_rows if row["event_type"] == "tool_result"
     )
     assert tool_result_event["status"] == "error"
+
+
+def test_agent_runner_marks_non_string_tool_arguments_as_error_without_crashing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    calls = []
+    runner = make_runner(
+        tmp_path,
+        StubLLM(
+            [
+                llm_response(
+                    tool_calls=[
+                        tool_call(
+                            "lookup_customer",
+                            {"customer_id": "cust_acme"},  # type: ignore[arg-type]
+                        )
+                    ]
+                ),
+                llm_response(content="Finished after non-string tool args."),
+            ]
+        ),
+        tools=discovered_tools(calls),
+    )
+    capture_event_rows(runner, monkeypatch)
+
+    record = runner.run(
+        AgentTaskRequest(task_name="customer_account_brief", instructions="Write the report.")
+    )
+
+    assert calls == []
+    assert record.status == "success"
+    assert record.tools_called[0]["status"] == "error"
+    assert record.tools_called[0]["error"].startswith("Tool call arguments must be JSON text")
+    tool_call_event = next(
+        row for row in runner.persisted_event_rows if row["event_type"] == "tool_call"
+    )
+    assert event_payload(tool_call_event)["parse_error"].startswith(
+        "Tool call arguments must be JSON text"
+    )
 
 
 def test_agent_runner_rejects_invalid_tool_arguments_before_execution(

@@ -229,9 +229,7 @@ class AgentRunner:
             event_type="llm_response",
             turn_index=turn_index,
             final_response_excerpt=terminal_excerpt,
-            payload=safe_jsonable(
-                turn.raw_response if turn.raw_response is not None else self._turn_payload(turn)
-            ),
+            payload=safe_jsonable(self._turn_payload(turn)),
         )
 
         state.messages.append(self._build_assistant_message(turn))
@@ -522,14 +520,12 @@ class AgentRunner:
 
     @staticmethod
     def _parse_tool_arguments(raw_arguments: Any) -> tuple[dict[str, Any], str | None]:
-        if not raw_arguments:
+        if raw_arguments == "":
             return {}, None
-        if isinstance(raw_arguments, dict):
-            return raw_arguments, None
         if not isinstance(raw_arguments, str):
             return (
                 {},
-                f"Tool call arguments must be JSON text or an object, got {type(raw_arguments)!r}",
+                f"Tool call arguments must be JSON text, got {type(raw_arguments)!r}",
             )
         try:
             parsed = json.loads(raw_arguments)

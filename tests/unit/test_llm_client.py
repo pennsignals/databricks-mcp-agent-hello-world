@@ -26,6 +26,15 @@ def _sdk_tool_call(name: str, arguments: str, call_id: str = "call-1"):
 def test_databricks_llm_normalizes_content_only_response(monkeypatch) -> None:
     create_calls: list[dict[str, object]] = []
     raw_response = _sdk_response(content="done")
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "lookup_customer",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    ]
 
     class FakeChatCompletions:
         def create(self, **kwargs):
@@ -39,16 +48,18 @@ def test_databricks_llm_normalizes_content_only_response(monkeypatch) -> None:
     )
     llm = llm_client.DatabricksLLM(make_settings(llm_endpoint_name="endpoint-a"))
 
-    turn = llm.chat(messages=[{"role": "user", "content": "hi"}], tools=[])
+    turn = llm.chat(messages=[{"role": "user", "content": "hi"}], tools=tools)
 
+    assert isinstance(turn, llm_client.LLMTurnResult)
     assert turn == llm_client.LLMTurnResult(
         content="done",
         tool_calls=[],
-        raw_response=raw_response,
     )
     assert create_calls[0]["model"] == "endpoint-a"
     assert create_calls[0]["messages"] == [{"role": "user", "content": "hi"}]
-    assert create_calls[0]["tools"] == []
+    assert create_calls[0]["tools"] == tools
+    assert create_calls[0]["tool_choice"] == "auto"
+    assert create_calls[0]["temperature"] == 0
 
 
 def test_databricks_llm_normalizes_one_tool_call(monkeypatch) -> None:
@@ -78,7 +89,6 @@ def test_databricks_llm_normalizes_one_tool_call(monkeypatch) -> None:
             arguments='{"customer_id":"cust_acme"}',
         )
     ]
-    assert turn.raw_response is raw_response
 
 
 def test_databricks_llm_normalizes_absent_tool_calls(monkeypatch) -> None:
@@ -100,3 +110,11 @@ def test_databricks_llm_normalizes_absent_tool_calls(monkeypatch) -> None:
 
     assert turn.content == "done"
     assert turn.tool_calls == []
+
+
+def test_normalized_turn_does_not_expose_raw_response() -> None:
+    raw_response = _sdk_response(content="done")
+
+    turn = llm_client._normalize_chat_completion_response(raw_response)
+
+    assert not hasattr(turn, "raw_response")

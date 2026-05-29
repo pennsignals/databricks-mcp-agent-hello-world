@@ -17,7 +17,6 @@ class LLMToolCall:
 class LLMTurnResult:
     content: str | None
     tool_calls: list[LLMToolCall]
-    raw_response: Any | None = None
 
 
 class DatabricksLLM:
@@ -39,6 +38,7 @@ class DatabricksLLM:
             "model": self.settings.llm_endpoint_name,
             "messages": messages,
             "tools": tools,
+            "tool_choice": "auto",
             "temperature": 0,
         }
         response = self.client.chat.completions.create(**kwargs)
@@ -57,5 +57,4 @@ def _normalize_chat_completion_response(response: Any) -> LLMTurnResult:
             )
             for call in (message.tool_calls or [])
         ],
-        raw_response=response,
     )
