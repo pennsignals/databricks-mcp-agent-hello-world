@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import databricks_mcp_agent_hello_world as package_root
+import databricks_mcp_agent_hello_world.tools as tools_package
 
 
 def test_package_all_exports_runtime_entrypoints() -> None:
@@ -9,4 +10,14 @@ def test_package_all_exports_runtime_entrypoints() -> None:
         "discover_tools",
         "run_agent_task",
         "run_init_storage",
+    ]
+
+
+def test_tools_all_exports_stable_runtime_surface() -> None:
+    assert tools_package.__all__ == [
+        "LocalToolDefinition",
+        "RuntimeTool",
+        "ToolSource",
+        "ToolSourceType",
+        "inventory_hash",
     ]
