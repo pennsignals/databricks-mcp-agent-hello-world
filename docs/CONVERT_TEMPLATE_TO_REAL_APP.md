@@ -9,6 +9,38 @@ The Python package name can remain unchanged for initial adoption. Rename the
 Databricks bundle/job identity for your project first. Rename the Python package
 only if your team requires project-specific import/package names.
 
+## Customization model
+
+Required for a real project:
+
+- `src/databricks_mcp_agent_hello_world/app/tools.py`
+- `src/databricks_mcp_agent_hello_world/app/registry.py`
+- `examples/demo_run_task.json`
+- `evals/sample_scenarios.json`
+- `databricks.yml`
+- `resources/jobs.yml`
+
+Rename the bundle name in `databricks.yml` before shared-workspace deployment.
+Rename job display names in `resources/jobs.yml` before shared-workspace
+deployment. Do not rename Python package/import paths by default.
+
+Usually unchanged:
+
+- `runner/`
+- `providers/`
+- `storage/`
+- `clients/`
+- `tools/`
+
+Optional:
+
+- system prompt
+- MCP tool-source config
+- storage route
+- endpoint/profile/workspace settings
+- Python package renaming, only if a team explicitly requires
+  project-specific import names
+
 ## 1. Replace the demo app behavior
 
 Edit [app/tools.py](../src/databricks_mcp_agent_hello_world/app/tools.py) to
@@ -24,6 +56,14 @@ The starter app intentionally includes one relevant read-style tool
 (`lookup_customer`) and one irrelevant write-like tool
 (`create_support_ticket`). The default task should lead the LLM to select only
 the relevant tool, demonstrating tool sub-selection from the available inventory.
+`create_support_ticket` exists to demonstrate that the model can ignore
+irrelevant tools. A separate eval shows that the write-like demo tool is
+available when explicitly requested. The write-like tool is harmless and
+local/demo-only.
+
+Prompt instructions are not a runtime safety gate. If you add real
+side-effecting tools, add domain-specific safeguards appropriate for your use
+case.
 
 ## 2. Update the sample task and evals
 
@@ -62,6 +102,19 @@ endpoint, auth profile, tool source settings, and storage route.
 Keep real workspace hosts, endpoint names, table names, MCP URLs, and
 credentials out of public committed config.
 
+| Need | File | What to change |
+|---|---|---|
+| Serving endpoint | `workspace-config.yml` | `llm_endpoint_name` |
+| Workspace/auth | `workspace-config.yml` | `workspace_host`, `databricks_config_profile` |
+| Local tools | `app/tools.py`, `app/registry.py` | implementations, schemas, descriptions |
+| MCP tools | `workspace-config.yml` | `tools.databricks_mcp` settings |
+| Local event files | `workspace-config.yml` | `storage.local_data_dir` |
+| Table persistence | `workspace-config.yml` | `storage.agent_events_table` |
+| Bundle identity | `databricks.yml` | bundle name |
+| Job identity | `resources/jobs.yml` | job display names |
+
+For runtime details, see [Architecture](./ARCHITECTURE.md).
+
 ## 5. Optional changes
 
 Package renaming is optional and advanced, not part of the default path. Rename
@@ -85,6 +138,15 @@ python -m nox -s tests
 Before using real data, review persisted event payloads. They can include task
 inputs, prompt messages, tool arguments, tool results, model responses, errors,
 and final outputs.
+
+## Update app-specific tests
+
+When replacing the demo app, update tests that intentionally assert demo
+behavior, tool names, sample task names, sample eval scenarios, or model-visible
+tool descriptions.
+
+Framework tests should continue to pass without requiring changes to runner,
+provider, storage, or client internals.
 
 ## 6. Files you usually should not edit
 

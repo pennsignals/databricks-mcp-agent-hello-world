@@ -18,10 +18,10 @@ the [app customization guide](src/databricks_mcp_agent_hello_world/app/README.md
 
 Minimal first edit path:
 
-1. Replace app tools.
-2. Update registry descriptions.
-3. Update sample task/evals.
-4. Rename Databricks bundle/job identity.
+1. Replace app tools in `src/databricks_mcp_agent_hello_world/app/tools.py`.
+2. Update registry schemas and descriptions in `src/databricks_mcp_agent_hello_world/app/registry.py`.
+3. Update `examples/demo_run_task.json` and `evals/sample_scenarios.json`.
+4. Rename the bundle in `databricks.yml` and job display names in `resources/jobs.yml` before shared-workspace deployment.
 
 The Python package name can remain unchanged for initial adoption. Rename the
 Databricks bundle/job identity for your project first. Rename the Python package
@@ -116,7 +116,8 @@ which is relevant to the default customer brief task, and
 `create_support_ticket`, which is intentionally irrelevant unless the user
 explicitly asks for a support ticket. The default task should lead the LLM to
 select only the relevant tool, `lookup_customer`, demonstrating tool
-sub-selection from the available inventory. The read-only instruction is prompt
+sub-selection from the available inventory. `create_support_ticket` exists to
+demonstrate that the model can ignore irrelevant tools. Prompt instructions are
 context, not a runtime safety gate.
 
 Unit tests cannot prove live LLM tool-selection behavior without a real LLM call, so the included eval scenario acts as a smoke check.
@@ -195,14 +196,30 @@ run-evals \
 
 ## Customize The Template
 
-For most downstream apps, replace:
+Required for a real project:
 
-- [examples/demo_run_task.json](examples/demo_run_task.json)
 - [src/databricks_mcp_agent_hello_world/app/tools.py](src/databricks_mcp_agent_hello_world/app/tools.py)
 - [src/databricks_mcp_agent_hello_world/app/registry.py](src/databricks_mcp_agent_hello_world/app/registry.py)
+- [examples/demo_run_task.json](examples/demo_run_task.json)
 - [evals/sample_scenarios.json](evals/sample_scenarios.json)
 - [databricks.yml](databricks.yml)
 - [resources/jobs.yml](resources/jobs.yml)
+
+Rename the bundle name in `databricks.yml` and job display names in
+`resources/jobs.yml` before deploying to a shared workspace. Do not rename
+Python package/import paths by default.
+
+Usually unchanged:
+
+- `runner/`
+- `providers/`
+- `storage/`
+- `clients/`
+- `tools/`
+
+Optional changes include the system prompt, MCP tool-source config, storage
+route, endpoint/profile/workspace settings, and Python package renaming only
+when a team explicitly requires project-specific import names.
 
 Keep the default runtime contract simple: discover enabled tool sources, expose the full discovered tool inventory to the model, execute the tool the model requests, and persist events through the configured storage route.
 
