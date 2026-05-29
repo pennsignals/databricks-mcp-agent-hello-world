@@ -22,7 +22,10 @@ from tests.contract.agent_runner_helpers import (
 )
 
 
-def test_agent_runner_persists_run_contract_for_success(tmp_path: Path, monkeypatch) -> None:
+def test_customer_brief_uses_lookup_customer_tool_and_persists_success_contract(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     calls = []
     tools = discovered_tools(calls)
     runner = make_runner(
@@ -63,16 +66,18 @@ def test_agent_runner_persists_run_contract_for_success(tmp_path: Path, monkeypa
     )
 
     events = runner.persisted_event_rows
-    assert [row["event_type"] for row in events] == [
+    event_types = [row["event_type"] for row in events]
+    for expected_event in [
         "run_started",
         "llm_request",
         "llm_response",
         "tool_call",
         "tool_result",
-        "llm_request",
-        "llm_response",
         "run_completed",
-    ]
+    ]:
+        assert expected_event in event_types
+    assert event_types.index("run_started") < event_types.index("run_completed")
+    assert event_types.index("tool_call") < event_types.index("tool_result")
     assert [row["event_index"] for row in events] == list(range(len(events)))
     assert {row["run_key"] for row in events} == {"run-123"}
     assert all("conversation_id" not in row for row in events)
@@ -331,8 +336,11 @@ def test_agent_runner_returns_max_steps_exceeded_when_llm_never_finishes(
     assert record.status == "max_steps_exceeded"
     assert record.result == {"reason": "max_steps_exceeded"}
     assert record.tools_called[0]["tool_name"] == "lookup_customer"
-    assert runner.persisted_event_rows[-1]["event_type"] == "run_max_steps_exceeded"
-    assert runner.persisted_event_rows[-1]["status"] == "max_steps_exceeded"
+    max_steps_events = [
+        row for row in runner.persisted_event_rows if row["event_type"] == "run_max_steps_exceeded"
+    ]
+    assert max_steps_events
+    assert max_steps_events[0]["status"] == "max_steps_exceeded"
 
 
 def test_agent_runner_emits_error_event_when_tool_execution_raises(

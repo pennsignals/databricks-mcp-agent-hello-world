@@ -8,6 +8,13 @@ from types import ModuleType
 from databricks_mcp_agent_hello_world.clients import databricks as db_clients
 from tests.helpers import make_settings
 
+FORBIDDEN_CLIENT_IMPORTS = {
+    ("databricks.sdk", "WorkspaceClient"),
+    ("databricks_openai", "OpenAI"),
+    ("databricks_openai", "DatabricksOpenAI"),
+}
+FORBIDDEN_CLIENT_MODULE_IMPORTS = {"databricks.sdk", "databricks_openai"}
+
 
 def test_databricks_client_factories_build_sdk_clients_with_shared_workspace_client(
     monkeypatch,
@@ -64,21 +71,29 @@ def test_databricks_client_factories_build_sdk_clients_with_shared_workspace_cli
     assert captured_openai_workspace_clients
 
 
-def test_workspace_client_is_constructed_only_by_shared_client_module(repo_root: Path) -> None:
+def test_databricks_sdk_clients_are_constructed_only_in_shared_client_module(
+    repo_root: Path,
+) -> None:
+    allowed = repo_root / "src" / "databricks_mcp_agent_hello_world" / "clients" / "databricks.py"
     offenders: list[str] = []
+
+    # This is a narrow architecture-boundary test: Databricks SDK client
+    # construction stays centralized so auth/config behavior has one owner.
     for path in (repo_root / "src" / "databricks_mcp_agent_hello_world").rglob("*.py"):
-        if (
-            path
-            == repo_root / "src" / "databricks_mcp_agent_hello_world" / "clients" / "databricks.py"
-        ):
+        if path == allowed:
             continue
+
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                func = node.func
-                direct_call = isinstance(func, ast.Name) and func.id == "WorkspaceClient"
-                attribute_call = isinstance(func, ast.Attribute) and func.attr == "WorkspaceClient"
-                if direct_call or attribute_call:
-                    offenders.append(str(path.relative_to(repo_root)))
+            if isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                for alias in node.names:
+                    if (module, alias.name) in FORBIDDEN_CLIENT_IMPORTS:
+                        offenders.append(str(path.relative_to(repo_root)))
 
-    assert offenders == []
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in FORBIDDEN_CLIENT_MODULE_IMPORTS:
+                        offenders.append(str(path.relative_to(repo_root)))
+
+    assert sorted(set(offenders)) == []

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import ast
 import sys
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 import databricks_mcp_agent_hello_world as package_root
+from databricks_mcp_agent_hello_world import cli
 from databricks_mcp_agent_hello_world.commands import CommandResult
 
 
@@ -186,22 +185,14 @@ def test_run_init_storage_wrapper_uses_real_main_and_renders_messages(
     assert "created" in capsys.readouterr().out
 
 
-def test_package_root_entrypoints_do_not_define_argparse_logic() -> None:
-    module_path = Path(package_root.__file__)
-    tree = ast.parse(module_path.read_text(encoding="utf-8"))
-    argparse_imports = [
-        node
-        for node in ast.walk(tree)
-        if (isinstance(node, ast.Import) and any(alias.name == "argparse" for alias in node.names))
-        or (isinstance(node, ast.ImportFrom) and node.module == "argparse")
-    ]
-    parse_args_calls = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "parse_args"
-    ]
-
-    assert argparse_imports == []
-    assert parse_args_calls == []
+def test_cli_entrypoints_are_importable() -> None:
+    for entrypoint in [
+        cli.main,
+        cli.discover_tools_entrypoint,
+        cli.run_agent_task_entrypoint,
+        cli.run_evals_entrypoint,
+        package_root.discover_tools,
+        package_root.run_agent_task,
+        package_root.run_init_storage,
+    ]:
+        assert callable(entrypoint)

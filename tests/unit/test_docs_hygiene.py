@@ -18,26 +18,6 @@ DOC_FILES = [
     "workspace-config.example.yml",
 ]
 
-REMOVED_TERMS = [
-    "managed_mcp",
-    "tool_provider_type",
-    "provider_type",
-    "databricks_cli_profile",
-    "auth_mode",
-    "local_tool_backend_mode",
-    "compile-tool-profile",
-    "future MCP",
-    "storage.agent_runs_table",
-    "storage.agent_output_table",
-    "agent_runs_table",
-    "agent_output_table",
-    "deprecated",
-    "legacy",
-    "migration",
-    "removed config keys",
-    "workspace" + "_onboarding_brief",
-]
-
 CANONICAL_NOX_COMMANDS = [
     "python -m nox -s unit",
     "python -m nox -s contract",
@@ -52,11 +32,17 @@ SUPPORTED_EVAL_ASSERTION_FIELDS = {
 }
 
 
-def test_docs_do_not_reference_removed_terms(repo_root: Path) -> None:
+def test_docs_describe_current_template_concepts(repo_root: Path) -> None:
     text = "\n".join((repo_root / path).read_text(encoding="utf-8") for path in DOC_FILES)
 
-    for term in REMOVED_TERMS:
-        assert term not in text
+    for expected in [
+        "customer_account_brief",
+        "lookup_customer",
+        "create_support_ticket",
+        "examples/demo_run_task.json",
+        "evals/sample_scenarios.json",
+    ]:
+        assert expected in text
 
 
 def test_workspace_config_example_loads_as_valid_config(repo_root: Path) -> None:

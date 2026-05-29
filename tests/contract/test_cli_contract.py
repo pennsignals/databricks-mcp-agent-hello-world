@@ -261,7 +261,7 @@ def test_run_named_command_renders_eval_failure_summary(monkeypatch, capsys) -> 
         all_passed=False,
         results=[
             EvalScenarioResult(
-                scenario_id="onboarding_happy_path",
+                scenario_id="customer_brief_happy_path",
                 passed=False,
                 failed_checks=[
                     "missing_required_output_substrings",
@@ -293,7 +293,7 @@ def test_run_named_command_renders_eval_failure_summary(monkeypatch, capsys) -> 
     output = capsys.readouterr().out
 
     assert exit_code == 1
-    assert "FAIL onboarding_happy_path" in output
+    assert "FAIL customer_brief_happy_path" in output
     assert (
         "Checks failed: missing_required_output_substrings, "
         "missing_required_executed_tools, forbidden_executed_tools, status_mismatch" in output
