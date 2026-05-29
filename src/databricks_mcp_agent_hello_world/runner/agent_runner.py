@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..config import Settings
-from ..llm_client import DatabricksLLM, LLMToolCall, LLMTurnResult
+from ..llm_client import DEFAULT_TOOL_CHOICE, DatabricksLLM, LLMToolCall, LLMTurnResult
 from ..models import (
     AgentRunRecord,
     AgentTaskRequest,
@@ -212,7 +212,7 @@ class AgentRunner:
                 "model": self.settings.llm_endpoint_name,
                 "messages": state.messages,
                 "tools": state.openai_tools,
-                "tool_choice": "auto",
+                "tool_choice": DEFAULT_TOOL_CHOICE,
             },
         )
         state.llm_turn_count += 1

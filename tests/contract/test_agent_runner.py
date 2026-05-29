@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from databricks_mcp_agent_hello_world.llm_client import DEFAULT_TOOL_CHOICE
 from databricks_mcp_agent_hello_world.models import (
     AgentRunRecord,
     AgentTaskRequest,
@@ -84,7 +85,7 @@ def test_customer_brief_uses_lookup_customer_tool_and_persists_success_contract(
     assert all("event_id" not in row for row in events)
     assert event_payload(events[0])["available_tools_count"] == len(tools)
     llm_request_event = next(row for row in events if row["event_type"] == "llm_request")
-    assert event_payload(llm_request_event)["tool_choice"] == "auto"
+    assert event_payload(llm_request_event)["tool_choice"] == DEFAULT_TOOL_CHOICE
     llm_response_payloads = [
         event_payload(row) for row in events if row["event_type"] == "llm_response"
     ]

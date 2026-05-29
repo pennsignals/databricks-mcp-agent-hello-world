@@ -5,6 +5,8 @@ from typing import Any
 
 from .config import Settings
 
+DEFAULT_TOOL_CHOICE = "auto"
+
 
 @dataclass(frozen=True)
 class LLMToolCall:
@@ -38,7 +40,7 @@ class DatabricksLLM:
             "model": self.settings.llm_endpoint_name,
             "messages": messages,
             "tools": tools,
-            "tool_choice": "auto",
+            "tool_choice": DEFAULT_TOOL_CHOICE,
             "temperature": 0,
         }
         response = self.client.chat.completions.create(**kwargs)

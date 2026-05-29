@@ -58,7 +58,7 @@ def test_databricks_llm_normalizes_content_only_response(monkeypatch) -> None:
     assert create_calls[0]["model"] == "endpoint-a"
     assert create_calls[0]["messages"] == [{"role": "user", "content": "hi"}]
     assert create_calls[0]["tools"] == tools
-    assert create_calls[0]["tool_choice"] == "auto"
+    assert create_calls[0]["tool_choice"] == llm_client.DEFAULT_TOOL_CHOICE
     assert create_calls[0]["temperature"] == 0
 
 
