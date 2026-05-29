@@ -273,7 +273,7 @@ def test_run_named_command_renders_eval_failure_summary(monkeypatch, capsys) -> 
                 actual_status="max_steps_exceeded",
                 executed_tools=["get_user_profile", "create_support_ticket"],
                 final_response_excerpt="Grace Hopper uses python3.12 -m venv plus pip.",
-                task_name="workspace_onboarding_brief",
+                task_name="customer_account_brief",
                 run_record_id="run-123",
                 missing_required_output_substrings=["Ada Lovelace"],
                 missing_required_executed_tools=["list_recent_job_runs"],
@@ -298,7 +298,7 @@ def test_run_named_command_renders_eval_failure_summary(monkeypatch, capsys) -> 
         "Checks failed: missing_required_output_substrings, "
         "missing_required_executed_tools, forbidden_executed_tools, status_mismatch" in output
     )
-    assert "Task name: workspace_onboarding_brief" in output
+    assert "Task name: customer_account_brief" in output
     assert "Run id: run-123" in output
     assert "Expected status: success" in output
     assert "Actual status: max_steps_exceeded" in output
@@ -323,7 +323,7 @@ def test_run_named_command_keeps_passing_eval_summary_concise(monkeypatch, capsy
                 passed=True,
                 failed_checks=[],
                 expected_status="success",
-                task_name="workspace_onboarding_brief",
+                task_name="customer_account_brief",
             )
         ],
     )

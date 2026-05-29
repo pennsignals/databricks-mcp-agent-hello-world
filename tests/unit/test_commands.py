@@ -17,7 +17,7 @@ from databricks_mcp_agent_hello_world.models import AgentRunRecord, EvalRunRepor
 def _record(status: Literal["success", "max_steps_exceeded"]) -> AgentRunRecord:
     return AgentRunRecord(
         run_id="run-123",
-        task_name="workspace_onboarding_brief",
+        task_name="customer_account_brief",
         status=status,
         result={
             "final_response": "",
@@ -85,7 +85,7 @@ def test_run_agent_task_command_requires_current_task_fields(monkeypatch) -> Non
     with pytest.raises(RuntimeError, match="requires task fields: instructions, payload"):
         run_agent_task_command(
             "workspace-config.yml",
-            task_input_json='{"task_name":"workspace_onboarding_brief"}',
+            task_input_json='{"task_name":"customer_account_brief"}',
         )
 
 

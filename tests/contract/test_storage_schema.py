@@ -18,7 +18,7 @@ def test_event_schema_contains_current_persisted_fields() -> None:
 def test_serialize_event_row_is_json_serializable_and_truncates_excerpt() -> None:
     row = schema.serialize_event_row(
         run_key="run-123",
-        task_name="workspace_onboarding_brief",
+        task_name="customer_account_brief",
         event_index=7,
         event_type="tool_result",
         payload={"message": "hello", "nested": {"count": 1}},

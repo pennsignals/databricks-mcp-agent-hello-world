@@ -29,7 +29,7 @@ def test_agent_runner_records_run_failed_event_when_llm_step_raises(
     with pytest.raises(RuntimeError, match="llm boom"):
         runner.run(
             AgentTaskRequest(
-                task_name="workspace_onboarding_brief",
+                task_name="customer_account_brief",
                 instructions="Write the report.",
                 run_id="run-error",
             )
@@ -62,7 +62,7 @@ def test_agent_runner_preserves_original_error_when_run_failed_persistence_fails
     with pytest.raises(RuntimeError, match="llm boom"):
         runner.run(
             AgentTaskRequest(
-                task_name="workspace_onboarding_brief",
+                task_name="customer_account_brief",
                 instructions="Write the report.",
                 run_id="run-error",
             )
@@ -83,7 +83,7 @@ def test_agent_runner_surfaces_normal_event_persistence_errors(
     with pytest.raises(RuntimeError, match="persistence boom"):
         runner.run(
             AgentTaskRequest(
-                task_name="workspace_onboarding_brief",
+                task_name="customer_account_brief",
                 instructions="Write the report.",
                 run_id="run-error",
             )
@@ -122,7 +122,7 @@ def test_agent_runner_success_without_tool_calls_truncates_terminal_excerpt(
 
     record = runner.run(
         AgentTaskRequest(
-            task_name="workspace_onboarding_brief",
+            task_name="customer_account_brief",
             instructions="Write the report.",
             run_id="run-terminal",
         )

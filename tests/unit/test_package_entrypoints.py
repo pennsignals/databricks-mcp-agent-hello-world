@@ -88,7 +88,7 @@ def test_run_agent_task_wrapper_uses_real_main_and_reaches_command_layer(
     payload = SimpleNamespace(
         status="success",
         run_id="run-123",
-        task_name="workspace_onboarding_brief",
+        task_name="customer_account_brief",
         tools_called=[],
         result={"final_response": "All set"},
     )

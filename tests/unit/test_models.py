@@ -37,7 +37,7 @@ def test_tool_result_rejects_invalid_status() -> None:
 def test_agent_run_record_matches_current_runtime_shape() -> None:
     record = AgentRunRecord(
         run_id="run-1",
-        task_name="workspace_onboarding_brief",
+        task_name="customer_account_brief",
         status="success",
         result={
             "final_response": "done",
@@ -67,6 +67,6 @@ def test_agent_run_record_rejects_error_status() -> None:
     with pytest.raises(ValidationError):
         AgentRunRecord(
             run_id="run-1",
-            task_name="workspace_onboarding_brief",
+            task_name="customer_account_brief",
             status="error",
         )

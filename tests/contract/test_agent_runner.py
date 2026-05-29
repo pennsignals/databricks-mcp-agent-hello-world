@@ -284,7 +284,7 @@ def test_agent_runner_reports_invalid_remote_tool_schema_separately(
 
     record = runner.run(
         AgentTaskRequest(
-            task_name="workspace_onboarding_brief",
+            task_name="customer_account_brief",
             instructions="Write the report.",
             run_id="run-invalid-schema",
         )

@@ -94,7 +94,7 @@ def test_unknown_tool_call_logs_warning_without_old_blocked_language(
 
     record = runner.run(
         AgentTaskRequest(
-            task_name="workspace_onboarding_brief",
+            task_name="customer_account_brief",
             instructions="Try the unknown tool.",
         )
     )

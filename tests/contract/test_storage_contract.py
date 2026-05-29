@@ -17,7 +17,7 @@ from tests.helpers import make_settings
 def _event_row(**overrides):
     return serialize_event_row(
         run_key=overrides.pop("run_key", "run-1"),
-        task_name=overrides.pop("task_name", "workspace_onboarding_brief"),
+        task_name=overrides.pop("task_name", "customer_account_brief"),
         turn_index=overrides.pop("turn_index", 0),
         event_index=overrides.pop("event_index", 0),
         event_type=overrides.pop("event_type", "tool_result"),
