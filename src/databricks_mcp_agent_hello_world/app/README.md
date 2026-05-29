@@ -14,6 +14,9 @@ first, and leave the runtime framework in place.
 
 Tool descriptions are visible to the LLM. State clearly what each tool does and
 when it should be used so the model can choose from the available inventory.
+Local tools are customized through `app/tools.py` and `app/registry.py`;
+`LocalPythonToolProvider` is framework internals and should not be edited for
+normal app customization.
 
 The starter app intentionally includes one relevant read-style tool
 (`lookup_customer`) and one irrelevant write-like tool
@@ -24,3 +27,5 @@ the relevant tool, demonstrating tool sub-selection from the available inventory
 
 You usually do not need to edit runner, provider, storage, or client internals
 unless you are extending the template framework itself.
+Lower-level local tool conversion helpers are implementation details, not the
+recommended extension path.

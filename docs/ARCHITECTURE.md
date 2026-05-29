@@ -39,10 +39,13 @@ Local Python tools are for app-specific logic. Databricks MCP tools are for gove
 
 The default local inventory includes `lookup_customer` plus the write-like `create_support_ticket` example on purpose. The read-only demo task should select `lookup_customer` and avoid `create_support_ticket`, demonstrating model-driven selection from the full inventory.
 
-Local app tools are authored as `LocalToolDefinition` entries in
-`app/registry.py`. The app registry builder converts those definitions into
-`RuntimeTool` objects, and `AgentRunner` executes the selected
-`RuntimeTool.execute` callable after argument validation.
+Local tools are customized through `app/tools.py` and `app/registry.py`.
+`LocalPythonToolProvider` is framework internals and should not be edited for
+normal app customization. The app registry builder converts
+`LocalToolDefinition` entries into `RuntimeTool` objects, and `AgentRunner`
+executes the selected `RuntimeTool.execute` callable after argument validation.
+Lower-level conversion helpers are implementation details, not the recommended
+extension path.
 
 Discovery returns `RuntimeTool` objects with:
 
