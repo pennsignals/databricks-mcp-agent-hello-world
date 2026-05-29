@@ -57,7 +57,7 @@ When multiple sources are enabled, the composite provider combines their tools a
 
 `AgentRunner` loads the enabled tool inventory, sends that inventory to the configured LLM endpoint, executes requested tool calls, and repeats until the model returns a final answer or the run reaches `max_agent_steps`.
 
-Tool selection is model-driven. The runtime validates that a requested tool exists before executing it.
+Tool selection is model-driven. The Databricks LLM client explicitly uses automatic tool selection so the model can choose from the full tool inventory. The runtime validates that a requested tool exists before executing it.
 
 ## Storage/Event Persistence
 
@@ -68,6 +68,8 @@ If `storage.agent_events_table` is unset, events are written to local JSONL unde
 If `storage.agent_events_table` is set, an active Spark session is required and events are written to that table.
 
 The template never silently falls back from table persistence to local persistence.
+
+Observability events persist normalized LLM turn payloads, not raw SDK responses.
 
 ## Runtime And Eval Contracts
 
