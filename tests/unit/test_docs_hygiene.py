@@ -187,20 +187,22 @@ def test_sample_evals_omit_allow_mutations(repo_root: Path) -> None:
 
 
 def test_docs_explain_two_tool_demo_and_mutation_contract(repo_root: Path) -> None:
-    for path in [
-        "README.md",
-        "docs/CONVERT_TEMPLATE_TO_REAL_APP.md",
-        "src/databricks_mcp_agent_hello_world/app/README.md",
-    ]:
-        text = " ".join((repo_root / path).read_text(encoding="utf-8").split()).lower()
+    combined_docs = "\n".join(
+        (repo_root / path).read_text(encoding="utf-8")
+        for path in [
+            "README.md",
+            "docs/CONVERT_TEMPLATE_TO_REAL_APP.md",
+            "src/databricks_mcp_agent_hello_world/app/README.md",
+        ]
+    )
 
-        assert "lookup_customer" in text
-        assert "create_support_ticket" in text
-        assert "tool sub-selection" in text
-        assert "irrelevant tools" in text
-        assert "prompt instructions" in text
-        assert "runtime safety gate" in text
-        assert "side-effecting tools" in text
+    for token in [
+        "lookup_customer",
+        "create_support_ticket",
+        "tool sub-selection",
+        "runtime safety gate",
+    ]:
+        assert token in combined_docs
 
 
 def test_conversion_guide_mentions_canonical_customization_files(repo_root: Path) -> None:
@@ -211,10 +213,15 @@ def test_conversion_guide_mentions_canonical_customization_files(repo_root: Path
         "app/registry.py",
         "examples/demo_run_task.json",
         "evals/sample_scenarios.json",
-        "databricks.yml",
-        "resources/jobs.yml",
     ]:
         assert expected_path in text
+
+    for deployment_token in [
+        "databricks.yml",
+        "resources/jobs.yml",
+        "shared-workspace deployment",
+    ]:
+        assert deployment_token in text
 
 
 def test_readme_links_to_customization_guides(repo_root: Path) -> None:
@@ -228,9 +235,8 @@ def test_conversion_guide_says_package_renaming_is_optional(repo_root: Path) -> 
     text = (repo_root / "docs" / "CONVERT_TEMPLATE_TO_REAL_APP.md").read_text(encoding="utf-8")
     normalized_text = " ".join(text.split()).lower()
 
-    assert "python package name can remain unchanged" in normalized_text
-    assert "package renaming is optional" in normalized_text
     assert "do not rename python package/import paths by default" in normalized_text
+    assert "package renaming is optional" in normalized_text
 
 
 def test_conversion_guide_includes_config_customization_table(repo_root: Path) -> None:

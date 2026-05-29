@@ -7,10 +7,15 @@ first, and leave the runtime framework in place.
 
 ## What to edit
 
+For local customization, edit app tools, registry, sample task, and evals.
+
 - `tools.py`: replace demo tool implementations with your project tools.
 - `registry.py`: register project tools and model-visible tool descriptions.
 - repo-root `examples/demo_run_task.json`: update the default local/deployed task.
 - repo-root `evals/sample_scenarios.json`: update smoke evals for the new task.
+
+Before shared-workspace deployment:
+
 - repo-root `databricks.yml`: rename the bundle before shared-workspace deployment.
 - repo-root `resources/jobs.yml`: rename job display names before shared-workspace deployment.
 

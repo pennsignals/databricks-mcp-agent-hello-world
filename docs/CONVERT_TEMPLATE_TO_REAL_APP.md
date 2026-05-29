@@ -5,9 +5,11 @@
 
 Use this checklist after the README quickstart works.
 
-The Python package name can remain unchanged for initial adoption. Rename the
-Databricks bundle/job identity for your project first. Rename the Python package
-only if your team requires project-specific import/package names.
+For local customization, edit app tools, registry, sample task, and evals.
+Before shared-workspace deployment, rename the Databricks bundle/job identity.
+Do not rename Python package/import paths by default; package renaming is
+optional and only needed when a team explicitly requires project-specific import
+names.
 
 ## Customization model
 
@@ -17,6 +19,9 @@ Required for a real project:
 - `src/databricks_mcp_agent_hello_world/app/registry.py`
 - `examples/demo_run_task.json`
 - `evals/sample_scenarios.json`
+
+Before shared-workspace deployment:
+
 - `databricks.yml`
 - `resources/jobs.yml`
 
@@ -86,10 +91,9 @@ execution events still follow the configured storage route.
 
 ## 3. Configure the deployment identity
 
-Rename the Databricks bundle/job identity in [databricks.yml](../databricks.yml)
-for your project.
-
-If desired, also update display names in [resources/jobs.yml](../resources/jobs.yml).
+Before shared-workspace deployment, rename the Databricks bundle name in
+[databricks.yml](../databricks.yml) and job display names in
+[resources/jobs.yml](../resources/jobs.yml).
 
 You do not need to rename the Python package to start using this template.
 
@@ -141,12 +145,12 @@ and final outputs.
 
 ## Update app-specific tests
 
-When replacing the demo app, update tests that intentionally assert demo
-behavior, tool names, sample task names, sample eval scenarios, or model-visible
-tool descriptions.
+When replacing the demo app, update app-specific tests that assert demo tool
+names, sample task names, sample eval scenarios, or model-visible tool
+descriptions.
 
 Framework tests should continue to pass without requiring changes to runner,
-provider, storage, or client internals.
+provider, storage, client, or lower-level tool internals.
 
 ## 6. Files you usually should not edit
 

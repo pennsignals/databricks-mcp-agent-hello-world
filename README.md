@@ -18,14 +18,16 @@ the [app customization guide](src/databricks_mcp_agent_hello_world/app/README.md
 
 Minimal first edit path:
 
+For local customization, edit app tools, registry, sample task, and evals.
+
 1. Replace app tools in `src/databricks_mcp_agent_hello_world/app/tools.py`.
 2. Update registry schemas and descriptions in `src/databricks_mcp_agent_hello_world/app/registry.py`.
 3. Update `examples/demo_run_task.json` and `evals/sample_scenarios.json`.
-4. Rename the bundle in `databricks.yml` and job display names in `resources/jobs.yml` before shared-workspace deployment.
 
-The Python package name can remain unchanged for initial adoption. Rename the
-Databricks bundle/job identity for your project first. Rename the Python package
-only if your team requires project-specific import/package names.
+Before shared-workspace deployment, rename the bundle name in `databricks.yml`
+and job display names in `resources/jobs.yml`. Do not rename Python
+package/import paths by default; package renaming is optional and only needed
+when a team explicitly requires project-specific import names.
 
 ## Install/Setup
 
@@ -202,12 +204,14 @@ Required for a real project:
 - [src/databricks_mcp_agent_hello_world/app/registry.py](src/databricks_mcp_agent_hello_world/app/registry.py)
 - [examples/demo_run_task.json](examples/demo_run_task.json)
 - [evals/sample_scenarios.json](evals/sample_scenarios.json)
+
+Before shared-workspace deployment:
+
 - [databricks.yml](databricks.yml)
 - [resources/jobs.yml](resources/jobs.yml)
 
 Rename the bundle name in `databricks.yml` and job display names in
-`resources/jobs.yml` before deploying to a shared workspace. Do not rename
-Python package/import paths by default.
+`resources/jobs.yml`. Do not rename Python package/import paths by default.
 
 Usually unchanged:
 
@@ -227,7 +231,10 @@ See [Convert the template into a real app](docs/CONVERT_TEMPLATE_TO_REAL_APP.md)
 
 ## Deploy To Databricks
 
-After the local demo works, update [databricks.yml](databricks.yml) and [resources/jobs.yml](resources/jobs.yml) for your workspace, then validate and deploy with Databricks Asset Bundles.
+After the local demo works, update the bundle name in
+[databricks.yml](databricks.yml) and job display names in
+[resources/jobs.yml](resources/jobs.yml) for your shared workspace, then
+validate and deploy with Databricks Asset Bundles.
 
 For tag-driven GitHub Actions deployment, see [CD deployment](docs/CD_DEPLOYMENT.md).
 
