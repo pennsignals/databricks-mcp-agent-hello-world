@@ -58,8 +58,7 @@ def test_write_event_rows_appends_jsonl_in_event_index_order(tmp_path, monkeypat
     output_path = tmp_path / "agent_events.jsonl"
     persisted = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
     assert [row["event_index"] for row in persisted] == [0, 1]
-    assert all("conversation_id" not in row for row in persisted)
-    assert all("event_id" not in row for row in persisted)
+    assert [set(row) for row in persisted] == [set(EVENT_SCHEMA.names)] * 2
     assert json.loads(persisted[1]["payload_json"]) == {"step": 2}
 
 

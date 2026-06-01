@@ -6,13 +6,23 @@ from databricks_tool_agent_template.storage import schema
 
 
 def test_event_schema_contains_current_persisted_fields() -> None:
-    field_names = schema.EVENT_SCHEMA.names
-
-    assert "run_key" in field_names
-    assert "event_index" in field_names
-    assert "payload_json" in field_names
-    assert "conversation_id" not in field_names
-    assert "event_id" not in field_names
+    assert schema.EVENT_SCHEMA.names == [
+        "schema_version",
+        "run_key",
+        "task_name",
+        "turn_index",
+        "event_index",
+        "event_type",
+        "status",
+        "tool_name",
+        "tool_call_id",
+        "model_name",
+        "inventory_hash",
+        "final_response_excerpt",
+        "error_message",
+        "payload_json",
+        "created_at",
+    ]
 
 
 def test_serialize_event_row_is_json_serializable_and_truncates_excerpt() -> None:

@@ -1,9 +1,4 @@
-"""Canonical persisted event-row schema and serialization helpers.
-
-Persisted event identity is the pair (run_key, event_index). We do not store
-conversation_id because it duplicated run_key, and we do not store event_id
-because callers can derive that composite when needed.
-"""
+"""Canonical persisted event-row schema and serialization helpers."""
 
 from __future__ import annotations
 
@@ -135,8 +130,6 @@ def serialize_event_row(
     if excerpt is not None:
         excerpt = excerpt[:_FINAL_RESPONSE_EXCERPT_LIMIT]
 
-    # Events are reconstructed by the per-run identity pair (run_key, event_index).
-    # We intentionally do not persist composite identifiers like event_id.
     return {
         "schema_version": SCHEMA_VERSION,
         "run_key": run_key,
