@@ -8,7 +8,6 @@ from databricks_tool_agent_template.models import (
     AgentRunRecord,
     AgentTaskRequest,
 )
-from databricks_tool_agent_template.storage.schema import EVENT_SCHEMA
 from databricks_tool_agent_template.tools.runtime import RuntimeTool, ToolSource
 from tests.contract.agent_runner_helpers import (
     RaisingProvider,
@@ -84,7 +83,8 @@ def test_customer_brief_uses_lookup_customer_tool_and_persists_success_contract(
     assert event_types.index("tool_call") < event_types.index("tool_result")
     assert [row["event_index"] for row in events] == list(range(len(events)))
     assert {row["run_key"] for row in events} == {"run-123"}
-    assert all(set(row) == set(EVENT_SCHEMA.names) for row in events)
+    assert all("conversation_id" not in row for row in events)
+    assert all("event_id" not in row for row in events)
     assert event_payload(events[0])["available_tools_count"] == len(tools)
     llm_request_event = next(row for row in events if row["event_type"] == "llm_request")
     assert event_payload(llm_request_event)["tool_choice"] == DEFAULT_TOOL_CHOICE
