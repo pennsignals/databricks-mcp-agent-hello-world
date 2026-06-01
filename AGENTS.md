@@ -91,7 +91,7 @@ Definition:
 - consumes tokens
 - verifies run status, expected tool use, and required output text
 
-### Hello-World Demo Run
+### Template Demo Run
 
 Command:
 
@@ -101,7 +101,7 @@ run-agent-task --config-path workspace-config.yml --task-input-file examples/dem
 
 Definition:
 
-- demonstrates the end-to-end hello-world workflow
+- demonstrates the end-to-end template demo workflow
 - should be used after preflight and tool discovery succeed
 
 ## Core Template Invariants
