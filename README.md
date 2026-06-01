@@ -18,14 +18,17 @@ and run the one-time customization script before writing app code:
 
 ```bash
 python scripts/customize_template.py my_agent_app
-python -m pip install -e ".[dev]"
-python -m pytest
 ```
 
 The script derives the distribution name automatically (`my_agent_app` becomes
-`my-agent-app`). Commit this rename as its own first commit, then continue with
-the [conversion checklist](docs/CONVERT_TEMPLATE_TO_REAL_APP.md) and the
-[app customization guide](src/databricks_tool_agent_template/app/README.md).
+`my-agent-app`). Commit this rename as its own first commit.
+
+Then follow [Install/Setup](#installsetup). After installing dev dependencies,
+run:
+
+```bash
+python -m pytest
+```
 
 Minimal first edit path:
 
