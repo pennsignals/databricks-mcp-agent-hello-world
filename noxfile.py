@@ -70,7 +70,13 @@ def tests(session: nox.Session) -> None:
     """Run unit and contract tests with coverage."""
     _install_tool_requirements(session, *NOX_DEV_REQUIREMENTS)
     _install_project_editable(session)
-    pytest_args = []
+    pytest_args = [
+        "--cov=databricks_tool_agent_template",
+        "--cov-report=term-missing:skip-covered",
+        "--cov-report=html",
+        "--cov-context=test",
+        "--cov-fail-under=90",
+    ]
     if github_step_summary := os.getenv("GITHUB_STEP_SUMMARY"):
         pytest_args.append(f"--cov-report=markdown-append:{github_step_summary}")
     session.run("pytest", *pytest_args)

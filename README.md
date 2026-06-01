@@ -18,6 +18,7 @@ and run the one-time customization script before writing app code:
 
 ```bash
 python scripts/customize_template.py my_agent_app
+python -m pip install -e ".[dev]"
 python -m pytest
 ```
 
@@ -52,7 +53,7 @@ From the repo root:
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e .[dev]
+python -m pip install -e ".[dev]"
 python3.12 -m pre_commit install
 cp workspace-config.example.yml workspace-config.yml
 ```

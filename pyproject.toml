@@ -56,13 +56,6 @@ select = ["E", "F", "I", "B", "UP", "SIM", "C4", "PIE", "PT", "RUF"]
 plugins.line-length.enabled = false
 
 [tool.pytest.ini_options]
-addopts = """
---cov=databricks_tool_agent_template
---cov-report=term-missing:skip-covered
---cov-report=html
---cov-context=test
---cov-fail-under=90
-"""
 pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
