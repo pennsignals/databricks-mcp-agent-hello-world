@@ -6,7 +6,7 @@ This template is a small Databricks Jobs runtime for batch/non-interactive LLM a
 
 ## Config Loading
 
-`src/databricks_mcp_agent_hello_world/config.py` is the source of truth for supported config keys.
+`src/databricks_tool_agent_template/config.py` is the source of truth for supported config keys.
 
 The default config path is `workspace-config.yml`. Loading is strict: unknown top-level and nested YAML keys fail fast.
 

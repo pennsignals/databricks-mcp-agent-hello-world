@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from databricks_mcp_agent_hello_world.config import load_yaml_config
+from databricks_tool_agent_template.config import load_yaml_config
 
 
 def test_load_yaml_config_rejects_missing_config_file(tmp_path: Path) -> None:

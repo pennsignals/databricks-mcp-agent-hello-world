@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from databricks_mcp_agent_hello_world.storage import bootstrap, write
+from databricks_tool_agent_template.storage import bootstrap, write
 
 
 def test_parse_table_name_normalizes_three_part_table_name() -> None:

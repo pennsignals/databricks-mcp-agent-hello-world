@@ -3,20 +3,20 @@
 [Back to README](../README.md)
 [Architecture](./ARCHITECTURE.md)
 
-Use this checklist after the README quickstart works.
+Use this checklist after forking. Before app edits or the normal quickstart,
+run `python scripts/customize_template.py my_agent_app` once, use lowercase
+snake_case, and commit the rename as its own first commit.
 
 For local customization, edit app tools, registry, sample task, and evals.
-Before shared-workspace deployment, rename the Databricks bundle/job identity.
-Do not rename Python package/import paths by default; package renaming is
-optional and only needed when a team explicitly requires project-specific import
-names.
+Before shared-workspace deployment, review or adjust the Databricks bundle/job
+identity.
 
 ## Customization model
 
 Required for a real project:
 
-- `src/databricks_mcp_agent_hello_world/app/tools.py`
-- `src/databricks_mcp_agent_hello_world/app/registry.py`
+- `src/databricks_tool_agent_template/app/tools.py`
+- `src/databricks_tool_agent_template/app/registry.py`
 - `examples/demo_run_task.json`
 - `evals/sample_scenarios.json`
 
@@ -25,9 +25,8 @@ Before shared-workspace deployment:
 - `databricks.yml`
 - `resources/jobs.yml`
 
-Rename the bundle name in `databricks.yml` before shared-workspace deployment.
-Rename job display names in `resources/jobs.yml` before shared-workspace
-deployment. Do not rename Python package/import paths by default.
+Review or adjust the bundle name in `databricks.yml` and job display names in
+`resources/jobs.yml` before shared-workspace deployment.
 
 Usually unchanged:
 
@@ -43,15 +42,13 @@ Optional:
 - MCP tool-source config
 - storage route
 - endpoint/profile/workspace settings
-- Python package renaming, only if a team explicitly requires
-  project-specific import names
 
 ## 1. Replace the demo app behavior
 
-Edit [app/tools.py](../src/databricks_mcp_agent_hello_world/app/tools.py) to
+Edit [app/tools.py](../src/databricks_tool_agent_template/app/tools.py) to
 replace the demo tool implementations.
 
-Edit [app/registry.py](../src/databricks_mcp_agent_hello_world/app/registry.py)
+Edit [app/registry.py](../src/databricks_tool_agent_template/app/registry.py)
 to register project tools and update model-visible tool descriptions.
 
 Tool descriptions are visible to the model. State what each tool does and when
@@ -91,7 +88,7 @@ execution events still follow the configured storage route.
 
 ## 3. Configure the deployment identity
 
-Before shared-workspace deployment, rename the Databricks bundle name in
+Before shared-workspace deployment, review or adjust the Databricks bundle name in
 [databricks.yml](../databricks.yml) and job display names in
 [resources/jobs.yml](../resources/jobs.yml).
 
@@ -120,10 +117,6 @@ credentials out of public committed config.
 For runtime details, see [Architecture](./ARCHITECTURE.md).
 
 ## 5. Optional changes
-
-Package renaming is optional and advanced, not part of the default path. Rename
-the Python package only if your team requires project-specific import/package
-names.
 
 You can also replace the default system prompt if your domain needs different
 general behavior. Keep local console commands and Databricks wheel task

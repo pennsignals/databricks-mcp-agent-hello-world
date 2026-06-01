@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from databricks_mcp_agent_hello_world import config
-from databricks_mcp_agent_hello_world.storage import spark
+from databricks_tool_agent_template import config
+from databricks_tool_agent_template.storage import spark
 from tests.conftest import write_workspace_config
 from tests.helpers import make_settings
 

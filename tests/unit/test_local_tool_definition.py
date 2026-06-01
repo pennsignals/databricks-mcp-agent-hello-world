@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from databricks_mcp_agent_hello_world.tools.local import (
+from databricks_tool_agent_template.tools.local import (
     LocalToolDefinition,
     build_local_tool_registry,
     local_definition_to_runtime_tool,

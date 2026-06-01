@@ -6,7 +6,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from databricks_mcp_agent_hello_world.storage import spark
+from databricks_tool_agent_template.storage import spark
 
 
 def test_get_spark_session_returns_active_session(monkeypatch) -> None:

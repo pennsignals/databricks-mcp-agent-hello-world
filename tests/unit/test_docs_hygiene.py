@@ -6,7 +6,7 @@ from pathlib import Path
 CORE_DOC_RELATIVE_PATHS = [
     "README.md",
     "AGENTS.md",
-    "src/databricks_mcp_agent_hello_world/app/README.md",
+    "src/databricks_tool_agent_template/app/README.md",
 ]
 
 LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
@@ -53,8 +53,8 @@ def test_conversion_guide_names_core_customization_files(repo_root: Path) -> Non
     text = (repo_root / "docs" / "CONVERT_TEMPLATE_TO_REAL_APP.md").read_text(encoding="utf-8")
 
     required = [
-        "src/databricks_mcp_agent_hello_world/app/tools.py",
-        "src/databricks_mcp_agent_hello_world/app/registry.py",
+        "src/databricks_tool_agent_template/app/tools.py",
+        "src/databricks_tool_agent_template/app/registry.py",
         "examples/demo_run_task.json",
         "evals/sample_scenarios.json",
     ]

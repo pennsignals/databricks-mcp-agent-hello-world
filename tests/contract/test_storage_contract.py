@@ -5,12 +5,12 @@ import json
 import pyarrow as pa
 import pytest
 
-from databricks_mcp_agent_hello_world.storage.schema import (
+from databricks_tool_agent_template.storage.schema import (
     EVENT_SCHEMA,
     serialize_event_row,
     validate_event_rows,
 )
-from databricks_mcp_agent_hello_world.storage.write import write_event_rows
+from databricks_tool_agent_template.storage.write import write_event_rows
 from tests.helpers import make_settings
 
 
@@ -42,7 +42,7 @@ def test_validate_event_rows_accepts_current_event_row_schema() -> None:
 
 def test_write_event_rows_appends_jsonl_in_event_index_order(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.write.require_spark_session",
+        "databricks_tool_agent_template.storage.write.require_spark_session",
         lambda: (_ for _ in ()).throw(AssertionError("Spark should not be required.")),
     )
     settings = make_settings(
@@ -68,7 +68,7 @@ def test_write_event_rows_requires_spark_without_local_fallback_when_table_is_co
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.write.require_spark_session",
+        "databricks_tool_agent_template.storage.write.require_spark_session",
         lambda: (_ for _ in ()).throw(RuntimeError("no active Spark session")),
     )
     settings = make_settings(
@@ -118,7 +118,7 @@ class _FakeSparkSession:
 def test_write_event_rows_uses_arrow_table_for_spark_writes(monkeypatch) -> None:
     spark = _FakeSparkSession()
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.storage.write.require_spark_session",
+        "databricks_tool_agent_template.storage.write.require_spark_session",
         lambda: spark,
     )
     settings = make_settings(

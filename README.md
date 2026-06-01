@@ -1,4 +1,4 @@
-# databricks-mcp-agent-hello-world
+# databricks-tool-agent-template
 
 A starter template for batch/non-interactive LLM agents that run as Databricks Jobs and call tools at runtime.
 
@@ -13,21 +13,29 @@ For runtime design, see [Architecture](docs/ARCHITECTURE.md). For downstream edi
 
 ## Customizing This Template
 
-Start with the [conversion checklist](docs/CONVERT_TEMPLATE_TO_REAL_APP.md) and
-the [app customization guide](src/databricks_mcp_agent_hello_world/app/README.md).
+Immediately after forking, choose the final lowercase snake_case package name
+and run the one-time customization script before writing app code:
+
+```bash
+python scripts/customize_template.py my_agent_app
+python -m pytest
+```
+
+The script derives the distribution name automatically (`my_agent_app` becomes
+`my-agent-app`). Commit this rename as its own first commit, then continue with
+the [conversion checklist](docs/CONVERT_TEMPLATE_TO_REAL_APP.md) and the
+[app customization guide](src/databricks_tool_agent_template/app/README.md).
 
 Minimal first edit path:
 
 For local customization, edit app tools, registry, sample task, and evals.
 
-1. Replace app tools in `src/databricks_mcp_agent_hello_world/app/tools.py`.
-2. Update registry schemas and descriptions in `src/databricks_mcp_agent_hello_world/app/registry.py`.
+1. Replace app tools in `src/databricks_tool_agent_template/app/tools.py`.
+2. Update registry schemas and descriptions in `src/databricks_tool_agent_template/app/registry.py`.
 3. Update `examples/demo_run_task.json` and `evals/sample_scenarios.json`.
 
-Before shared-workspace deployment, rename the bundle name in `databricks.yml`
-and job display names in `resources/jobs.yml`. Do not rename Python
-package/import paths by default; package renaming is optional and only needed
-when a team explicitly requires project-specific import names.
+Before shared-workspace deployment, review or adjust the bundle name in
+`databricks.yml` and job display names in `resources/jobs.yml`.
 
 ## Install/Setup
 
@@ -198,10 +206,14 @@ run-evals \
 
 ## Customize The Template
 
+Start with the one-time package rename in
+[Customizing This Template](#customizing-this-template), then update the app
+surface below.
+
 Required for a real project:
 
-- [src/databricks_mcp_agent_hello_world/app/tools.py](src/databricks_mcp_agent_hello_world/app/tools.py)
-- [src/databricks_mcp_agent_hello_world/app/registry.py](src/databricks_mcp_agent_hello_world/app/registry.py)
+- [src/databricks_tool_agent_template/app/tools.py](src/databricks_tool_agent_template/app/tools.py)
+- [src/databricks_tool_agent_template/app/registry.py](src/databricks_tool_agent_template/app/registry.py)
 - [examples/demo_run_task.json](examples/demo_run_task.json)
 - [evals/sample_scenarios.json](evals/sample_scenarios.json)
 
@@ -210,8 +222,8 @@ Before shared-workspace deployment:
 - [databricks.yml](databricks.yml)
 - [resources/jobs.yml](resources/jobs.yml)
 
-Rename the bundle name in `databricks.yml` and job display names in
-`resources/jobs.yml`. Do not rename Python package/import paths by default.
+Review or adjust the bundle name in `databricks.yml` and job display names in
+`resources/jobs.yml`.
 
 Usually unchanged:
 
@@ -222,8 +234,7 @@ Usually unchanged:
 - `tools/`
 
 Optional changes include the system prompt, MCP tool-source config, storage
-route, endpoint/profile/workspace settings, and Python package renaming only
-when a team explicitly requires project-specific import names.
+route, and endpoint/profile/workspace settings.
 
 Keep the default runtime contract simple: discover enabled tool sources, expose the full discovered tool inventory to the model, execute the tool the model requests, and persist events through the configured storage route.
 
@@ -231,7 +242,7 @@ See [Convert the template into a real app](docs/CONVERT_TEMPLATE_TO_REAL_APP.md)
 
 ## Deploy To Databricks
 
-After the local demo works, update the bundle name in
+After the local demo works, review or adjust the bundle name in
 [databricks.yml](databricks.yml) and job display names in
 [resources/jobs.yml](resources/jobs.yml) for your shared workspace, then
 validate and deploy with Databricks Asset Bundles.

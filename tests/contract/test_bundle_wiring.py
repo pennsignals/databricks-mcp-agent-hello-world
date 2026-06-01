@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from databricks_mcp_agent_hello_world.versioning import (
+from databricks_tool_agent_template.versioning import (
     bundle_wheel_glob,
     read_project_name,
 )

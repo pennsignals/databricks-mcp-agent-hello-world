@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from databricks_mcp_agent_hello_world.tools.validation import (
+from databricks_tool_agent_template.tools.validation import (
     ToolInputValidationError,
     ToolSchemaValidationError,
     get_tool_parameters_schema,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from databricks_mcp_agent_hello_world.models import (
+from databricks_tool_agent_template.models import (
     AgentRunRecord,
     DiscoveredTool,
     EvalScenario,

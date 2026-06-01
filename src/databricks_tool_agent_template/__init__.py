@@ -3,7 +3,7 @@
 from .versioning import read_installed_package_version
 
 __all__ = ["__version__", "discover_tools", "run_agent_task", "run_init_storage"]
-__version__ = read_installed_package_version("databricks-mcp-agent-hello-world")
+__version__ = read_installed_package_version("databricks-tool-agent-template")
 
 
 # Databricks Python wheel tasks in resources/jobs.yml call these package-root

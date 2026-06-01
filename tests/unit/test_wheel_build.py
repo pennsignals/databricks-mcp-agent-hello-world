@@ -7,7 +7,7 @@ from pathlib import Path
 
 from packaging.version import Version
 
-from databricks_mcp_agent_hello_world.devtools.wheel_build import (
+from databricks_tool_agent_template.devtools.wheel_build import (
     bootstrap_pretend_version,
     build_environment_overrides,
     build_wheel,
@@ -137,12 +137,12 @@ def test_discover_built_wheel_reads_project_name_from_pyproject(tmp_path: Path) 
         "\n".join(
             [
                 "[project]",
-                'name = "databricks-mcp-agent-hello-world"',
+                'name = "databricks-tool-agent-template"',
             ]
         ),
         encoding="utf-8",
     )
-    wheel_path = dist_dir / "databricks_mcp_agent_hello_world-1.2.3-py3-none-any.whl"
+    wheel_path = dist_dir / "databricks_tool_agent_template-1.2.3-py3-none-any.whl"
     wheel_path.write_text("wheel", encoding="utf-8")
 
     assert discover_built_wheel(repo_root) == wheel_path
@@ -154,19 +154,19 @@ def test_build_wheel_cleans_and_discovers_artifact(monkeypatch, tmp_path: Path) 
     calls: list[tuple[str, object]] = []
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.devtools.wheel_build.clean_build_artifacts",
+        "databricks_tool_agent_template.devtools.wheel_build.clean_build_artifacts",
         lambda root: calls.append(("clean", root)),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.devtools.wheel_build.build_environment_overrides",
+        "databricks_tool_agent_template.devtools.wheel_build.build_environment_overrides",
         lambda root: {"SETUPTOOLS_SCM_PRETEND_VERSION": "0.1.0.dev9+gabc"},
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.devtools.wheel_build.read_project_name",
-        lambda path: "databricks-mcp-agent-hello-world",
+        "databricks_tool_agent_template.devtools.wheel_build.read_project_name",
+        lambda path: "databricks-tool-agent-template",
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.devtools.wheel_build.discover_built_wheel",
+        "databricks_tool_agent_template.devtools.wheel_build.discover_built_wheel",
         lambda root, *, project_name=None: expected_wheel,
     )
 
@@ -195,19 +195,19 @@ def test_build_wheel_can_skip_clean_and_build_without_no_isolation(
     called = {"clean": False}
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.devtools.wheel_build.clean_build_artifacts",
+        "databricks_tool_agent_template.devtools.wheel_build.clean_build_artifacts",
         lambda root: called.__setitem__("clean", True),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.devtools.wheel_build.build_environment_overrides",
+        "databricks_tool_agent_template.devtools.wheel_build.build_environment_overrides",
         lambda root: {},
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.devtools.wheel_build.read_project_name",
-        lambda path: "databricks-mcp-agent-hello-world",
+        "databricks_tool_agent_template.devtools.wheel_build.read_project_name",
+        lambda path: "databricks-tool-agent-template",
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.devtools.wheel_build.discover_built_wheel",
+        "databricks_tool_agent_template.devtools.wheel_build.discover_built_wheel",
         lambda root, *, project_name=None: expected_wheel,
     )
 

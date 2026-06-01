@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from databricks_mcp_agent_hello_world.app.tools import (
+from databricks_tool_agent_template.app.tools import (
     create_support_ticket,
     lookup_customer,
 )
-from databricks_mcp_agent_hello_world.tools.local import (
+from databricks_tool_agent_template.tools.local import (
     LocalToolDefinition,
     build_local_tool_registry,
 )
-from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool
+from databricks_tool_agent_template.tools.runtime import RuntimeTool
 
 # TEMPLATE_CUSTOMIZE_HERE
 # Replace these example app registry entries with your real local tools.

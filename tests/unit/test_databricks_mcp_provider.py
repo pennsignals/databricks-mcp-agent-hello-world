@@ -5,7 +5,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from databricks_mcp_agent_hello_world.providers.databricks_mcp import DatabricksMCPToolProvider
+from databricks_tool_agent_template.providers.databricks_mcp import DatabricksMCPToolProvider
 from tests.helpers import make_settings
 
 
@@ -45,7 +45,7 @@ def test_databricks_mcp_provider_uses_shared_workspace_client(monkeypatch) -> No
     workspace_client = object()
     workspace_client_calls = []
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.providers.databricks_mcp.get_workspace_client",
+        "databricks_tool_agent_template.providers.databricks_mcp.get_workspace_client",
         lambda settings: workspace_client_calls.append(settings) or workspace_client,
     )
     settings = make_settings(

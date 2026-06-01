@@ -4,7 +4,7 @@ import pyarrow as pa
 import pytest
 from pydantic import BaseModel
 
-from databricks_mcp_agent_hello_world.storage import schema
+from databricks_tool_agent_template.storage import schema
 
 
 def test_arrow_field_to_spark_sql_type_rejects_unsupported_arrow_type() -> None:

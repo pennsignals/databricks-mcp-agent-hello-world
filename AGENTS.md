@@ -1,4 +1,4 @@
-# databricks-mcp-agent-hello-world Operator Guide
+# databricks-tool-agent-template Operator Guide
 
 This is the internal maintainer guide for the template. For setup and first run, use [README.md](README.md). For runtime design, use [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). For downstream customization, use [docs/CONVERT_TEMPLATE_TO_REAL_APP.md](docs/CONVERT_TEMPLATE_TO_REAL_APP.md).
 
@@ -13,7 +13,7 @@ This is the internal maintainer guide for the template. For setup and first run,
 
 - Keep the README flow canonical for operator onboarding.
 - Treat [examples/demo_run_task.json](examples/demo_run_task.json) as the canonical sample task reference.
-- Keep all Databricks SDK client construction in `src/databricks_mcp_agent_hello_world/clients/databricks.py`; other modules should depend on the shared factory helpers.
+- Keep all Databricks SDK client construction in `src/databricks_tool_agent_template/clients/databricks.py`; other modules should depend on the shared factory helpers.
 - Prefer the repo-local `.venv` for coding-agent local development when it already exists and has the needed tools installed.
 - Treat `python3.12 -m pre_commit run --all-files --show-diff-on-failure` as the standard validation command.
 - Treat `python3.12 -m pre_commit install` as the one-time workstation setup step for automatic git-hook enforcement.
@@ -122,10 +122,10 @@ Contributor rules:
 
 ## Maintainer Touchpoints
 
-- Example app tool implementations live in `src/databricks_mcp_agent_hello_world/app/tools.py`.
-- Tool metadata and JSON schemas are registered in `src/databricks_mcp_agent_hello_world/app/registry.py`.
-- Runtime orchestration lives in `src/databricks_mcp_agent_hello_world/runner/agent_runner.py`.
-- Runtime config rules live in `src/databricks_mcp_agent_hello_world/config.py`.
+- Example app tool implementations live in `src/databricks_tool_agent_template/app/tools.py`.
+- Tool metadata and JSON schemas are registered in `src/databricks_tool_agent_template/app/registry.py`.
+- Runtime orchestration lives in `src/databricks_tool_agent_template/runner/agent_runner.py`.
+- Runtime config rules live in `src/databricks_tool_agent_template/config.py`.
 
 ## Repo Hygiene
 
@@ -134,7 +134,7 @@ Do not commit caches, local state, or build artifacts. These paths are transient
 Repo conventions:
 
 - Keep the existing small-template layout.
-- Python package directories under `src/databricks_mcp_agent_hello_world/` should include `__init__.py`.
+- Python package directories under `src/databricks_tool_agent_template/` should include `__init__.py`.
 - GitHub-owned Actions use readable major-version tags; third-party actions may use exact release tags.
 - Avoid adding new directories or abstractions unless the template clearly needs them.
 

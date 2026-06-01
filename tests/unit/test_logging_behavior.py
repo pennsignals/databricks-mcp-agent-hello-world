@@ -4,10 +4,10 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 
-from databricks_mcp_agent_hello_world.llm_client import LLMToolCall, LLMTurnResult
-from databricks_mcp_agent_hello_world.models import AgentTaskRequest
-from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
-from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool, ToolSource
+from databricks_tool_agent_template.llm_client import LLMToolCall, LLMTurnResult
+from databricks_tool_agent_template.models import AgentTaskRequest
+from databricks_tool_agent_template.runner.agent_runner import AgentRunner
+from databricks_tool_agent_template.tools.runtime import RuntimeTool, ToolSource
 
 
 class StubProvider:
@@ -86,11 +86,11 @@ def test_unknown_tool_call_logs_warning_without_old_blocked_language(
         ),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.runner.agent_runner.write_event_rows",
+        "databricks_tool_agent_template.runner.agent_runner.write_event_rows",
         lambda settings, rows: None,
     )
 
-    caplog.set_level(logging.INFO, logger="databricks_mcp_agent_hello_world.runner.agent_runner")
+    caplog.set_level(logging.INFO, logger="databricks_tool_agent_template.runner.agent_runner")
 
     record = runner.run(
         AgentTaskRequest(

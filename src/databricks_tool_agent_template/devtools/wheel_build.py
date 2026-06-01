@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from databricks_mcp_agent_hello_world.versioning import (
+from databricks_tool_agent_template.versioning import (
     BOOTSTRAP_BASE_VERSION,
     distribution_name_for_wheel,
     read_project_name,

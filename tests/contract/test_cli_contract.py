@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from databricks_mcp_agent_hello_world import cli
-from databricks_mcp_agent_hello_world.cli import (
+from databricks_tool_agent_template import cli
+from databricks_tool_agent_template.cli import (
     build_parser,
     discover_tools_main,
     main,
@@ -16,9 +16,9 @@ from databricks_mcp_agent_hello_world.cli import (
     run_init_storage_main,
     run_named_command,
 )
-from databricks_mcp_agent_hello_world.commands import CommandResult
-from databricks_mcp_agent_hello_world.evals.harness import EvalSetupError
-from databricks_mcp_agent_hello_world.models import (
+from databricks_tool_agent_template.commands import CommandResult
+from databricks_tool_agent_template.evals.harness import EvalSetupError
+from databricks_tool_agent_template.models import (
     DiscoveryReport,
     EvalRunReport,
     EvalScenarioResult,
@@ -90,14 +90,14 @@ def test_run_named_command_renders_text_summary_for_preflight(monkeypatch) -> No
     payload = PreflightReport(overall_status="pass", checks=[], settings_summary={})
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_preflight_command",
+        "databricks_tool_agent_template.cli.run_preflight_command",
         lambda config_path: (
             recorded.update({"config_path": config_path})
             or CommandResult(exit_code=0, payload=payload)
         ),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.print_preflight_summary",
+        "databricks_tool_agent_template.cli.print_preflight_summary",
         lambda report: recorded.update({"rendered": report}),
     )
 
@@ -112,11 +112,11 @@ def test_discover_tools_main_parses_args_and_calls_command_layer(monkeypatch) ->
     result = CommandResult(exit_code=0, payload=object())
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_discover_tools_command",
+        "databricks_tool_agent_template.cli.run_discover_tools_command",
         lambda config_path: recorded.update({"config_path": config_path}) or result,
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.print_discovery_report",
+        "databricks_tool_agent_template.cli.print_discovery_report",
         lambda report: recorded.update({"rendered": report}),
     )
 
@@ -141,11 +141,11 @@ def test_run_agent_task_main_parses_args_and_calls_command_layer(monkeypatch) ->
         return result
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_agent_task_command",
+        "databricks_tool_agent_template.cli.run_agent_task_command",
         _run_agent_task_command,
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.print_run_summary",
+        "databricks_tool_agent_template.cli.print_run_summary",
         lambda record: recorded.update({"rendered": record}),
     )
 
@@ -173,7 +173,7 @@ def test_run_init_storage_main_parses_args_and_calls_command_layer(monkeypatch) 
     result = CommandResult(exit_code=0, payload=payload)
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_init_storage_command",
+        "databricks_tool_agent_template.cli.run_init_storage_command",
         lambda config_path: recorded.update({"config_path": config_path}) or result,
     )
 
@@ -192,7 +192,7 @@ def test_run_named_command_renders_json_for_discovery(monkeypatch, capsys) -> No
         tools=[],
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_discover_tools_command",
+        "databricks_tool_agent_template.cli.run_discover_tools_command",
         lambda config_path: CommandResult(exit_code=0, payload=payload),
     )
 
@@ -210,7 +210,7 @@ def test_run_named_command_renders_json_for_discovery(monkeypatch, capsys) -> No
 
 def test_run_named_command_maps_eval_setup_error_to_stderr(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_evals_command",
+        "databricks_tool_agent_template.cli.run_evals_command",
         lambda config_path, *, scenario_file="evals/sample_scenarios.json": (_ for _ in ()).throw(
             EvalSetupError("auth failed")
         ),
@@ -224,7 +224,7 @@ def test_run_named_command_maps_eval_setup_error_to_stderr(monkeypatch, capsys) 
 
 def test_run_named_command_maps_generic_exception_to_stderr(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_discover_tools_command",
+        "databricks_tool_agent_template.cli.run_discover_tools_command",
         lambda config_path: (_ for _ in ()).throw(RuntimeError("boom")),
     )
 
@@ -282,7 +282,7 @@ def test_run_named_command_renders_eval_failure_summary(monkeypatch, capsys) -> 
         ],
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_evals_command",
+        "databricks_tool_agent_template.cli.run_evals_command",
         lambda config_path, *, scenario_file="evals/sample_scenarios.json": CommandResult(
             exit_code=1,
             payload=summary,
@@ -329,7 +329,7 @@ def test_run_named_command_keeps_passing_eval_summary_concise(monkeypatch, capsy
     )
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_evals_command",
+        "databricks_tool_agent_template.cli.run_evals_command",
         lambda config_path, *, scenario_file="evals/sample_scenarios.json": CommandResult(
             exit_code=0,
             payload=summary,

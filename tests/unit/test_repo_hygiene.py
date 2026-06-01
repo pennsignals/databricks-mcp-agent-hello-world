@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-PACKAGE_ROOT = Path("src/databricks_mcp_agent_hello_world")
+PACKAGE_ROOT = Path("src/databricks_tool_agent_template")
 SHA_REF_PATTERN = re.compile(r"@[0-9a-f]{40}\b")
 USES_REF_PATTERN = re.compile(
     r"^\s*uses:\s*(?P<action>[^@\s]+)@(?P<ref>\S+)\s*$",

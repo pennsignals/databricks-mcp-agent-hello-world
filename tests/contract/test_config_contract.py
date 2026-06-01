@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from databricks_mcp_agent_hello_world.config import (
+from databricks_tool_agent_template.config import (
     DEFAULT_PROMPT_DIR,
     build_settings,
     load_dotenv_values,

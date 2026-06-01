@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from databricks_mcp_agent_hello_world import logging_utils
+from databricks_tool_agent_template import logging_utils
 
 
 def test_configure_logging_sets_existing_root_handler_level(isolated_root_logger) -> None:

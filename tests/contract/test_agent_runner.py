@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from databricks_mcp_agent_hello_world.llm_client import DEFAULT_TOOL_CHOICE
-from databricks_mcp_agent_hello_world.models import (
+from databricks_tool_agent_template.llm_client import DEFAULT_TOOL_CHOICE
+from databricks_tool_agent_template.models import (
     AgentRunRecord,
     AgentTaskRequest,
 )
-from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool, ToolSource
+from databricks_tool_agent_template.tools.runtime import RuntimeTool, ToolSource
 from tests.contract.agent_runner_helpers import (
     RaisingProvider,
     StubLLM,

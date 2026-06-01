@@ -16,12 +16,12 @@ For local customization, edit app tools, registry, sample task, and evals.
 
 Before shared-workspace deployment:
 
-- repo-root `databricks.yml`: rename the bundle before shared-workspace deployment.
-- repo-root `resources/jobs.yml`: rename job display names before shared-workspace deployment.
+- repo-root `databricks.yml`: review or adjust the bundle name.
+- repo-root `resources/jobs.yml`: review or adjust job display names.
 
-Do not rename Python package/import paths by default. Package renaming is
-optional and only needed when a team explicitly requires project-specific import
-names.
+Run the repo-root package customization script once, immediately after forking
+and before editing app code. The main README keeps that first-run flow
+canonical.
 
 Tool descriptions are visible to the LLM. State clearly what each tool does and
 when it should be used so the model can choose from the available inventory.
@@ -40,8 +40,7 @@ side-effecting tools, add domain-specific safeguards appropriate for your use
 case.
 
 Optional customization includes the system prompt, MCP tool-source config,
-storage route, endpoint/profile/workspace settings, and Python package renaming
-only when required.
+storage route, and endpoint/profile/workspace settings.
 
 ## What usually does not need editing
 

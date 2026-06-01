@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from databricks_mcp_agent_hello_world.providers import base, factory
-from databricks_mcp_agent_hello_world.providers.composite import CompositeToolProvider
-from databricks_mcp_agent_hello_world.providers.local_python import LocalPythonToolProvider
-from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool, ToolSource, ToolSourceType
+from databricks_tool_agent_template.providers import base, factory
+from databricks_tool_agent_template.providers.composite import CompositeToolProvider
+from databricks_tool_agent_template.providers.local_python import LocalPythonToolProvider
+from databricks_tool_agent_template.tools.runtime import RuntimeTool, ToolSource, ToolSourceType
 from tests.helpers import make_settings
 
 

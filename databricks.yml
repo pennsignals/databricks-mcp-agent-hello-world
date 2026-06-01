@@ -5,7 +5,7 @@
 
 bundle:
   # TEMPLATE_CUSTOMIZE_HERE
-  name: databricks-mcp-agent-hello-world
+  name: databricks-tool-agent-template
 
 include:
   - resources/*.yml

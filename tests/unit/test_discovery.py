@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from databricks_mcp_agent_hello_world.cli import (
+from databricks_tool_agent_template.cli import (
     print_discovery_report,
     print_json_report,
 )
-from databricks_mcp_agent_hello_world.config import load_settings
-from databricks_mcp_agent_hello_world.discovery import discover_tools
+from databricks_tool_agent_template.config import load_settings
+from databricks_tool_agent_template.discovery import discover_tools
 from tests.conftest import write_workspace_config
 from tests.helpers import make_settings
 
@@ -46,7 +46,7 @@ def test_discovery_reports_enabled_sources_even_when_no_tools_are_returned(monke
             return []
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.discovery.get_tool_provider",
+        "databricks_tool_agent_template.discovery.get_tool_provider",
         lambda settings: EmptyProvider(),
     )
     settings = make_settings(

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from databricks_mcp_agent_hello_world.providers.local_python import LocalPythonToolProvider
-from databricks_mcp_agent_hello_world.tools.runtime import inventory_hash
+from databricks_tool_agent_template.providers.local_python import LocalPythonToolProvider
+from databricks_tool_agent_template.tools.runtime import inventory_hash
 
 
 def test_local_python_provider_returns_runtime_tools_matching_local_registry() -> None:

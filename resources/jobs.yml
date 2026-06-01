@@ -7,8 +7,8 @@ resources:
           environment_key: default
           python_wheel_task:
             # Package-root callable invoked by Databricks as:
-            # databricks_mcp_agent_hello_world.run_init_storage()
-            package_name: databricks_mcp_agent_hello_world
+            # databricks_tool_agent_template.run_init_storage()
+            package_name: databricks_tool_agent_template
             entry_point: run_init_storage
             parameters:
               - --config-path
@@ -18,7 +18,7 @@ resources:
           spec:
             environment_version: "5"
             dependencies:
-              - ../dist/databricks_mcp_agent_hello_world-*.whl
+              - ../dist/databricks_tool_agent_template-*.whl
     run_agent_task_job:
       name: run_agent_task_job
       tasks:
@@ -26,9 +26,9 @@ resources:
           environment_key: default
           python_wheel_task:
             # Package-root callable invoked by Databricks as:
-            # databricks_mcp_agent_hello_world.run_agent_task()
+            # databricks_tool_agent_template.run_agent_task()
             # Delegates to the same implementation as the local run-agent-task console command.
-            package_name: databricks_mcp_agent_hello_world
+            package_name: databricks_tool_agent_template
             entry_point: run_agent_task
             parameters:
               - --config-path
@@ -42,4 +42,4 @@ resources:
           spec:
             environment_version: "5"
             dependencies:
-              - ../dist/databricks_mcp_agent_hello_world-*.whl
+              - ../dist/databricks_tool_agent_template-*.whl

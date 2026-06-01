@@ -2,7 +2,7 @@ import json
 
 import pyarrow as pa
 
-from databricks_mcp_agent_hello_world.storage import schema
+from databricks_tool_agent_template.storage import schema
 
 
 def test_event_schema_contains_current_persisted_fields() -> None:

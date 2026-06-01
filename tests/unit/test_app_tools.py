@@ -1,6 +1,6 @@
 import pytest
 
-from databricks_mcp_agent_hello_world.app.tools import (
+from databricks_tool_agent_template.app.tools import (
     create_support_ticket,
     lookup_customer,
 )

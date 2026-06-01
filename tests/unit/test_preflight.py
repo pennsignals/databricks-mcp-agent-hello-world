@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from databricks_mcp_agent_hello_world.cli import print_preflight_summary
-from databricks_mcp_agent_hello_world.models import PreflightReport
-from databricks_mcp_agent_hello_world.preflight import run_preflight
+from databricks_tool_agent_template.cli import print_preflight_summary
+from databricks_tool_agent_template.models import PreflightReport
+from databricks_tool_agent_template.preflight import run_preflight
 from tests.conftest import write_workspace_config
 
 
@@ -17,7 +17,7 @@ def test_preflight_returns_expected_checks_for_local_mode(
     config_path = write_workspace_config(tmp_path, agent_events_table=None)
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        "databricks_tool_agent_template.preflight.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
 
@@ -62,7 +62,7 @@ def test_preflight_reports_local_event_store_targets(tmp_path: Path, monkeypatch
     config_path = write_workspace_config(tmp_path, agent_events_table=None)
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        "databricks_tool_agent_template.preflight.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
 
@@ -92,7 +92,7 @@ def test_preflight_fails_for_stale_keys(tmp_path: Path, monkeypatch) -> None:
     config_path = write_workspace_config(tmp_path, extra_lines=["unknown_section: true"])
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        "databricks_tool_agent_template.preflight.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
 
@@ -129,7 +129,7 @@ def test_preflight_uses_local_mode_when_agent_events_table_is_missing(
     )
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        "databricks_tool_agent_template.preflight.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
 
@@ -154,15 +154,15 @@ def test_preflight_reports_uninitialized_remote_storage_with_next_step(
     config_path = write_workspace_config(tmp_path)
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        "databricks_tool_agent_template.preflight.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.require_spark_session",
+        "databricks_tool_agent_template.preflight.require_spark_session",
         lambda: SimpleNamespace(),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.storage_table_exists",
+        "databricks_tool_agent_template.preflight.storage_table_exists",
         lambda spark, table_name: False,
     )
 
@@ -186,11 +186,11 @@ def test_preflight_fails_when_table_configured_but_no_active_spark(
     )
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.get_workspace_client",
+        "databricks_tool_agent_template.preflight.get_workspace_client",
         lambda settings: SimpleNamespace(config=SimpleNamespace(host="https://example.com")),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.preflight.require_spark_session",
+        "databricks_tool_agent_template.preflight.require_spark_session",
         lambda: (_ for _ in ()).throw(RuntimeError("no active Spark session")),
     )
 

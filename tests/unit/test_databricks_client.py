@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-from databricks_mcp_agent_hello_world.clients import databricks as db_clients
+from databricks_tool_agent_template.clients import databricks as db_clients
 from tests.helpers import make_settings
 
 FORBIDDEN_CLIENT_IMPORTS = {
@@ -74,12 +74,12 @@ def test_databricks_client_factories_build_sdk_clients_with_shared_workspace_cli
 def test_databricks_sdk_clients_are_constructed_only_in_shared_client_module(
     repo_root: Path,
 ) -> None:
-    allowed = repo_root / "src" / "databricks_mcp_agent_hello_world" / "clients" / "databricks.py"
+    allowed = repo_root / "src" / "databricks_tool_agent_template" / "clients" / "databricks.py"
     offenders: list[str] = []
 
     # This is a narrow architecture-boundary test: Databricks SDK client
     # construction stays centralized so auth/config behavior has one owner.
-    for path in (repo_root / "src" / "databricks_mcp_agent_hello_world").rglob("*.py"):
+    for path in (repo_root / "src" / "databricks_tool_agent_template").rglob("*.py"):
         if path == allowed:
             continue
 

@@ -6,12 +6,12 @@ from typing import Literal
 
 import pytest
 
-from databricks_mcp_agent_hello_world.commands import (
+from databricks_tool_agent_template.commands import (
     CommandResult,
     run_agent_task_command,
     run_evals_command,
 )
-from databricks_mcp_agent_hello_world.models import AgentRunRecord, EvalRunReport
+from databricks_tool_agent_template.models import AgentRunRecord, EvalRunReport
 
 
 def _record(status: Literal["success", "max_steps_exceeded"]) -> AgentRunRecord:
@@ -36,11 +36,11 @@ def test_run_agent_task_command_maps_run_status_to_exit_code(
     expected_exit_code: int,
 ) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.commands.load_settings",
+        "databricks_tool_agent_template.commands.load_settings",
         lambda config_path: SimpleNamespace(log_level="INFO"),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.commands.configure_logging",
+        "databricks_tool_agent_template.commands.configure_logging",
         lambda level=None: None,
     )
 
@@ -52,7 +52,7 @@ def test_run_agent_task_command_maps_run_status_to_exit_code(
             assert request.task_name == demo_task_input["task_name"]
             return _record(status)
 
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.commands.AgentRunner", StubRunner)
+    monkeypatch.setattr("databricks_tool_agent_template.commands.AgentRunner", StubRunner)
 
     result = run_agent_task_command(
         "workspace-config.yml",
@@ -74,11 +74,11 @@ def test_run_agent_task_command_requires_exactly_one_task_input_source() -> None
 
 def test_run_agent_task_command_requires_current_task_fields(monkeypatch) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.commands.load_settings",
+        "databricks_tool_agent_template.commands.load_settings",
         lambda config_path: SimpleNamespace(log_level="INFO"),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.commands.configure_logging",
+        "databricks_tool_agent_template.commands.configure_logging",
         lambda level=None: None,
     )
 
@@ -93,15 +93,15 @@ def test_run_evals_command_returns_nonzero_when_report_fails(monkeypatch) -> Non
     configured_levels: list[str | None] = []
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.commands.load_settings",
+        "databricks_tool_agent_template.commands.load_settings",
         lambda config_path: SimpleNamespace(log_level="DEBUG"),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.commands.configure_logging",
+        "databricks_tool_agent_template.commands.configure_logging",
         configured_levels.append,
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.commands.run_evals",
+        "databricks_tool_agent_template.commands.run_evals",
         lambda settings, scenario_file: EvalRunReport(
             scenario_file=scenario_file,
             total_scenarios=1,

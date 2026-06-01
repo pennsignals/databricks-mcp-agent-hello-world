@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from databricks_mcp_agent_hello_world.app.registry import (
+from databricks_tool_agent_template.app.registry import (
     LOCAL_TOOL_DEFINITIONS,
     build_app_local_tool_registry,
 )
-from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool
+from databricks_tool_agent_template.tools.runtime import RuntimeTool
 
 
 def test_authored_app_registry_exposes_expected_inventory() -> None:

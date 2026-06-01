@@ -1,4 +1,4 @@
-from databricks_mcp_agent_hello_world.app.data import DEMO_CUSTOMERS
+from databricks_tool_agent_template.app.data import DEMO_CUSTOMERS
 
 
 def test_app_data_matches_current_example_contract() -> None:

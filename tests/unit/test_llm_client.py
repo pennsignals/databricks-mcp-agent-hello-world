@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from databricks_mcp_agent_hello_world import llm_client
+from databricks_tool_agent_template import llm_client
 from tests.helpers import make_settings
 
 
@@ -43,7 +43,7 @@ def test_databricks_llm_normalizes_content_only_response(monkeypatch) -> None:
 
     fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeChatCompletions()))
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.clients.databricks.get_openai_client",
+        "databricks_tool_agent_template.clients.databricks.get_openai_client",
         lambda settings: fake_client,
     )
     llm = llm_client.DatabricksLLM(make_settings(llm_endpoint_name="endpoint-a"))
@@ -74,7 +74,7 @@ def test_databricks_llm_normalizes_one_tool_call(monkeypatch) -> None:
 
     fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeChatCompletions()))
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.clients.databricks.get_openai_client",
+        "databricks_tool_agent_template.clients.databricks.get_openai_client",
         lambda settings: fake_client,
     )
     llm = llm_client.DatabricksLLM(make_settings(llm_endpoint_name="endpoint-a"))
@@ -101,7 +101,7 @@ def test_databricks_llm_normalizes_absent_tool_calls(monkeypatch) -> None:
 
     fake_client = SimpleNamespace(chat=SimpleNamespace(completions=FakeChatCompletions()))
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.clients.databricks.get_openai_client",
+        "databricks_tool_agent_template.clients.databricks.get_openai_client",
         lambda settings: fake_client,
     )
     llm = llm_client.DatabricksLLM(make_settings(llm_endpoint_name="endpoint-a"))

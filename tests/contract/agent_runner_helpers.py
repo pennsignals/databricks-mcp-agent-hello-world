@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from databricks_mcp_agent_hello_world.llm_client import LLMToolCall, LLMTurnResult
-from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
-from databricks_mcp_agent_hello_world.tools.runtime import RuntimeTool, ToolSource
+from databricks_tool_agent_template.llm_client import LLMToolCall, LLMTurnResult
+from databricks_tool_agent_template.runner.agent_runner import AgentRunner
+from databricks_tool_agent_template.tools.runtime import RuntimeTool, ToolSource
 
 
 class StubProvider:
@@ -106,7 +106,7 @@ def capture_event_rows(agent_runner: AgentRunner, monkeypatch) -> None:
         agent_runner.persisted_event_rows.extend(dict(row) for row in rows)
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.runner.agent_runner.write_event_rows",
+        "databricks_tool_agent_template.runner.agent_runner.write_event_rows",
         _stub_write_event_rows,
     )
 

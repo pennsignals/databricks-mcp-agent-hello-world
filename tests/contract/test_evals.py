@@ -6,13 +6,13 @@ from typing import ClassVar, Literal
 
 import pytest
 
-from databricks_mcp_agent_hello_world.app.data import DEMO_CUSTOMERS
-from databricks_mcp_agent_hello_world.evals.harness import (
+from databricks_tool_agent_template.app.data import DEMO_CUSTOMERS
+from databricks_tool_agent_template.evals.harness import (
     EvalSetupError,
     load_eval_scenarios,
     run_evals,
 )
-from databricks_mcp_agent_hello_world.models import AgentRunRecord, EvalRunReport
+from databricks_tool_agent_template.models import AgentRunRecord, EvalRunReport
 from tests.helpers import make_settings
 
 
@@ -84,7 +84,7 @@ def _run_report(
 ) -> EvalRunReport:
     StubRunner.instances.clear()
     StubRunner.queued_outcomes = list(outcomes)
-    monkeypatch.setattr("databricks_mcp_agent_hello_world.evals.harness.AgentRunner", StubRunner)
+    monkeypatch.setattr("databricks_tool_agent_template.evals.harness.AgentRunner", StubRunner)
     if demo_task_input is not None:
         examples_dir = tmp_path.parent / "examples"
         examples_dir.mkdir(parents=True, exist_ok=True)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import databricks_mcp_agent_hello_world as package_root
-import databricks_mcp_agent_hello_world.tools as tools_package
+import databricks_tool_agent_template as package_root
+import databricks_tool_agent_template.tools as tools_package
 
 
 def test_package_all_exports_runtime_entrypoints() -> None:

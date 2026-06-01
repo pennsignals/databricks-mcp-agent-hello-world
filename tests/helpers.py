@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from databricks_mcp_agent_hello_world.config import (
+from databricks_tool_agent_template.config import (
     MCPServerConfig,
     PromptConfig,
     Settings,

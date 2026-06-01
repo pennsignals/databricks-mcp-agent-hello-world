@@ -5,14 +5,14 @@ from types import SimpleNamespace
 
 import pytest
 
-import databricks_mcp_agent_hello_world as package_root
-from databricks_mcp_agent_hello_world import cli
-from databricks_mcp_agent_hello_world.commands import CommandResult
+import databricks_tool_agent_template as package_root
+from databricks_tool_agent_template import cli
+from databricks_tool_agent_template.commands import CommandResult
 
 
 def test_run_agent_task_delegates_and_returns_on_success(monkeypatch) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_agent_task_main",
+        "databricks_tool_agent_template.cli.run_agent_task_main",
         lambda: 0,
     )
 
@@ -21,7 +21,7 @@ def test_run_agent_task_delegates_and_returns_on_success(monkeypatch) -> None:
 
 def test_run_agent_task_raises_on_failure(monkeypatch) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_agent_task_main",
+        "databricks_tool_agent_template.cli.run_agent_task_main",
         lambda: 7,
     )
 
@@ -33,7 +33,7 @@ def test_run_agent_task_raises_on_failure(monkeypatch) -> None:
 
 def test_discover_tools_delegates_and_returns_on_success(monkeypatch) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.discover_tools_main",
+        "databricks_tool_agent_template.cli.discover_tools_main",
         lambda: 0,
     )
 
@@ -42,7 +42,7 @@ def test_discover_tools_delegates_and_returns_on_success(monkeypatch) -> None:
 
 def test_discover_tools_raises_on_failure(monkeypatch) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.discover_tools_main",
+        "databricks_tool_agent_template.cli.discover_tools_main",
         lambda: 5,
     )
 
@@ -54,7 +54,7 @@ def test_discover_tools_raises_on_failure(monkeypatch) -> None:
 
 def test_run_init_storage_delegates_and_returns_on_success(monkeypatch) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_init_storage_main",
+        "databricks_tool_agent_template.cli.run_init_storage_main",
         lambda: 0,
     )
 
@@ -63,7 +63,7 @@ def test_run_init_storage_delegates_and_returns_on_success(monkeypatch) -> None:
 
 def test_run_init_storage_raises_on_failure(monkeypatch) -> None:
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_init_storage_main",
+        "databricks_tool_agent_template.cli.run_init_storage_main",
         lambda: 3,
     )
 
@@ -103,14 +103,14 @@ def test_run_agent_task_wrapper_uses_real_main_and_reaches_command_layer(
         return CommandResult(exit_code=0, payload=payload)
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_agent_task_command",
+        "databricks_tool_agent_template.cli.run_agent_task_command",
         _run_agent_task_command,
     )
     monkeypatch.setattr(
         sys,
         "argv",
         [
-            "databricks_mcp_agent_hello_world.run_agent_task",
+            "databricks_tool_agent_template.run_agent_task",
             "--config-path",
             "custom.yml",
             "--task-input-json",
@@ -137,7 +137,7 @@ def test_discover_tools_wrapper_uses_real_main_and_reaches_command_layer(
     payload = SimpleNamespace(enabled_tool_sources=[], tool_count=0, tools=[])
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_discover_tools_command",
+        "databricks_tool_agent_template.cli.run_discover_tools_command",
         lambda config_path: (
             calls.append(config_path) or CommandResult(exit_code=0, payload=payload)
         ),
@@ -146,7 +146,7 @@ def test_discover_tools_wrapper_uses_real_main_and_reaches_command_layer(
         sys,
         "argv",
         [
-            "databricks_mcp_agent_hello_world.discover_tools",
+            "databricks_tool_agent_template.discover_tools",
             "--config-path",
             "custom.yml",
         ],
@@ -165,7 +165,7 @@ def test_run_init_storage_wrapper_uses_real_main_and_renders_messages(
     payload = SimpleNamespace(messages=["created"])
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.cli.run_init_storage_command",
+        "databricks_tool_agent_template.cli.run_init_storage_command",
         lambda config_path: (
             calls.append(config_path) or CommandResult(exit_code=0, payload=payload)
         ),
@@ -174,7 +174,7 @@ def test_run_init_storage_wrapper_uses_real_main_and_renders_messages(
         sys,
         "argv",
         [
-            "databricks_mcp_agent_hello_world.run_init_storage",
+            "databricks_tool_agent_template.run_init_storage",
             "--config-path",
             "custom.yml",
         ],

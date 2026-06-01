@@ -16,7 +16,7 @@ def _ensure_repo_src_on_sys_path() -> None:
 def _load_build_helpers():
     _ensure_repo_src_on_sys_path()
 
-    from databricks_mcp_agent_hello_world.devtools.wheel_build import build_wheel
+    from databricks_tool_agent_template.devtools.wheel_build import build_wheel
 
     return build_wheel
 

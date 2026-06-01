@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from databricks_mcp_agent_hello_world.models import AgentTaskRequest
-from databricks_mcp_agent_hello_world.runner.agent_runner import AgentRunner
+from databricks_tool_agent_template.models import AgentTaskRequest
+from databricks_tool_agent_template.runner.agent_runner import AgentRunner
 from tests.contract.agent_runner_helpers import (
     StubLLM,
     capture_event_rows,
@@ -55,7 +55,7 @@ def test_agent_runner_preserves_original_error_when_run_failed_persistence_fails
         runner.persisted_event_rows.extend(dict(row) for row in rows)
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.runner.agent_runner.write_event_rows",
+        "databricks_tool_agent_template.runner.agent_runner.write_event_rows",
         _raise_on_run_failed,
     )
 
@@ -76,7 +76,7 @@ def test_agent_runner_surfaces_normal_event_persistence_errors(
     runner = make_runner(tmp_path, StubLLM([llm_response(content="done")]))
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.runner.agent_runner.write_event_rows",
+        "databricks_tool_agent_template.runner.agent_runner.write_event_rows",
         lambda settings, rows: (_ for _ in ()).throw(RuntimeError("persistence boom")),
     )
 
@@ -95,13 +95,13 @@ def test_agent_runner_init_builds_provider_and_llm(monkeypatch) -> None:
     settings = object()
 
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.runner.agent_runner.get_tool_provider",
+        "databricks_tool_agent_template.runner.agent_runner.get_tool_provider",
         lambda actual_settings: (
             created.setdefault("provider_settings", actual_settings) or "provider"
         ),
     )
     monkeypatch.setattr(
-        "databricks_mcp_agent_hello_world.runner.agent_runner.DatabricksLLM",
+        "databricks_tool_agent_template.runner.agent_runner.DatabricksLLM",
         lambda actual_settings: created.setdefault("llm_settings", actual_settings) or "llm",
     )
 

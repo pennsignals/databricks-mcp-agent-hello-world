@@ -1,5 +1,5 @@
 [project]
-name = "databricks-mcp-agent-hello-world"
+name = "databricks-tool-agent-template"
 dynamic = ["version"]
 description = "Databricks-only, non-interactive LLM agent template with local Python and optional Databricks MCP tools."
 readme = "README.md"
@@ -26,10 +26,10 @@ dev = [
 ]
 
 [project.scripts]
-preflight = "databricks_mcp_agent_hello_world.cli:preflight_entrypoint"
-discover-tools = "databricks_mcp_agent_hello_world.cli:discover_tools_entrypoint"
-run-agent-task = "databricks_mcp_agent_hello_world.cli:run_agent_task_entrypoint"
-run-evals = "databricks_mcp_agent_hello_world.cli:run_evals_entrypoint"
+preflight = "databricks_tool_agent_template.cli:preflight_entrypoint"
+discover-tools = "databricks_tool_agent_template.cli:discover_tools_entrypoint"
+run-agent-task = "databricks_tool_agent_template.cli:run_agent_task_entrypoint"
+run-evals = "databricks_tool_agent_template.cli:run_evals_entrypoint"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -43,7 +43,7 @@ fallback-version = "0.1.0.dev0"
 local_scheme = "node-and-date"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/databricks_mcp_agent_hello_world"]
+packages = ["src/databricks_tool_agent_template"]
 
 [tool.ruff]
 line-length = 100
@@ -57,7 +57,7 @@ plugins.line-length.enabled = false
 
 [tool.pytest.ini_options]
 addopts = """
---cov=databricks_mcp_agent_hello_world
+--cov=databricks_tool_agent_template
 --cov-report=term-missing:skip-covered
 --cov-report=html
 --cov-context=test
@@ -72,7 +72,7 @@ markers = [
 
 [tool.coverage.run]
 branch = true
-source = ["src/databricks_mcp_agent_hello_world"]
+source = ["src/databricks_tool_agent_template"]
 relative_files = true
 
 [tool.coverage.html]
@@ -90,6 +90,6 @@ exclude_lines = [
 
 [tool.coverage.paths]
 source = [
-  "src/databricks_mcp_agent_hello_world",
-  "*/site-packages/databricks_mcp_agent_hello_world",
+  "src/databricks_tool_agent_template",
+  "*/site-packages/databricks_tool_agent_template",
 ]
