@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from ..config import Settings
@@ -31,8 +32,13 @@ class _RunState:
     messages: list[dict[str, Any]]
     openai_tools: list[dict[str, Any]]
     tool_call_trace: list[dict[str, Any]]
+    started_at: datetime
     llm_turn_count: int = 0
     event_index: int = 0
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 class AgentRunner:
@@ -42,12 +48,14 @@ class AgentRunner:
         self.llm = DatabricksLLM(settings)
 
     def run(self, task: AgentTaskRequest) -> AgentRunRecord:
+        started_at = _utc_now()
         discovered_tools = self.provider.list_tools()
         discovered_inventory_hash = inventory_hash(discovered_tools)
         return self._run_generic(
             task=task,
             discovered_tools=discovered_tools,
             inventory_hash=discovered_inventory_hash,
+            started_at=started_at,
         )
 
     def _run_generic(
@@ -56,11 +64,13 @@ class AgentRunner:
         task: AgentTaskRequest,
         discovered_tools: list[RuntimeTool],
         inventory_hash: str | None,
+        started_at: datetime,
     ) -> AgentRunRecord:
         state = self._initialize_run_state(
             task=task,
             discovered_tools=discovered_tools,
             inventory_hash=inventory_hash,
+            started_at=started_at,
         )
 
         self._emit_run_started(state)
@@ -77,6 +87,7 @@ class AgentRunner:
         task: AgentTaskRequest,
         discovered_tools: list[RuntimeTool],
         inventory_hash: str | None,
+        started_at: datetime,
     ) -> _RunState:
         return _RunState(
             task=task,
@@ -86,6 +97,7 @@ class AgentRunner:
             messages=self._build_initial_messages(task),
             openai_tools=self._build_openai_tools(discovered_tools),
             tool_call_trace=[],
+            started_at=started_at,
         )
 
     def _build_initial_messages(self, task: AgentTaskRequest) -> list[dict[str, Any]]:
@@ -183,7 +195,12 @@ class AgentRunner:
 
             if not turn.tool_calls:
                 final_response = turn.content or ""
-                record = self._build_success_record(state, final_response=final_response)
+                completed_at = _utc_now()
+                record = self._build_success_record(
+                    state,
+                    final_response=final_response,
+                    completed_at=completed_at,
+                )
                 self._emit_run_completed(
                     state,
                     record=record,
@@ -197,7 +214,8 @@ class AgentRunner:
                 tool_calls=turn.tool_calls,
             )
 
-        record = self._build_max_steps_record(state)
+        completed_at = _utc_now()
+        record = self._build_max_steps_record(state, completed_at=completed_at)
         self._emit_run_max_steps_exceeded(state, record=record)
         return record
 
@@ -383,7 +401,7 @@ class AgentRunner:
         return {
             "role": "tool",
             "tool_call_id": call.id,
-            "content": json.dumps(tool_result.model_dump(), ensure_ascii=False),
+            "content": json.dumps(tool_result.model_dump(mode="json"), ensure_ascii=False),
         }
 
     def _build_success_record(
@@ -391,6 +409,7 @@ class AgentRunner:
         state: _RunState,
         *,
         final_response: str,
+        completed_at: datetime,
     ) -> AgentRunRecord:
         return AgentRunRecord(
             run_id=state.task.run_id,
@@ -400,6 +419,8 @@ class AgentRunner:
             llm_turn_count=state.llm_turn_count,
             result={"final_response": final_response},
             inventory_hash=state.inventory_hash,
+            started_at=state.started_at,
+            completed_at=completed_at,
         )
 
     def _emit_run_completed(
@@ -419,7 +440,12 @@ class AgentRunner:
             payload=record.result,
         )
 
-    def _build_max_steps_record(self, state: _RunState) -> AgentRunRecord:
+    def _build_max_steps_record(
+        self,
+        state: _RunState,
+        *,
+        completed_at: datetime,
+    ) -> AgentRunRecord:
         return AgentRunRecord(
             run_id=state.task.run_id,
             task_name=state.task.task_name,
@@ -429,6 +455,8 @@ class AgentRunner:
             result={"reason": "max_steps_exceeded"},
             error_message="Maximum agent steps exceeded.",
             inventory_hash=state.inventory_hash,
+            started_at=state.started_at,
+            completed_at=completed_at,
         )
 
     def _emit_run_max_steps_exceeded(

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import sys
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -11,6 +13,7 @@ from databricks_tool_agent_template.cli import (
     discover_tools_main,
     main,
     preflight_entrypoint,
+    print_json_report,
     print_run_summary,
     run_agent_task_main,
     run_init_storage_main,
@@ -19,6 +22,7 @@ from databricks_tool_agent_template.cli import (
 from databricks_tool_agent_template.commands import CommandResult
 from databricks_tool_agent_template.evals.harness import EvalSetupError
 from databricks_tool_agent_template.models import (
+    AgentRunRecord,
     DiscoveryReport,
     EvalRunReport,
     EvalScenarioResult,
@@ -250,6 +254,24 @@ def test_print_run_summary_prints_status_and_final_answer(capsys) -> None:
     assert "Tools called: 1" in output
     assert "Final answer:" in output
     assert "All set" in output
+
+
+def test_print_json_report_serializes_agent_run_record_datetimes(capsys) -> None:
+    record = AgentRunRecord(
+        run_id="run-123",
+        task_name="customer_account_brief",
+        status="success",
+        result={"final_response": "done"},
+        started_at=datetime(2026, 1, 1, 12, 0, tzinfo=UTC),
+        completed_at=datetime(2026, 1, 1, 12, 1, tzinfo=UTC),
+    )
+
+    print_json_report(record)
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["started_at"] == "2026-01-01T12:00:00Z"
+    assert payload["completed_at"] == "2026-01-01T12:01:00Z"
+    assert "created_at" not in payload
 
 
 def test_run_named_command_renders_eval_failure_summary(monkeypatch, capsys) -> None:

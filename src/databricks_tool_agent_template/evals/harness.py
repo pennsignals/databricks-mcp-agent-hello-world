@@ -198,4 +198,4 @@ def _ordered_unique_tools(
 def _write_latest_eval_report(settings: Settings, report: EvalRunReport) -> None:
     report_path = Path(settings.storage.local_data_dir) / "evals" / "latest_eval_report.json"
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(json.dumps(report.model_dump(), indent=2), encoding="utf-8")
+    report_path.write_text(json.dumps(report.model_dump(mode="json"), indent=2), encoding="utf-8")

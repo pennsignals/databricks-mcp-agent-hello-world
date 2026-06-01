@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from pydantic import ValidationError
 
@@ -42,6 +44,8 @@ def test_agent_run_record_matches_current_runtime_shape() -> None:
         result={
             "final_response": "done",
         },
+        started_at=datetime(2026, 1, 1, 12, 0, tzinfo=UTC),
+        completed_at=datetime(2026, 1, 1, 12, 1, tzinfo=UTC),
     )
 
     assert set(record.model_dump()) == {
@@ -54,8 +58,24 @@ def test_agent_run_record_matches_current_runtime_shape() -> None:
         "error_message",
         "inventory_hash",
         "started_at",
-        "created_at",
+        "completed_at",
     }
+    assert "created_at" not in AgentRunRecord.model_fields
+    assert "started_at" in AgentRunRecord.model_fields
+    assert "completed_at" in AgentRunRecord.model_fields
+
+
+def test_agent_run_record_requires_explicit_timestamps() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        AgentRunRecord(
+            run_id="run-1",
+            task_name="customer_account_brief",
+            status="success",
+        )
+    missing_fields = {tuple(error["loc"]) for error in exc_info.value.errors()}
+
+    assert ("started_at",) in missing_fields
+    assert ("completed_at",) in missing_fields
 
 
 def test_eval_scenario_rejects_invalid_task_input_sources() -> None:
@@ -69,4 +89,6 @@ def test_agent_run_record_rejects_error_status() -> None:
             run_id="run-1",
             task_name="customer_account_brief",
             status="error",
+            started_at=datetime(2026, 1, 1, 12, 0, tzinfo=UTC),
+            completed_at=datetime(2026, 1, 1, 12, 1, tzinfo=UTC),
         )

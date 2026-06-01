@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -44,8 +44,8 @@ class AgentRunRecord(BaseModel):
     result: dict[str, Any] = Field(default_factory=dict)
     error_message: str | None = None
     inventory_hash: str | None = None
-    started_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
-    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    started_at: datetime
+    completed_at: datetime
 
 
 class DiscoveryReport(BaseModel):

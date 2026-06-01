@@ -74,6 +74,8 @@ The template never silently falls back from table persistence to local persisten
 
 Observability events persist normalized LLM turn payloads, not raw SDK responses. Normalized LLM response events contain only assistant `content` and normalized `tool_calls`.
 
+Run summaries include `started_at` and `completed_at`. Individual event records continue to include `created_at` for the time each event was emitted.
+
 ## Runtime And Eval Contracts
 
 Normal agent run records have one of two statuses:

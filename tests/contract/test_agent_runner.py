@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 from databricks_tool_agent_template.llm_client import DEFAULT_TOOL_CHOICE
@@ -54,6 +55,7 @@ def test_customer_brief_uses_lookup_customer_tool_and_persists_success_contract(
 
     assert isinstance(record, AgentRunRecord)
     assert record.status == "success"
+    assert record.started_at <= record.completed_at
     assert record.result["final_response"] == "## Customer Brief\nAcme Co"
     assert "tool_calls" not in record.result
     assert "available_tools" not in record.result
@@ -83,6 +85,7 @@ def test_customer_brief_uses_lookup_customer_tool_and_persists_success_contract(
     assert {row["run_key"] for row in events} == {"run-123"}
     assert all("conversation_id" not in row for row in events)
     assert all("event_id" not in row for row in events)
+    assert all("created_at" in row for row in events)
     assert event_payload(events[0])["available_tools_count"] == len(tools)
     llm_request_event = next(row for row in events if row["event_type"] == "llm_request")
     assert event_payload(llm_request_event)["tool_choice"] == DEFAULT_TOOL_CHOICE
@@ -106,6 +109,43 @@ def test_customer_brief_uses_lookup_customer_tool_and_persists_success_contract(
     for payload in llm_response_payloads:
         assert not {"choices", "created", "model", "usage"} & set(payload)
     assert events[-1]["status"] == "success"
+
+
+def test_agent_runner_records_deterministic_run_timestamps(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    started_at = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+    completed_at = datetime(2026, 1, 1, 12, 1, tzinfo=UTC)
+    clock = _FakeClock([started_at, completed_at])
+    runner = make_runner(tmp_path, StubLLM([llm_response(content="done")]))
+    capture_event_rows(runner, monkeypatch)
+    monkeypatch.setattr(
+        "databricks_tool_agent_template.runner.agent_runner._utc_now",
+        clock.now,
+    )
+
+    record = runner.run(
+        AgentTaskRequest(
+            task_name="customer_account_brief",
+            instructions="Write the report.",
+            run_id="run-timestamps",
+        )
+    )
+
+    assert record.started_at == started_at
+    assert record.completed_at == completed_at
+
+
+class _FakeClock:
+    def __init__(self, values: list[datetime]) -> None:
+        self.values = values
+        self.call_count = 0
+
+    def now(self) -> datetime:
+        value = self.values[min(self.call_count, len(self.values) - 1)]
+        self.call_count += 1
+        return value
 
 
 def test_agent_runner_rejects_unknown_tool_calls_without_executing_provider(
