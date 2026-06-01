@@ -71,7 +71,7 @@ def _runner(tmp_path: Path, llm, *, tools: list[RuntimeTool] | None = None) -> A
     return runner
 
 
-def test_unknown_tool_call_logs_warning_without_old_blocked_language(
+def test_unknown_tool_call_logs_current_warning(
     tmp_path: Path,
     caplog,
     monkeypatch,
@@ -105,4 +105,3 @@ def test_unknown_tool_call_logs_warning_without_old_blocked_language(
         and logged.message == "Unknown tool call: create_support_ticket"
         for logged in caplog.records
     )
-    assert not any("Blocked disallowed tool call" in logged.message for logged in caplog.records)

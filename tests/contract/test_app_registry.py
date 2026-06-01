@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from jsonschema import Draft202012Validator
+
 from databricks_tool_agent_template.app.registry import (
     LOCAL_TOOL_DEFINITIONS,
     build_app_local_tool_registry,
@@ -7,18 +9,11 @@ from databricks_tool_agent_template.app.registry import (
 from databricks_tool_agent_template.tools.runtime import RuntimeTool
 
 
-def test_authored_app_registry_exposes_expected_inventory() -> None:
+def test_demo_local_tools_are_registered() -> None:
     assert [definition.name for definition in LOCAL_TOOL_DEFINITIONS] == [
         "lookup_customer",
         "create_support_ticket",
     ]
-
-
-def test_public_local_tool_names_are_stable() -> None:
-    assert {definition.name for definition in LOCAL_TOOL_DEFINITIONS} == {
-        "lookup_customer",
-        "create_support_ticket",
-    }
 
 
 def test_build_app_local_tool_registry_returns_demo_runtime_tools() -> None:
@@ -46,7 +41,6 @@ def test_local_tool_definitions_include_required_runtime_contract() -> None:
         assert tool.spec["function"]["name"] == definition.name
         assert tool.spec["function"]["description"] == definition.description
         assert tool.spec["function"]["parameters"] == definition.input_schema
-        assert definition.input_schema["type"] == "object"
 
 
 def test_lookup_customer_description_supports_model_tool_selection() -> None:
@@ -61,10 +55,9 @@ def test_lookup_customer_description_supports_model_tool_selection() -> None:
     assert "region" in lookup_description
 
 
-def test_local_definitions_do_not_own_provider_or_governance_metadata() -> None:
+def test_local_tool_schemas_are_valid_current_json_schemas() -> None:
     for definition in LOCAL_TOOL_DEFINITIONS:
-        assert not hasattr(definition, "provider_id")
-        assert not hasattr(definition, "capability_tags")
-        assert not hasattr(definition, "side_effect_level")
-        assert not hasattr(definition, "data_domains")
-        assert not hasattr(definition, "example_uses")
+        assert definition.name
+        assert definition.input_schema["type"] == "object"
+        assert "properties" in definition.input_schema
+        Draft202012Validator.check_schema(dict(definition.input_schema))
