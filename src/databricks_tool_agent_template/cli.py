@@ -27,7 +27,7 @@ COMMAND_NAMES = (
 
 
 def preflight_entrypoint() -> None:
-    raise SystemExit(run_named_command("preflight"))
+    raise SystemExit(preflight_main())
 
 
 def discover_tools_entrypoint() -> None:
@@ -40,6 +40,10 @@ def run_agent_task_entrypoint() -> None:
 
 def run_evals_entrypoint() -> None:
     raise SystemExit(run_named_command("run-evals"))
+
+
+def preflight_main(argv: Sequence[str] | None = None) -> int:
+    return run_named_command("preflight", _argv_list(argv), prog="preflight")
 
 
 def discover_tools_main(argv: Sequence[str] | None = None) -> int:

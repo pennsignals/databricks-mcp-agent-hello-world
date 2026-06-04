@@ -10,6 +10,39 @@ from databricks_tool_agent_template import cli
 from databricks_tool_agent_template.commands import CommandResult
 
 
+def test_package_root_preflight_does_not_raise_on_success(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "databricks_tool_agent_template.cli.preflight_main",
+        lambda: 0,
+    )
+
+    assert package_root.run_preflight() is None
+
+
+def test_package_root_preflight_raises_on_failure(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "databricks_tool_agent_template.cli.preflight_main",
+        lambda: 4,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        package_root.run_preflight()
+
+    assert excinfo.value.code == 4
+
+
+def test_console_preflight_entrypoint_exits(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "databricks_tool_agent_template.cli.preflight_main",
+        lambda: 0,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.preflight_entrypoint()
+
+    assert excinfo.value.code == 0
+
+
 def test_run_agent_task_delegates_and_returns_on_success(monkeypatch) -> None:
     monkeypatch.setattr(
         "databricks_tool_agent_template.cli.run_agent_task_main",
@@ -188,9 +221,11 @@ def test_run_init_storage_wrapper_uses_real_main_and_renders_messages(
 def test_cli_entrypoints_are_importable() -> None:
     for entrypoint in [
         cli.main,
+        cli.preflight_entrypoint,
         cli.discover_tools_entrypoint,
         cli.run_agent_task_entrypoint,
         cli.run_evals_entrypoint,
+        package_root.run_preflight,
         package_root.discover_tools,
         package_root.run_agent_task,
         package_root.run_init_storage,

@@ -10,6 +10,7 @@ def test_package_all_exports_runtime_entrypoints() -> None:
         "discover_tools",
         "run_agent_task",
         "run_init_storage",
+        "run_preflight",
     ]
 
 

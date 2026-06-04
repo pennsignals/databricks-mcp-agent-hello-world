@@ -27,6 +27,12 @@ def test_bundle_includes_current_job_resource_file() -> None:
     assert JOB_RESOURCE_PATH.exists()
 
 
+def test_bundle_sync_includes_workspace_config() -> None:
+    bundle = _load_yaml(Path("databricks.yml"))
+
+    assert "workspace-config.yml" in bundle["sync"]["include"]
+
+
 def test_bundle_uses_databricks_auth_configuration_for_workspace_hosts() -> None:
     bundle = _load_yaml(Path("databricks.yml"))
     targets = bundle["targets"]

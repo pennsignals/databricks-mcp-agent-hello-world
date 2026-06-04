@@ -43,24 +43,31 @@ def test_validate_package_name_accepts_snake_case(customize_template, package_na
     ],
 )
 def test_validate_package_name_rejects_invalid_names(customize_template, package_name: str) -> None:
-    with pytest.raises(ValueError, match="lowercase snake_case"):
+    with pytest.raises(ValueError, match="lowercase Python identifier"):
         customize_template.validate_package_name(package_name)
 
 
 def test_main_customizes_minimal_repo_and_preserves_self_tests(
-    customize_template, tmp_path: Path
+    customize_template, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     repo_root = _minimal_fake_repo(tmp_path)
 
-    result = customize_template.main(["customer_agent"], repo_root)
+    result = customize_template.main(["my_agent"], repo_root)
 
     assert result == 0
-    assert (repo_root / "src" / "customer_agent").exists()
+    assert (repo_root / "src" / "my_agent").exists()
     assert not (repo_root / "src" / "databricks_tool_agent_template").exists()
-    assert (repo_root / "pyproject.toml").read_text(encoding="utf-8") == (
-        'name = "customer-agent"\npackages = ["src/customer_agent"]\n'
+    pyproject_text = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'name = "my_agent"' in pyproject_text
+    assert 'packages = ["src/my_agent"]' in pyproject_text
+    assert 'bundle = "my_agent"' in pyproject_text
+    assert 'dependencies = ["../dist/my_agent-*.whl"]' in pyproject_text
+    assert "my-agent" not in pyproject_text
+    assert "my_agent" in (repo_root / "README.md").read_text(encoding="utf-8")
+    assert (
+        "repo/project/distribution/package/import/bundle/job prefix: my_agent"
+        in capsys.readouterr().out
     )
-    assert "customer_agent" in (repo_root / "README.md").read_text(encoding="utf-8")
     assert "databricks_tool_agent_template" in (
         repo_root / "scripts" / "customize_template.py"
     ).read_text(encoding="utf-8")
@@ -80,10 +87,11 @@ def test_main_preflight_prevents_partial_mutation_when_target_exists(
 
     assert exc_info.value.code == 2
     assert (repo_root / "src" / "databricks_tool_agent_template").exists()
-    assert (repo_root / "pyproject.toml").read_text(encoding="utf-8") == (
-        'name = "databricks-tool-agent-template"\n'
-        'packages = ["src/databricks_tool_agent_template"]\n'
-    )
+    pyproject_text = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'name = "databricks_tool_agent_template"' in pyproject_text
+    assert 'packages = ["src/databricks_tool_agent_template"]' in pyproject_text
+    assert 'bundle = "databricks_tool_agent_template"' in pyproject_text
+    assert 'dependencies = ["../dist/databricks_tool_agent_template-*.whl"]' in pyproject_text
     assert "databricks_tool_agent_template" in (repo_root / "README.md").read_text(encoding="utf-8")
 
 
@@ -141,7 +149,7 @@ def test_main_rejects_invalid_package_names_without_mutation(
 
     assert exc_info.value.code == 2
     captured = capsys.readouterr()
-    assert "lowercase snake_case" in captured.err
+    assert "lowercase Python identifier" in captured.err
     assert "Traceback" not in captured.err
     assert (repo_root / "src" / "databricks_tool_agent_template").exists()
     assert "databricks_tool_agent_template" in (repo_root / "pyproject.toml").read_text(
@@ -155,12 +163,14 @@ def _minimal_fake_repo(tmp_path: Path) -> Path:
     (package_dir / "__init__.py").write_text("", encoding="utf-8")
 
     (tmp_path / "pyproject.toml").write_text(
-        'name = "databricks-tool-agent-template"\n'
-        'packages = ["src/databricks_tool_agent_template"]\n',
+        'name = "databricks_tool_agent_template"\n'
+        'packages = ["src/databricks_tool_agent_template"]\n'
+        'bundle = "databricks_tool_agent_template"\n'
+        'dependencies = ["../dist/databricks_tool_agent_template-*.whl"]\n',
         encoding="utf-8",
     )
     (tmp_path / "README.md").write_text(
-        "Use databricks_tool_agent_template from databricks-tool-agent-template.\n",
+        "Use databricks_tool_agent_template from databricks_tool_agent_template.\n",
         encoding="utf-8",
     )
 

@@ -13,6 +13,7 @@ from databricks_tool_agent_template.cli import (
     discover_tools_main,
     main,
     preflight_entrypoint,
+    preflight_main,
     print_json_report,
     print_run_summary,
     run_agent_task_main,
@@ -81,12 +82,34 @@ def test_main_uses_sys_argv_when_argv_is_omitted(monkeypatch) -> None:
 
 
 def test_console_entrypoint_propagates_delegated_exit_code(monkeypatch) -> None:
-    monkeypatch.setattr(cli, "run_named_command", lambda command_name: 7)
+    monkeypatch.setattr(cli, "preflight_main", lambda: 7)
 
     with pytest.raises(SystemExit) as excinfo:
         preflight_entrypoint()
 
     assert excinfo.value.code == 7
+
+
+def test_preflight_main_parses_args_and_calls_command_layer(monkeypatch) -> None:
+    recorded: dict[str, object] = {}
+    payload = PreflightReport(overall_status="pass", checks=[], settings_summary={})
+
+    monkeypatch.setattr(
+        "databricks_tool_agent_template.cli.run_preflight_command",
+        lambda config_path: (
+            recorded.update({"config_path": config_path})
+            or CommandResult(exit_code=0, payload=payload)
+        ),
+    )
+    monkeypatch.setattr(
+        "databricks_tool_agent_template.cli.print_preflight_summary",
+        lambda report: recorded.update({"rendered": report}),
+    )
+
+    exit_code = preflight_main(["--config-path", "custom.yml"])
+
+    assert exit_code == 0
+    assert recorded == {"config_path": "custom.yml", "rendered": payload}
 
 
 def test_run_named_command_renders_text_summary_for_preflight(monkeypatch) -> None:

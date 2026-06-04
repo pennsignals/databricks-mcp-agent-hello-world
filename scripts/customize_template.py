@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 TEMPLATE_PACKAGE = "databricks_tool_agent_template"
-TEMPLATE_DISTRIBUTION = "databricks-tool-agent-template"
+TEMPLATE_DISTRIBUTION = "databricks_tool_agent_template"
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -53,8 +53,8 @@ def build_parser() -> argparse.ArgumentParser:
 def validate_package_name(package_name: str) -> None:
     if not PACKAGE_NAME_RE.fullmatch(package_name) or keyword.iskeyword(package_name):
         raise ValueError(
-            "Package name must be lowercase snake_case, start with a letter, "
-            "and not be a Python keyword."
+            "Name must be a lowercase Python identifier, start with a letter, "
+            "use underscores instead of dashes, and not be a Python keyword."
         )
 
 
@@ -112,7 +112,7 @@ def main(argv: list[str] | None = None, repo_root: Path = REPO_ROOT) -> int:
     except ValueError as error:
         parser.error(str(error))
 
-    distribution_name = package_name.replace("_", "-")
+    distribution_name = package_name
     try:
         validate_filesystem_preconditions(package_name, repo_root)
     except (FileExistsError, FileNotFoundError) as error:
@@ -122,6 +122,7 @@ def main(argv: list[str] | None = None, repo_root: Path = REPO_ROOT) -> int:
     replace_text_in_repo(TEMPLATE_DISTRIBUTION, distribution_name, repo_root)
     rename_package_dir(package_name, repo_root)
 
+    print(f"repo/project/distribution/package/import/bundle/job prefix: {package_name}")
     print(f"Customized template for package {package_name!r}.")
     print('Next: run `python -m pip install -e ".[dev]"` then `python -m pytest`.')
     return 0

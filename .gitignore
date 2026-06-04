@@ -9,6 +9,7 @@ __pycache__/
 *.pyc
 .local_state/
 .env
+workspace-config.yml
 dist/
 build/
 *.egg-info/

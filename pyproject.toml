@@ -1,5 +1,5 @@
 [project]
-name = "databricks-tool-agent-template"
+name = "databricks_tool_agent_template"
 dynamic = ["version"]
 description = "Databricks-only, non-interactive LLM agent template with local Python and optional Databricks MCP tools."
 readme = "README.md"

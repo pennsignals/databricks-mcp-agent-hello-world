@@ -19,7 +19,7 @@ def test_discover_built_wheel_rejects_missing_wheel(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="Did not find a built wheel"):
         discover_built_wheel(
             tmp_path,
-            project_name="databricks-tool-agent-template",
+            project_name="databricks_tool_agent_template",
         )
 
 
@@ -38,5 +38,5 @@ def test_discover_built_wheel_rejects_ambiguous_wheels(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="Expected exactly one built wheel"):
         discover_built_wheel(
             tmp_path,
-            project_name="databricks-tool-agent-template",
+            project_name="databricks_tool_agent_template",
         )

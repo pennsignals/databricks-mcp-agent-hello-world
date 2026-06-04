@@ -19,13 +19,13 @@ def test_read_project_name_from_pyproject() -> None:
 
 
 def test_distribution_name_for_wheel_normalizes_project_name() -> None:
-    assert distribution_name_for_wheel("databricks-tool-agent-template") == (
+    assert distribution_name_for_wheel("databricks_tool_agent_template") == (
         "databricks_tool_agent_template"
     )
 
 
 def test_bundle_wheel_glob_uses_canonical_dist_pattern() -> None:
-    assert bundle_wheel_glob("databricks-tool-agent-template") == (
+    assert bundle_wheel_glob("databricks_tool_agent_template") == (
         "../dist/databricks_tool_agent_template-*.whl"
     )
 

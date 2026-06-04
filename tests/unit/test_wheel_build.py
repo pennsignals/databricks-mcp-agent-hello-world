@@ -137,7 +137,7 @@ def test_discover_built_wheel_reads_project_name_from_pyproject(tmp_path: Path) 
         "\n".join(
             [
                 "[project]",
-                'name = "databricks-tool-agent-template"',
+                'name = "databricks_tool_agent_template"',
             ]
         ),
         encoding="utf-8",
@@ -163,7 +163,7 @@ def test_build_wheel_cleans_and_discovers_artifact(monkeypatch, tmp_path: Path) 
     )
     monkeypatch.setattr(
         "databricks_tool_agent_template.devtools.wheel_build.read_project_name",
-        lambda path: "databricks-tool-agent-template",
+        lambda path: "databricks_tool_agent_template",
     )
     monkeypatch.setattr(
         "databricks_tool_agent_template.devtools.wheel_build.discover_built_wheel",
@@ -204,7 +204,7 @@ def test_build_wheel_can_skip_clean_and_build_without_no_isolation(
     )
     monkeypatch.setattr(
         "databricks_tool_agent_template.devtools.wheel_build.read_project_name",
-        lambda path: "databricks-tool-agent-template",
+        lambda path: "databricks_tool_agent_template",
     )
     monkeypatch.setattr(
         "databricks_tool_agent_template.devtools.wheel_build.discover_built_wheel",

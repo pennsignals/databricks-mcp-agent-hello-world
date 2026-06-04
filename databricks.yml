@@ -5,10 +5,14 @@
 
 bundle:
   # TEMPLATE_CUSTOMIZE_HERE
-  name: databricks-tool-agent-template
+  name: databricks_tool_agent_template
 
 include:
   - resources/*.yml
+
+sync:
+  include:
+    - workspace-config.yml
 
 artifacts:
   python_artifact:
