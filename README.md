@@ -1,4 +1,4 @@
-# databricks-tool-agent-template
+# databricks_tool_agent_template
 
 A starter template for batch/non-interactive LLM agents that run as Databricks Jobs and call tools at runtime.
 
@@ -11,24 +11,44 @@ Use this repo when you want a small Databricks-only agent template with:
 
 For runtime design, see [Architecture](docs/ARCHITECTURE.md). For downstream edits, see [Convert the template into a real app](docs/CONVERT_TEMPLATE_TO_REAL_APP.md).
 
-## Customizing This Template
+## Fork and customize this template
 
-Immediately after forking, choose the final lowercase snake_case package name
-and run the one-time customization script before writing app code:
-
-```bash
-python scripts/customize_template.py my_agent_app
-```
-
-The script derives the distribution name automatically (`my_agent_app` becomes
-`my-agent-app`). Commit this rename as its own first commit.
-
-Then follow [Install/Setup](#installsetup). After installing dev dependencies,
-run:
+Immediately after forking, choose the final lowercase snake_case name and run
+the one-time customization flow before writing app code:
 
 ```bash
+git clone <template-or-fork-url> my_agent
+cd my_agent
+
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+
+python scripts/customize_template.py my_agent
+
+python -m pip install -e ".[dev]"
+python -c "import my_agent; print(my_agent.__name__)"
+
+cp workspace-config.example.yml workspace-config.yml
 python -m pytest
+python -m pre_commit run --all-files --show-diff-on-failure
 ```
+
+Create and activate `.venv` before running Python repo scripts. Reinstall after
+renaming so console scripts and package metadata point at the new package.
+
+Use underscores everywhere:
+
+```text
+repo:                 my_agent
+project/distribution: my_agent
+package/import:       my_agent
+bundle:               my_agent
+```
+
+Dash-style names are intentionally unsupported for this underscore-only template
+workflow.
 
 Minimal first edit path:
 
@@ -57,7 +77,7 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
-python3.12 -m pre_commit install
+python -m pre_commit install
 cp workspace-config.example.yml workspace-config.yml
 ```
 
@@ -79,6 +99,13 @@ databricks_config_profile: DEFAULT
 ```
 
 Do not commit real workspace hosts, endpoint names, table names, MCP URLs, or credentials in public repos.
+
+`workspace-config.yml` is intentionally gitignored. It is explicitly
+bundle-synced for local/manual deploys. CI/CD must render
+`workspace-config.yml` before `databricks bundle deploy`. Never commit
+`workspace-config.yml`. Do not put secrets in `workspace-config.yml`; use
+Databricks auth, Databricks secrets, or CI environment rendering for sensitive
+values.
 
 The agent can use tools from multiple enabled sources. Local Python tools are for app-specific logic. Databricks MCP tools are for governed/shared Databricks-hosted tools. Tool names must be unique across enabled sources.
 
@@ -110,7 +137,7 @@ preflight --config-path workspace-config.yml
 
 Preflight loads the same config path used by the runtime, checks strict config keys, constructs the shared Databricks client settings, verifies enabled tool sources can be created, confirms at least one tool is discoverable, and reports the configured storage mode.
 
-Preflight does not verify that the serving endpoint exists, check endpoint permissions, call the LLM endpoint, run an agent task, or prove a deployed Databricks job will succeed. For an end-to-end live check, run the demo task or sample evals.
+Preflight does not verify that the serving endpoint exists, check endpoint permissions, call the LLM endpoint, run an agent task, or prove a deployed Databricks job will succeed. For an end-to-end live check, run the demo task or sample evals. For deployed verification, run the Databricks smoke job after bundle deploy.
 
 ## Discover Tools
 
@@ -164,7 +191,7 @@ run-agent-task \
 Standard repo validation:
 
 ```bash
-python3.12 -m pre_commit run --all-files --show-diff-on-failure
+python -m pre_commit run --all-files --show-diff-on-failure
 ```
 
 The standard pre-commit validation flow also lints Markdown documentation.
@@ -251,9 +278,32 @@ After the local demo works, review or adjust the bundle name in
 [resources/jobs.yml](resources/jobs.yml) for your shared workspace, then
 validate and deploy with Databricks Asset Bundles.
 
+Use the same target for every bundle command:
+
+```bash
+databricks bundle validate --target dev
+databricks bundle deploy --target dev
+databricks bundle summary --target dev
+databricks bundle run --target dev run_agent_task_job
+```
+
+`bundle validate` is insufficient. A fork is not fully verified until the
+deployed Databricks workload completes successfully. Expected output includes
+the relevant success marker, such as `Preflight: pass` for preflight-style
+jobs, and the Databricks job run itself must complete successfully.
+
 For tag-driven GitHub Actions deployment, see [CD deployment](docs/CD_DEPLOYMENT.md).
 
 Keep deployment-specific workspace hosts, endpoints, table names, and secrets out of public committed config.
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `resource not found or not yet deployed` | Deployed one target, ran another | Run `databricks bundle deploy --target dev`, then `databricks bundle run --target dev ...` |
+| `Config file not found: .../workspace-config.yml` | File exists locally but was not bundle-synced | Keep it gitignored, keep `sync.include: ["workspace-config.yml"]`, redeploy |
+| `Preflight: pass` but workload failed with `SystemExit: 0` | Package-root wheel task called console entrypoint | Use non-exiting `*_main()` from package-root wrapper |
+| Permission recommendation about deployer identity | Databricks bundle hygiene warning | Add explicit permissions later; not a smoke-run blocker |
 
 ## Output Locations
 

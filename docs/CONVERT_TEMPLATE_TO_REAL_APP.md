@@ -3,9 +3,22 @@
 [Back to README](../README.md)
 [Architecture](./ARCHITECTURE.md)
 
-Use this checklist after forking. Before app edits or the normal quickstart,
-run `python scripts/customize_template.py my_agent_app` once, use lowercase
-snake_case, and commit the rename as its own first commit.
+Use this checklist after forking. Before app edits, create and activate the
+repo-local `.venv`, install dev dependencies, then run
+`python scripts/customize_template.py my_agent` once. Reinstall after renaming
+so console scripts and package metadata point at the new package.
+
+Use underscores everywhere:
+
+```text
+repo:                 my_agent
+project/distribution: my_agent
+package/import:       my_agent
+bundle:               my_agent
+```
+
+Dash-style project/distribution names are intentionally unsupported for this
+underscore-only template workflow.
 
 For local customization, edit app tools, registry, sample task, and evals.
 Before shared-workspace deployment, review or adjust the Databricks bundle/job
@@ -103,6 +116,13 @@ endpoint, auth profile, tool source settings, and storage route.
 Keep real workspace hosts, endpoint names, table names, MCP URLs, and
 credentials out of public committed config.
 
+`workspace-config.yml` is intentionally gitignored. It is explicitly
+bundle-synced for local/manual deploys through `databricks.yml`. CI/CD must
+render `workspace-config.yml` before `databricks bundle deploy`. Never commit
+`workspace-config.yml`. Do not put secrets in `workspace-config.yml`; use
+Databricks auth, Databricks secrets, or CI environment rendering for sensitive
+values.
+
 | Need | File | What to change |
 |---|---|---|
 | Serving endpoint | `workspace-config.yml` | `llm_endpoint_name` |
@@ -132,6 +152,20 @@ run-agent-task --config-path workspace-config.yml --task-input-file examples/dem
 python -m nox -s tests
 ```
 
+Then verify the deployed workload. Use the same target for validate, deploy,
+and run:
+
+```bash
+databricks bundle validate --target dev
+databricks bundle deploy --target dev
+databricks bundle run --target dev run_agent_task_job
+```
+
+A fork is not fully verified until the deployed Databricks smoke job passes.
+Expected output includes the relevant success marker, such as `Preflight: pass`
+for preflight-style jobs, and the Databricks workload itself must complete
+successfully.
+
 Before using real data, review persisted event payloads. They can include task
 inputs, prompt messages, tool arguments, tool results, model responses, errors,
 and final outputs.
@@ -144,6 +178,15 @@ descriptions.
 
 Framework tests should continue to pass without requiring changes to runner,
 provider, storage, client, or lower-level tool internals.
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `resource not found or not yet deployed` | Deployed one target, ran another | Run `databricks bundle deploy --target dev`, then `databricks bundle run --target dev ...` |
+| `Config file not found: .../workspace-config.yml` | File exists locally but was not bundle-synced | Keep it gitignored, keep `sync.include: ["workspace-config.yml"]`, redeploy |
+| `Preflight: pass` but workload failed with `SystemExit: 0` | Package-root wheel task called console entrypoint | Use non-exiting `*_main()` from package-root wrapper |
+| Permission recommendation about deployer identity | Databricks bundle hygiene warning | Add explicit permissions later; not a smoke-run blocker |
 
 ## 6. Files you usually should not edit
 

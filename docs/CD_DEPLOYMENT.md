@@ -8,6 +8,10 @@ This repo includes a small GitHub Actions workflow for tag-driven deployment to 
 
 `.github/workflows/cd-dev-on-tag.yml` runs CI, renders `workspace-config.yml` from protected GitHub environment values, validates and deploys the bundle to `dev`, initializes storage, and runs the demo job as a smoke check.
 
+`workspace-config.yml` remains gitignored. CI/CD must render it before
+`databricks bundle deploy` because the bundle explicitly syncs that file into
+the deployed workspace.
+
 It does not deploy a production target.
 
 ## When It Runs
@@ -58,6 +62,8 @@ databricks bundle run --target dev run_agent_task_job
 
 Databricks job output is intentionally suppressed in GitHub logs to reduce the chance of leaking task data.
 
+The smoke check is the deployed job run, not only `bundle validate`.
+
 ## When It Fails
 
 Check:
@@ -68,3 +74,5 @@ Check:
 - serving endpoint query permissions
 - Unity Catalog permissions for `DEV_AGENT_EVENTS_TABLE`
 - the Databricks job run output in the workspace
+- target mismatch: if bundle run says `resource not found or not yet deployed`,
+  verify that deploy and run used the same target

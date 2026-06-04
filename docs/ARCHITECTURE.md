@@ -100,7 +100,7 @@ Eval summary reports are written locally under `storage.local_data_dir`; agent e
 
 ## CLI/Wheel Entrypoint Flow
 
-Local console commands and Databricks wheel entrypoints delegate to the same command implementations.
+Local console commands and Databricks wheel entrypoints delegate to the same command implementations. Console entrypoints raise `SystemExit(code)`. Package-root Databricks wheel entrypoints call non-exiting `*_main()` functions and only raise `SystemExit(nonzero)` on failure.
 
 The main operator commands are:
 
