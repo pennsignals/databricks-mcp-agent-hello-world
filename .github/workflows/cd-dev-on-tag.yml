@@ -46,7 +46,7 @@ jobs:
           cache: pip
 
       - name: Set up Databricks CLI
-        uses: databricks/setup-cli@v1.1.0
+        uses: databricks/setup-cli@v1.2.1
 
       - name: Mask Databricks values
         shell: bash
