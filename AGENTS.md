@@ -14,6 +14,7 @@ This is the internal maintainer guide for the template. For setup and first run,
 - Keep the README flow canonical for operator onboarding.
 - Treat [examples/demo_run_task.json](examples/demo_run_task.json) as the canonical sample task reference.
 - Keep all Databricks SDK client construction in `src/databricks_tool_agent_template/clients/databricks.py`; other modules should depend on the shared factory helpers.
+- Do not add a `runtime` extra or split Databricks dependencies unless the project intentionally changes away from the simple Databricks-first install model. Keep imports from `databricks_openai` implementation modules rather than the package root.
 - Prefer the repo-local `.venv` for coding-agent local development when it already exists and has the needed tools installed.
 - Treat `python3.12 -m pre_commit run --all-files --show-diff-on-failure` as the standard validation command.
 - Treat `python3.12 -m pre_commit install` as the one-time workstation setup step for automatic git-hook enforcement.

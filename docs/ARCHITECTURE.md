@@ -37,6 +37,8 @@ The agent can use tools from multiple enabled sources.
 
 Local Python tools are for app-specific logic. Databricks MCP tools are for governed/shared Databricks-hosted tools. Tool names must be unique across enabled sources.
 
+MCP is optional at the tool-provider configuration layer. The template still depends on `databricks-openai` because the package is Databricks-first and uses Databricks-hosted LLM execution. Keeping one dependency profile avoids extra install modes and keeps the template easier to understand.
+
 The default local inventory includes `lookup_customer` plus the write-like `create_support_ticket` example on purpose. The read-only demo task should select `lookup_customer` and avoid `create_support_ticket`, demonstrating model-driven selection from the full inventory.
 
 Local tools are customized through `app/tools.py` and `app/registry.py`.

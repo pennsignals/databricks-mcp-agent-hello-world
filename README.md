@@ -81,6 +81,8 @@ python -m pre_commit install
 cp workspace-config.example.yml workspace-config.yml
 ```
 
+This template keeps Databricks runtime libraries as required dependencies to keep setup and deployment simple. Databricks MCP tools are optional by configuration, not by Python package extras. Projects that only use local Python tools can disable MCP in `workspace-config.yml`; they still install the same base package dependencies.
+
 Authenticate to Databricks with the CLI:
 
 ```bash
