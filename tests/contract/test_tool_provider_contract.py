@@ -24,6 +24,21 @@ def test_provider_factory_returns_local_provider_when_only_local_is_enabled() ->
     assert isinstance(provider, LocalPythonToolProvider)
 
 
+def test_provider_factory_does_not_construct_mcp_provider_when_mcp_is_disabled(
+    monkeypatch,
+) -> None:
+    def _unexpected_provider(settings) -> None:
+        raise AssertionError("DatabricksMCPToolProvider should not be constructed")
+
+    monkeypatch.setattr(factory, "DatabricksMCPToolProvider", _unexpected_provider)
+
+    provider = factory.get_tool_provider(
+        make_settings(tools={"databricks_mcp": {"enabled": False}})
+    )
+
+    assert isinstance(provider, LocalPythonToolProvider)
+
+
 def test_provider_factory_returns_mcp_provider_when_only_mcp_is_enabled(monkeypatch) -> None:
     class FakeDatabricksMCPToolProvider:
         provider_id = "fake"

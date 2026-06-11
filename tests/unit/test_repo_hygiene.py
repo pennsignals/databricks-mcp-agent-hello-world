@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -67,3 +68,30 @@ def test_github_actions_follow_repo_ref_policy(repo_root: Path) -> None:
             f"Unclassified GitHub Action {action}@{ref}. "
             "Classify it in test_repo_hygiene.py before using it."
         )
+
+
+def test_production_code_does_not_import_databricks_openai_package_root(repo_root: Path) -> None:
+    offenders: list[str] = []
+
+    for path in (repo_root / PACKAGE_ROOT).rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "databricks_openai":
+                        offenders.append(str(path.relative_to(repo_root)))
+
+            if isinstance(node, ast.ImportFrom) and node.module == "databricks_openai":
+                offenders.append(str(path.relative_to(repo_root)))
+
+    assert sorted(set(offenders)) == []
+
+
+def test_pyproject_keeps_simple_databricks_first_dependency_model(repo_root: Path) -> None:
+    pyproject_text = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert '  "databricks-sdk>=0.60.0",' in pyproject_text
+    assert '  "databricks-openai>=0.15.0",' in pyproject_text
+    assert "databricks-vectorsearch" not in pyproject_text
+    assert "[project.optional-dependencies]" in pyproject_text
+    assert "\nruntime =" not in pyproject_text

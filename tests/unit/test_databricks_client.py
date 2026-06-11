@@ -10,10 +10,10 @@ from tests.helpers import make_settings
 
 FORBIDDEN_CLIENT_IMPORTS = {
     ("databricks.sdk", "WorkspaceClient"),
-    ("databricks_openai", "OpenAI"),
-    ("databricks_openai", "DatabricksOpenAI"),
+    ("databricks_openai.utils.clients", "OpenAI"),
+    ("databricks_openai.utils.clients", "DatabricksOpenAI"),
 }
-FORBIDDEN_CLIENT_MODULE_IMPORTS = {"databricks.sdk", "databricks_openai"}
+FORBIDDEN_CLIENT_MODULE_IMPORTS = {"databricks.sdk", "databricks_openai.utils.clients"}
 
 
 def test_databricks_client_factories_build_sdk_clients_with_shared_workspace_client(
@@ -39,11 +39,15 @@ def test_databricks_client_factories_build_sdk_clients_with_shared_workspace_cli
 
     sdk_module = ModuleType("databricks.sdk")
     sdk_module.WorkspaceClient = FakeWorkspaceClient
-    openai_module = ModuleType("databricks_openai")
-    openai_module.DatabricksOpenAI = FakeDatabricksOpenAI
+    databricks_openai_pkg = ModuleType("databricks_openai")
+    utils_pkg = ModuleType("databricks_openai.utils")
+    clients_module = ModuleType("databricks_openai.utils.clients")
+    clients_module.DatabricksOpenAI = FakeDatabricksOpenAI
 
     monkeypatch.setitem(sys.modules, "databricks.sdk", sdk_module)
-    monkeypatch.setitem(sys.modules, "databricks_openai", openai_module)
+    monkeypatch.setitem(sys.modules, "databricks_openai", databricks_openai_pkg)
+    monkeypatch.setitem(sys.modules, "databricks_openai.utils", utils_pkg)
+    monkeypatch.setitem(sys.modules, "databricks_openai.utils.clients", clients_module)
 
     no_profile_or_host = make_settings(databricks_config_profile=None, workspace_host=None)
     profile_only = make_settings(databricks_config_profile="DEFAULT", workspace_host=None)

@@ -16,7 +16,7 @@ class DatabricksMCPToolProvider(ToolProvider):
             )
         self.settings = settings
         self.provider_id = server.name
-        from databricks_openai import McpServerToolkit
+        from databricks_openai.mcp_server_toolkit import McpServerToolkit
 
         self.toolkit = McpServerToolkit(
             url=server.url,

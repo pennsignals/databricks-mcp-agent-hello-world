@@ -34,9 +34,11 @@ def _install_fake_databricks_mcp_modules(monkeypatch):
                 )
             ]
 
-    openai_module = ModuleType("databricks_openai")
-    openai_module.McpServerToolkit = FakeMcpServerToolkit
-    monkeypatch.setitem(sys.modules, "databricks_openai", openai_module)
+    databricks_openai_pkg = ModuleType("databricks_openai")
+    mcp_module = ModuleType("databricks_openai.mcp_server_toolkit")
+    mcp_module.McpServerToolkit = FakeMcpServerToolkit
+    monkeypatch.setitem(sys.modules, "databricks_openai", databricks_openai_pkg)
+    monkeypatch.setitem(sys.modules, "databricks_openai.mcp_server_toolkit", mcp_module)
     return captured
 
 
