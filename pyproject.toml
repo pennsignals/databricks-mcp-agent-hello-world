@@ -5,12 +5,12 @@ description = "Databricks-only, non-interactive LLM agent template with local Py
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "databricks-sdk>=0.60.0",
-  "databricks-openai>=0.15.0",
-  "jsonschema>=4.0",
-  "pydantic>=2.8.2",
-  "pyarrow>=18.0.0",
-  "PyYAML>=6.0.2",
+  "databricks-sdk==0.116.0",
+  "databricks-openai==0.16.0",
+  "jsonschema==4.26.0",
+  "pydantic==2.13.4",
+  "pyarrow==24.0.0",
+  "PyYAML==6.0.3",
 ]
 
 [project.optional-dependencies]
